@@ -98,7 +98,7 @@ mkHoleFitPluginR
 mkHoleFitPluginR opts =
     Just $
         HoleFitPluginR
-            { hfPluginInit = newTcRef $ PluginState []
+            { hfPluginInit = hfPluginInitLLM
             , hfPluginStop = \_ -> return ()
             , hfPluginRun = \ref ->
                     HoleFitPlugin
@@ -106,6 +106,9 @@ mkHoleFitPluginR opts =
                         , fitPlugin = fitPluginLLM opts ref
                         }
             }
+
+hfPluginInitLLM :: TcM (TcRef PluginState)
+hfPluginInitLLM = newTcRef $ PluginState []
 
 pluginName :: Text
 pluginName = "Ollama Plugin"
