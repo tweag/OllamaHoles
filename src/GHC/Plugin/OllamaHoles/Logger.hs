@@ -13,6 +13,13 @@ import qualified Data.Text as T
 import           Data.Word (Word32)
 import           GHC.Generics (Generic)
 import           Numeric (showHex)
+import           System.Directory
+    ( XdgDirectory(XdgState)
+    , createDirectoryIfMissing
+    , doesFileExist
+    , getXdgDirectory
+    )
+import           System.FilePath ((</>))
 import           System.Random (randomIO)
 
 
@@ -44,14 +51,45 @@ writeLogEvent logger event = do
 
 data LogConfig = LogConfig
     { sessionId :: SessionId
+    , logPaths  :: LogPaths
     } deriving (Eq, Show, Generic)
 
 initLogConfig :: IO LogConfig
 initLogConfig = do
     sId <- genSessionId
+    paths <- mkDefaultLogPaths Nothing
     pure $ LogConfig
         { sessionId = sId
         }
+
+data LogPaths = LogPaths
+    { lpRootDir   :: FilePath -- e.g. ~/.local/state/ollama-holes
+    , lpEventsDir :: FilePath -- e.g. ~/.local/state/ollama-holes/events
+    , lpBlobDir   :: FilePath -- e.g. ~/.local/state/ollama-holes/blob
+    } deriving (Eq, Show, Generic)
+
+-- | Get the default location for storing logs
+mkDefaultLogPaths
+    :: Maybe FilePath -- Optional root directory
+    -> IO LogPaths
+mkDefaultLogPaths mRoot = do
+    root <- case mRoot of
+        Just fp -> pure fp
+        Nothing -> getXdgDirectory XdgState "ollama-holes"
+    let paths = LogPaths
+          { lpRootDir   = root
+          , lpEventsDir = root </> "events"
+          , lpBlobDir   = root </> "blob"
+          }
+    ensureLogDirs paths
+    pure paths
+
+-- | Create any log directories that don't exist.
+ensureLogDirs :: LogPaths -> IO ()
+ensureLogDirs paths = do
+    createDirectoryIfMissing True $ lpRootDir paths
+    createDirectoryIfMissing True $ lpEventsDir paths
+    createDirectoryIfMissing True $ lpBlobDir paths
 
 
 
