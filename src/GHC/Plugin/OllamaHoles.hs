@@ -53,6 +53,8 @@ import qualified GHC.Tc.Solver.Monad as GHC (zonkTcType, runTcSEarlyAbort)
 import Data.Aeson (Value)
 import qualified Data.Aeson as Aeson
 
+import qualified GHC.Plugin.OllamaHoles.Logger as Log
+
 -- | Prompt used to prompt the LLM
 promptTemplate :: Text
 promptTemplate =
@@ -84,7 +86,7 @@ getBackend Flags{..} = error $ "unknown backend: " <> T.unpack backend_name
 
 data PluginState = PluginState
   { candidates    :: [HoleFitCandidate]
-  , writeLogEvent :: LogEvent -> IO ()
+  , writeLogEvent :: Log.Logger
   }
 
 -- | Ollama plugin for GHC
@@ -110,9 +112,10 @@ mkHoleFitPluginR opts =
 
 hfPluginInitLLM :: TcM (TcRef PluginState)
 hfPluginInitLLM = do
+    logger <- liftIO Log.initLogger
     newTcRef $ PluginState
         { candidates    = []
-        , writeLogEvent = \_ -> putStrLn "XYZZY"
+        , writeLogEvent = logger
         }
 
 pluginName :: Text
@@ -125,7 +128,7 @@ fitPluginLLM
     -> [HoleFit]
     -> GHC.IOEnv (Env TcGblEnv TcLclEnv) [HoleFit]
 fitPluginLLM opts ref hole fits = do
-    PluginState cands logEvent <- readTcRef ref
+    PluginState cands logger <- readTcRef ref
     let flags@Flags{..} = parseFlags opts
     dflags <- getDynFlags
     gbl_env <- getGblEnv
@@ -135,7 +138,7 @@ fitPluginLLM opts ref hole fits = do
     available_models <- liftIO $ listModels backend
     liftIO $ when debug $ T.putStrLn $ "Running " <> pluginName <> " with flags:"
     liftIO $ when debug $ print flags
-    liftIO $ logEvent LogEvent
+    liftIO $ Log.writeLogEvent logger Log.mkLogEvent
 
     case available_models of
         Nothing ->
@@ -400,5 +403,3 @@ replacePlaceholders = foldl replacePlaceholder
   where
     replacePlaceholder :: Text -> (Text, String) -> Text
     replacePlaceholder str (placeholder, value) = T.replace placeholder (T.pack value) str
-
-data LogEvent = LogEvent
