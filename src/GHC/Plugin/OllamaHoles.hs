@@ -13,7 +13,7 @@ import Data.Text.IO qualified as T
 import GHC.Plugins hiding ((<>))
 import GHC.Tc.Types
 import GHC.Tc.Types.Constraint (Hole (..))
-import GHC.Tc.Utils.Monad (getGblEnv, newTcRef, writeTcRef, readTcRef, discardErrs, ifErrsM)
+import GHC.Tc.Utils.Monad (getGblEnv, newTcRef, writeTcRef, readTcRef, updTcRef, discardErrs, ifErrsM)
 import qualified GHC.Tc.Utils.Monad as GHC
 
 import GHC.Plugin.OllamaHoles.Backend
@@ -83,7 +83,8 @@ getBackend Flags{backend_name = "openai", ..} = openAICompatibleBackend openai_b
 getBackend Flags{..} = error $ "unknown backend: " <> T.unpack backend_name
 
 data PluginState = PluginState
-  { candidates :: [HoleFitCandidate]
+  { candidates    :: [HoleFitCandidate]
+  , writeLogEvent :: LogEvent -> IO ()
   }
 
 -- | Ollama plugin for GHC
@@ -102,13 +103,17 @@ mkHoleFitPluginR opts =
             , hfPluginStop = \_ -> return ()
             , hfPluginRun = \ref ->
                     HoleFitPlugin
-                        { candPlugin = \_ c -> writeTcRef ref (PluginState c) >> return c
+                        { candPlugin = \_ c -> updTcRef ref (\st -> st { candidates = c }) >> return c
                         , fitPlugin = fitPluginLLM opts ref
                         }
             }
 
 hfPluginInitLLM :: TcM (TcRef PluginState)
-hfPluginInitLLM = newTcRef $ PluginState []
+hfPluginInitLLM = do
+    newTcRef $ PluginState
+        { candidates    = []
+        , writeLogEvent = \_ -> putStrLn "XYZZY"
+        }
 
 pluginName :: Text
 pluginName = "Ollama Plugin"
@@ -120,7 +125,7 @@ fitPluginLLM
     -> [HoleFit]
     -> GHC.IOEnv (Env TcGblEnv TcLclEnv) [HoleFit]
 fitPluginLLM opts ref hole fits = do
-    PluginState cands <- readTcRef ref
+    PluginState cands logEvent <- readTcRef ref
     let flags@Flags{..} = parseFlags opts
     dflags <- getDynFlags
     gbl_env <- getGblEnv
@@ -130,6 +135,7 @@ fitPluginLLM opts ref hole fits = do
     available_models <- liftIO $ listModels backend
     liftIO $ when debug $ T.putStrLn $ "Running " <> pluginName <> " with flags:"
     liftIO $ when debug $ print flags
+    liftIO $ logEvent LogEvent
 
     case available_models of
         Nothing ->
@@ -394,3 +400,5 @@ replacePlaceholders = foldl replacePlaceholder
   where
     replacePlaceholder :: Text -> (Text, String) -> Text
     replacePlaceholder str (placeholder, value) = T.replace placeholder (T.pack value) str
+
+data LogEvent = LogEvent
