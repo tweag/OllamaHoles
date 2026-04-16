@@ -90,18 +90,22 @@ data PluginState = PluginState
 plugin :: Plugin
 plugin =
     defaultPlugin
-        { holeFitPlugin = \opts ->
-            Just $
-                HoleFitPluginR
-                    { hfPluginInit = newTcRef $ PluginState []
-                    , hfPluginStop = \_ -> return ()
-                    , hfPluginRun = \ref ->
-                            HoleFitPlugin
-                                { candPlugin = \_ c -> writeTcRef ref (PluginState c) >> return c
-                                , fitPlugin = fitPluginLLM opts ref
-                                }
-                    }
+        { holeFitPlugin = mkHoleFitPluginR
         }
+
+mkHoleFitPluginR
+    :: [CommandLineOption] -> Maybe HoleFitPluginR
+mkHoleFitPluginR opts =
+    Just $
+        HoleFitPluginR
+            { hfPluginInit = newTcRef $ PluginState []
+            , hfPluginStop = \_ -> return ()
+            , hfPluginRun = \ref ->
+                    HoleFitPlugin
+                        { candPlugin = \_ c -> writeTcRef ref (PluginState c) >> return c
+                        , fitPlugin = fitPluginLLM opts ref
+                        }
+            }
 
 pluginName :: Text
 pluginName = "Ollama Plugin"
