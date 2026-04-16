@@ -82,6 +82,10 @@ getBackend Flags{backend_name = "gemini"} = geminiBackend
 getBackend Flags{backend_name = "openai", ..} = openAICompatibleBackend openai_base_url openai_key_name
 getBackend Flags{..} = error $ "unknown backend: " <> T.unpack backend_name
 
+data PluginState = PluginState
+  { candidates :: [HoleFitCandidate]
+  }
+
 -- | Ollama plugin for GHC
 plugin :: Plugin
 plugin =
@@ -89,11 +93,11 @@ plugin =
         { holeFitPlugin = \opts ->
             Just $
                 HoleFitPluginR
-                    { hfPluginInit = newTcRef []
+                    { hfPluginInit = newTcRef $ PluginState []
                     , hfPluginStop = \_ -> return ()
                     , hfPluginRun = \ref ->
                             HoleFitPlugin
-                                { candPlugin = \_ c -> writeTcRef ref c >> return c
+                                { candPlugin = \_ c -> writeTcRef ref (PluginState c) >> return c
                                 , fitPlugin = fitPlugin opts ref
                                 }
                     }
@@ -101,7 +105,7 @@ plugin =
   where
     pluginName = "Ollama Plugin"
     fitPlugin opts ref hole fits = do
-        cands <- readTcRef ref
+        PluginState cands <- readTcRef ref
         let flags@Flags{..} = parseFlags opts
         dflags <- getDynFlags
         gbl_env <- getGblEnv
