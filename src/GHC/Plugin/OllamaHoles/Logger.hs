@@ -11,9 +11,11 @@ module GHC.Plugin.OllamaHoles.Logger
 
 
 
+import           Control.Monad (unless)
 import qualified Crypto.Hash as H
-import           Data.Aeson (encode, FromJSON(..), ToJSON(..), (.:))
+import           Data.Aeson (encode, FromJSON(..), ToJSON(..), (.:), (.=))
 import qualified Data.Aeson as Aeson
+import           Data.Aeson.Encoding (pairs, encodingToLazyByteString)
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString as BS
@@ -32,7 +34,7 @@ import           System.Directory
     , doesFileExist
     , getXdgDirectory
     )
-import           System.FilePath ((</>))
+import           System.FilePath ((</>), dropTrailingPathSeparator, takeDirectory)
 import           System.Random (randomIO)
 
 
@@ -55,8 +57,19 @@ initLogger = do
 recordLogEvent :: LogConfig -> LogEvent -> IO ()
 recordLogEvent config event = do
     now <- getFormattedTimestamp
-    let record = renderLogEvent now config event
-    putStrLn "XYZZY"
+    let (record, promptHash, responseHash) = renderLogEvent now config event
+    case logMode config of
+        LogOff ->
+            pure ()
+
+        LogBasic -> do
+            appendEventLine config record
+
+        LogFull -> do
+            appendEventLine config record
+            _ <- writeBlobIfAbsent config BlobPrompt   (BlobHash promptHash)   (lePrompt event)
+            _ <- writeBlobIfAbsent config BlobResponse (BlobHash responseHash) (leResponse event)
+            pure ()
 
 renderLogEvent
     :: Timestamp -> LogConfig -> LogEvent
@@ -64,15 +77,20 @@ renderLogEvent
 renderLogEvent now config event =
     let promptHash = contentHash $ lePrompt event
         responseHash = contentHash $ leResponse event
-        line = encode $ Aeson.Object $ KM.fromList
-            [ (Key.fromText "timestamp"        , toJSON now)
-            , (Key.fromText "session_id"       , toJSON $ unSessionId $ sessionId config)
-            , (Key.fromText "suggestion_count" , toJSON $ leSuggestionCount event)
-            , (Key.fromText "unique_count"     , toJSON $ leUniqueCount event)
-            , (Key.fromText "valid_count"      , toJSON $ leValidCount event)
-            , (Key.fromText "prompt_hash"      , toJSON promptHash)
-            , (Key.fromText "response_hash"    , toJSON responseHash)
-            ]
+
+        enc :: Aeson.Encoding
+        enc =
+            -- Manually encoding so we have control over key order
+            pairs $
+                "timestamp"           .= now
+                <> "session_id"       .= unSessionId (sessionId config)
+                <> "suggestion_count" .= leSuggestionCount event
+                <> "unique_count"     .= leUniqueCount event
+                <> "valid_count"      .= leValidCount event
+                <> "prompt_hash"      .= promptHash
+                <> "response_hash"    .= responseHash
+
+        line = encodingToLazyByteString enc
     in (line, promptHash, responseHash)
 
 -- | Invoke a logger (this is exposed)
@@ -88,7 +106,14 @@ writeLogEvent logger event = do
 data LogConfig = LogConfig
     { sessionId :: SessionId
     , logPaths  :: LogPaths
+    , logMode   :: LogMode
     } deriving (Eq, Show, Generic)
+
+data LogMode
+  = LogOff
+  | LogBasic -- JSONL events only
+  | LogFull  -- JSONL events + prompt/response blobs
+  deriving (Eq, Show, Generic)
 
 initLogConfig :: IO LogConfig
 initLogConfig = do
@@ -96,11 +121,12 @@ initLogConfig = do
     paths <- mkDefaultLogPaths Nothing
     pure $ LogConfig
         { sessionId = sId
+        , logPaths  = paths
+        , logMode   = LogFull
         }
 
 data LogPaths = LogPaths
     { lpRootDir   :: FilePath -- e.g. ~/.local/state/ollama-holes
-    , lpEventsDir :: FilePath -- e.g. ~/.local/state/ollama-holes/events
     , lpBlobDir   :: FilePath -- e.g. ~/.local/state/ollama-holes/blob
     } deriving (Eq, Show, Generic)
 
@@ -114,7 +140,6 @@ mkDefaultLogPaths mRoot = do
         Nothing -> getXdgDirectory XdgState "ollama-holes"
     let paths = LogPaths
           { lpRootDir   = root
-          , lpEventsDir = root </> "events"
           , lpBlobDir   = root </> "blob"
           }
     ensureLogDirs paths
@@ -124,7 +149,6 @@ mkDefaultLogPaths mRoot = do
 ensureLogDirs :: LogPaths -> IO ()
 ensureLogDirs paths = do
     createDirectoryIfMissing True $ lpRootDir paths
-    createDirectoryIfMissing True $ lpEventsDir paths
     createDirectoryIfMissing True $ lpBlobDir paths
 
 getFormattedTimestamp :: IO Timestamp
@@ -141,12 +165,12 @@ contentHash =
 -- Events
 
 data LogEvent = LogEvent
-  { lePrompt          :: Prompt
-  , leResponse        :: Response
-  , leSuggestionCount :: SuggestionCount -- returned by the LLM
-  , leUniqueCount     :: UniqueCount     -- deduplicated (llm may be redundant)
-  , leValidCount      :: ValidCount      -- how many unique candidates where valid
-  }
+    { lePrompt          :: Prompt
+    , leResponse        :: Response
+    , leSuggestionCount :: SuggestionCount -- returned by the LLM
+    , leUniqueCount     :: UniqueCount     -- deduplicated (llm may be redundant)
+    , leValidCount      :: ValidCount      -- how many unique candidates where valid
+    }
 
 type Prompt          = T.Text
 type Response        = T.Text
@@ -156,10 +180,14 @@ type ValidCount      = Int
 type Timestamp       = T.Text
 type PromptHash      = T.Text
 type ResponseHash    = T.Text
+type Blob            = T.Text
 
 -- | Smart constructor
-mkLogEvent :: LogEvent
-mkLogEvent = LogEvent mempty mempty 0 0 0
+mkLogEvent
+    :: Prompt -> Response
+    -> SuggestionCount -> UniqueCount -> ValidCount
+    -> LogEvent
+mkLogEvent = LogEvent
 
 
 
@@ -174,3 +202,49 @@ genSessionId = do
   -- Note: showHex is a ShowS, which prepends the (hex
   -- representation of) the left argument onto the right.
   pure $ SessionId $ T.pack $ take 8 $ showHex w "00000000"
+
+
+
+-- Blobs
+
+data BlobKind
+    = BlobPrompt
+    | BlobResponse
+    deriving (Eq, Ord, Show, Generic)
+
+data BlobHash = BlobHash
+    { unBlobHash :: T.Text
+    } deriving (Eq, Ord, Show, Generic)
+
+mkBlobPath :: LogPaths -> BlobKind -> BlobHash -> FilePath
+mkBlobPath LogPaths{lpBlobDir} kind (BlobHash h) =
+  let bucket = case kind of
+          BlobPrompt   -> "prompt"
+          BlobResponse -> "response"
+
+      hs = T.unpack h
+      shard = case hs of
+          a:b:_ -> [a,b]
+          _     -> "00"
+  in dropTrailingPathSeparator lpBlobDir </> bucket </> shard </> hs
+
+writeBlobIfAbsent
+  :: LogConfig -> BlobKind -> BlobHash -> T.Text -> IO FilePath
+writeBlobIfAbsent config kind h txt = do
+  let fp = mkBlobPath (logPaths config) kind h
+  createDirectoryIfMissing True (takeDirectory fp)
+  exists <- doesFileExist fp
+  unless exists $ BS.writeFile fp (TE.encodeUtf8 txt)
+  pure fp
+
+appendEventLine
+  :: LogConfig -> LBS.ByteString -> IO ()
+appendEventLine config line = do
+  let fp = eventsFileForSession (logPaths config)
+  createDirectoryIfMissing True (takeDirectory fp)
+  LBS.appendFile fp (line <> "\n")
+
+eventsFileForSession :: LogPaths -> FilePath
+eventsFileForSession paths =
+    let dir = lpRootDir paths
+    in dropTrailingPathSeparator dir </> "hole-fit-logs.jsonl"

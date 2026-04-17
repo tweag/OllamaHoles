@@ -138,7 +138,6 @@ fitPluginLLM opts ref hole fits = do
     available_models <- liftIO $ listModels backend
     liftIO $ when debug $ T.putStrLn $ "Running " <> pluginName <> " with flags:"
     liftIO $ when debug $ print flags
-    liftIO $ Log.writeLogEvent logger Log.mkLogEvent
 
     case available_models of
         Nothing ->
@@ -198,6 +197,7 @@ fitPluginLLM opts ref hole fits = do
                             liftIO $ when debug $ do T.putStrLn $ pluginName <> " Response:\n```\n" <> rsp <> "\n```"
                             verified <- filterM (verifyHoleFit debug hole) lns
                             let fits' = map (RawHoleFit . text . T.unpack) verified
+                            liftIO $ Log.writeLogEvent logger $ Log.mkLogEvent mempty mempty 0 0 0
                             -- Return the generated fits
                             return fits'
                         Left err -> do
