@@ -1,6 +1,8 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 -- | The Ollama plugin for GHC
 module GHC.Plugin.OllamaHoles where
@@ -10,6 +12,7 @@ import Data.Char (isSpace)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import GHC.Generics (Generic)
 import GHC.Plugins hiding ((<>))
 import GHC.Tc.Types
 import GHC.Tc.Types.Constraint (Hole (..))
@@ -120,6 +123,34 @@ hfPluginInitLLM = do
 
 pluginName :: Text
 pluginName = "Ollama Plugin"
+
+data PromptParams = PromptParams
+    { ppHoleVariable :: T.Text
+    , ppHoleType     :: T.Text
+    , ppModule       :: T.Text
+    , ppLocation     :: T.Text
+    , ppImports      :: T.Text
+    , ppConstraints  :: T.Text
+    , ppKnownFits    :: [T.Text]
+    , ppGuidance     :: T.Text
+    } deriving (Eq, Show, Generic)
+
+getPromptParams
+    :: TcRef PluginState -> TypedHole -> [HoleFit]
+    -> GHC.IOEnv (Env TcGblEnv TcLclEnv) PromptParams
+getPromptParams ref hole fits = do
+    let ppHoleVariable = error "todo: hole variable"
+    let ppHoleType = error "todo: hole type"
+    let ppModule = error "todo: module"
+    let ppLocation = error "todo: location"
+    let ppImports = error "todo: imports"
+    let ppConstraints = error "todo: constraints"
+    let ppKnownFits = error "todo: known fits"
+    let ppGuidance = error "todo: guidance"
+    pure $ PromptParams
+      { ppHoleVariable, ppHoleType, ppModule, ppLocation
+      , ppImports, ppConstraints, ppKnownFits, ppGuidance
+      }
 
 fitPluginLLM
     :: [CommandLineOption]
