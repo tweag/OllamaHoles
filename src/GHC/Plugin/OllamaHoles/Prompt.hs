@@ -17,6 +17,7 @@ import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Encoding qualified as LT
 import GHC.Core.TyCo.Rep (Type(TyConApp))
+import GHC.Data.Bag (bagToList)
 import GHC.Generics (Generic)
 import GHC.Plugins hiding ((<>))
 import GHC.Tc.Types (TcGblEnv(..), ImportAvails(..))
@@ -40,9 +41,9 @@ data PromptContext = PromptContext
     , pcModule       :: T.Text
     , pcLocation     :: Maybe T.Text
     , pcImports      :: T.Text
-    , pcConstraints  :: T.Text
+    , pcConstraints  :: [T.Text]
     , pcKnownFits    :: T.Text
-    , pcGuidance     :: Maybe T.Text
+    , pcGuidance     :: [T.Text]
     , pcScope        :: [T.Text]
     } deriving (Eq, Show, Generic)
 
@@ -55,14 +56,12 @@ encodePromptContext ctx = LT.toStrict $ LT.decodeUtf8 $
     [ [ "hole_variable"  .= pcHoleVariable ctx
       , "hole_type"      .= pcHoleType ctx
       , "module"         .= pcModule ctx
-      ]
-    , maybe [] (\loc -> ["location" .= loc]) (pcLocation ctx)
-    , [ "imports"        .= pcImports ctx
+      , "location"       .= pcLocation ctx
+      , "imports"        .= pcImports ctx
       , "constraints"    .= pcConstraints ctx
       , "known_fits"     .= pcKnownFits ctx
-      ]
-    , maybe [] (\guide -> ["guidance" .= guide]) (pcGuidance ctx)
-    , [ "names_in_scope" .= pcScope ctx
+      , "guidance"       .= pcGuidance ctx
+      , "names_in_scope" .= pcScope ctx
       ]
     ]
 
@@ -76,7 +75,7 @@ getPromptContext hole fits env cands dflags = do
     let pcHoleType = T.pack $ showSDoc dflags $ ppr $ hole_ty h
     let pcModule = T.pack $ moduleNameString $ moduleName $ tcg_mod env
     let pcLocation = fmap (T.pack . showSDoc dflags . ppr . ctLocSpan . hole_loc) (th_hole hole)
-    let pcConstraints = T.pack $ showSDoc dflags $ ppr $ th_relevant_cts hole
+    let pcConstraints = fmap (T.pack . showSDoc dflags . ppr) (bagToList $ th_relevant_cts hole)
     let pcKnownFits = T.pack $ showSDoc dflags $ ppr fits
     let pcGuidance = seekGuidance cands
 #if __GLASGOW_HASKELL__ >= 912
@@ -99,7 +98,7 @@ fullyQualified (GreHFCand gre) | (n:_) <- greRdrNames gre = Just n
 fullyQualified _ = Nothing
 
 -- | Try to find the guide provided by the user
-seekGuidance :: [HoleFitCandidate] -> Maybe T.Text
+seekGuidance :: [HoleFitCandidate] -> [T.Text]
 seekGuidance cands =
     case find ((== "_guide") . showPprUnsafe . occName) cands of
         Just (IdHFCand i) | ty <- idType i ->
@@ -108,7 +107,8 @@ seekGuidance cands =
                     | "Proxy" <- showPprUnsafe tc
                     , "ErrorMessage" <- showPprUnsafe errm
                     , TyConApp _ [guide_msg] <- errm_t ->
+                        -- Jumping through a hoop to avoid including escaped quotes in the value
                         let rendered = showPprUnsafe guide_msg
-                        in Just $ T.pack $ maybe rendered id (readMaybe rendered :: Maybe String)
-                _ -> Nothing
-        _ -> Nothing
+                        in [T.pack $ maybe rendered id (readMaybe rendered :: Maybe String)]
+                _ -> mempty
+        _ -> mempty

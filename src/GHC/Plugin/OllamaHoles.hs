@@ -41,8 +41,6 @@ import GHC.Tc.Types.CtLoc (ctLocSpan)
 import GHC.Tc.Types.Constraint (ctLocSpan)
 #endif
 
-import Data.List (find)
-import GHC.Core.TyCo.Rep
 import qualified GHC.HsToCore.Docs as GHC
 import qualified GHC.Types.Unique.Map as GHC
 import qualified GHC.Hs.Doc as GHC
