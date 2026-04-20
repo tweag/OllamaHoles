@@ -11,10 +11,12 @@ module GHC.Plugin.OllamaHoles.Prompt
 
 import Data.Aeson
 import Data.Aeson.Encoding qualified as Enc
+import Data.List (find)
 import Data.Maybe (mapMaybe)
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Encoding qualified as LT
+import GHC.Core.TyCo.Rep (Type(TyConApp))
 import GHC.Generics (Generic)
 import GHC.Plugins hiding ((<>))
 import GHC.Tc.Types (TcGblEnv(..), ImportAvails(..))
@@ -39,7 +41,7 @@ data PromptContext = PromptContext
     , pcImports      :: T.Text
     , pcConstraints  :: T.Text
     , pcKnownFits    :: T.Text
-    , pcGuidance     :: Guidance
+    , pcGuidance     :: Maybe T.Text
     , pcScope        :: [T.Text]
     } deriving (Eq, Show, Generic)
 
@@ -48,23 +50,27 @@ type Guidance = String
 -- Manually encoding so we have control over key order
 encodePromptContext :: PromptContext -> T.Text
 encodePromptContext ctx = LT.toStrict $ LT.decodeUtf8 $
-  Enc.encodingToLazyByteString $ pairs $ mconcat
-    [ "hole_variable"  .= pcHoleVariable ctx
-    , "hole_type"      .= pcHoleType ctx
-    , "module"         .= pcModule ctx
-    , "location"       .= pcLocation ctx
-    , "imports"        .= pcImports ctx
-    , "constraints"    .= pcConstraints ctx
-    , "known_fits"     .= pcKnownFits ctx
-    , "guidance"       .= pcGuidance ctx
-    , "names_in_scope" .= pcScope ctx
+  Enc.encodingToLazyByteString $ pairs $ mconcat $ mconcat
+    [ [ "hole_variable"  .= pcHoleVariable ctx
+      , "hole_type"      .= pcHoleType ctx
+      , "module"         .= pcModule ctx
+      , "location"       .= pcLocation ctx
+      , "imports"        .= pcImports ctx
+      , "constraints"    .= pcConstraints ctx
+      , "known_fits"     .= pcKnownFits ctx
+      ]
+    , case pcGuidance ctx of
+        Just guide -> ["guidance" .= guide]
+        Nothing -> []
+    , [ "names_in_scope" .= pcScope ctx
+      ]
     ]
 
 -- | Construct the prompt context from runtime data.
 getPromptContext
     :: TypedHole -> [HoleFit] -> TcGblEnv -> [HoleFitCandidate]
-    -> DynFlags -> Guidance -> Maybe PromptContext
-getPromptContext hole fits env cands dflags guidance = do
+    -> DynFlags -> Maybe PromptContext
+getPromptContext hole fits env cands dflags = do
     h <- th_hole hole
     let pcHoleVariable = T.pack $ occNameString $ occName $ hole_occ h
     let pcHoleType = T.pack $ showSDoc dflags $ ppr $ hole_ty h
@@ -72,7 +78,7 @@ getPromptContext hole fits env cands dflags guidance = do
     let pcLocation = T.pack $ showSDoc dflags (ppr $ ctLocSpan . hole_loc <$> th_hole hole)
     let pcConstraints = T.pack $ showSDoc dflags $ ppr $ th_relevant_cts hole
     let pcKnownFits = T.pack $ showSDoc dflags $ ppr fits
-    let pcGuidance = guidance
+    let pcGuidance = seekGuidance cands
 #if __GLASGOW_HASKELL__ >= 912
     let importsDoc = ppr $ Map.keys $ imp_mods $ tcg_imports env
 #else
@@ -91,3 +97,17 @@ fullyQualified (IdHFCand i) = Just $ getRdrName i
 fullyQualified (NameHFCand n) = Just $ getRdrName n
 fullyQualified (GreHFCand gre) | (n:_) <- greRdrNames gre = Just n
 fullyQualified _ = Nothing
+
+-- | Try to find the guide provided by the user
+seekGuidance :: [HoleFitCandidate] -> Maybe T.Text
+seekGuidance cands =
+    case find ((== "_guide") . showPprUnsafe . occName) cands of
+        Just (IdHFCand i) | ty <- idType i ->
+            case ty of
+                TyConApp tc [errm, errm_t]
+                    | "Proxy" <- showPprUnsafe tc
+                    , "ErrorMessage" <- showPprUnsafe errm
+                    , TyConApp _ [guide_msg] <- errm_t ->
+                        Just $ T.pack $ showPprUnsafe guide_msg
+                _ -> Nothing
+        _ -> Nothing

@@ -41,8 +41,6 @@ import GHC.Tc.Types.CtLoc (ctLocSpan)
 import GHC.Tc.Types.Constraint (ctLocSpan)
 #endif
 
-import Data.Maybe (mapMaybe)
-
 import Data.List (find)
 import GHC.Core.TyCo.Rep
 import qualified GHC.HsToCore.Docs as GHC
@@ -155,8 +153,7 @@ fitPluginLLM opts ref hole fits = do
                         <> "Availble models: \n"
                         <> T.unpack (T.unlines models)
             liftIO $ when debug $ T.putStrLn $ pluginName <> ": Hole Found"
-            guide <- seekGuidance cands
-            let promptContext = getPromptContext hole fits gbl_env cands dflags guide
+            let promptContext = getPromptContext hole fits gbl_env cands dflags
             case th_hole hole of
                 Just h -> do
                     docs <- if include_docs then getDocs cands else return ""
@@ -241,20 +238,6 @@ verifyHoleFit debug hole fit | Just h <- th_hole hole = discardErrs $ do
                       GHC.tcCheckHoleFit hole (hole_ty h) zonked
               ifErrsM (return False) (return does_fit)
 verifyHoleFit _ _ _ = return False
-
-
--- | Try to find the guide provided by the user
-seekGuidance :: [HoleFitCandidate] -> TcM String
-seekGuidance cands = do
-    case find ((== "_guide") . showPprUnsafe . occName) cands of
-      Just (IdHFCand i) | ty <- idType i -> do
-          case ty of
-            TyConApp tc [errm, errm_t] | "Proxy" <- showPprUnsafe tc,
-                                         "ErrorMessage" <- showPprUnsafe errm,
-                                         TyConApp _ [guide_msg] <- errm_t ->
-              return $ "The user provided these instructions: " <> showPprUnsafe guide_msg
-            _ -> return ""
-      _ -> return ""
 
 -- | Preprocess the response to remove empty lines, lines with only spaces, and code blocks
 preProcess :: [Text] -> [Text]
