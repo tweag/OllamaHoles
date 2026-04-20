@@ -62,6 +62,7 @@ import qualified GHC.Tc.Solver.Monad as GHC (zonkTcType, runTcSEarlyAbort)
 import Data.Aeson (Value)
 import qualified Data.Aeson as Aeson
 
+import           GHC.Plugin.OllamaHoles.Prompt
 import qualified GHC.Plugin.OllamaHoles.Logger as Log
 
 -- | Prompt used to prompt the LLM
@@ -130,55 +131,6 @@ hfPluginInitLLM = do
 
 pluginName :: Text
 pluginName = "Ollama Plugin"
-
-data PromptContext = PromptContext
-    { pcHoleVariable :: T.Text
-    , pcHoleType     :: T.Text
-    , pcModule       :: T.Text
-    , pcLocation     :: T.Text
-    , pcImports      :: T.Text
-    , pcConstraints  :: T.Text
-    , pcKnownFits    :: T.Text
-    , pcGuidance     :: Guidance
-    } deriving (Eq, Show, Generic)
-
-type Guidance = String
-
--- Manually encoding so we have control over key order
-encodePromptContext :: PromptContext -> String
-encodePromptContext ctx = LT.unpack $ LT.decodeUtf8 $ Enc.encodingToLazyByteString $ pairs $
-    "hole_variable"  .= pcHoleVariable ctx
-    <> "hole_type"   .= pcHoleType ctx
-    <> "module"      .= pcModule ctx
-    <> "location"    .= pcLocation ctx
-    <> "imports"     .= pcImports ctx
-    <> "constraints" .= pcConstraints ctx
-    <> "known_fits"  .= pcKnownFits ctx
-    <> "guidance"    .= pcGuidance ctx
-
-getPromptContext
-    :: TypedHole -> [HoleFit] -> TcGblEnv
-    -> DynFlags -> Guidance -> Maybe PromptContext
-getPromptContext hole fits env dflags guidance = do
-    h <- th_hole hole
-    let pcHoleVariable = T.pack $ occNameString $ occName $ hole_occ h
-    let pcHoleType = T.pack $ showSDoc dflags $ ppr $ hole_ty h
-    let pcModule = T.pack $ moduleNameString $ moduleName $ tcg_mod env
-    let pcLocation = T.pack $ showSDoc dflags (ppr $ ctLocSpan . hole_loc <$> th_hole hole)
-    let pcConstraints = T.pack $ showSDoc dflags $ ppr $ th_relevant_cts hole
-    let pcKnownFits = T.pack $ showSDoc dflags $ ppr fits
-    let pcGuidance = guidance
-
-#if __GLASGOW_HASKELL__ >= 912
-    let pcImports = T.pack $ showSDoc dflags (ppr $ Map.keys $ imp_mods $ tcg_imports env)
-#else
-    let pcImports = T.pack $ showSDoc dflags (ppr $ moduleEnvKeys $ imp_mods $ tcg_imports env)
-#endif
-
-    pure $ PromptContext
-      { pcHoleVariable, pcHoleType, pcModule, pcLocation
-      , pcImports, pcConstraints, pcKnownFits, pcGuidance
-      }
 
 fitPluginLLM
     :: [CommandLineOption]

@@ -132,6 +132,7 @@ library
                  , GHC.Plugin.OllamaHoles.Backend.OpenAI
                  , GHC.Plugin.OllamaHoles.Backend.Gemini
                  , GHC.Plugin.OllamaHoles.Logger
+                 , GHC.Plugin.OllamaHoles.Prompt
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
