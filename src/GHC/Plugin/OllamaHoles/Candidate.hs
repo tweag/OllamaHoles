@@ -53,6 +53,14 @@ data CheckCtx = CheckCtx
 mkCheckCtx :: Bool -> TypedHole -> CheckCtx
 mkCheckCtx cxDebug cxHole = CheckCtx{cxDebug, cxHole}
 
+data PrepCtx = PrepCtx
+    { prxDynFlags  :: DynFlags
+    , prxHoleArity :: Int
+    }
+
+mkPrepCtx :: DynFlags -> Int -> PrepCtx
+mkPrepCtx prxDynFlags prxHoleArity = PrepCtx{prxDynFlags, prxHoleArity}
+
 
 
 -- Results
@@ -76,6 +84,14 @@ data CheckedCandidate = CheckedCandidate
     , ccRenamed  :: LHsExpr GhcRn
     , ccExprType :: TcSigmaType
     , ccLog      :: CandidateLog
+    }
+
+data PreparedCandidate = PreparedCandidate
+    { prSource  :: Text
+    , prRenamed :: LHsExpr GhcRn
+    , prNormKey :: NormExpr
+    , prRank    :: CandidateRank
+    , prLog     :: CandidateLog
     }
 
 
@@ -161,6 +177,30 @@ checkCandidateFit CheckCtx{cxDebug, cxHole} RenamedCandidate{rcSource, rcRenamed
                     else Left (CandidateRejected "candidate did not fit hole type")
     | otherwise =
         pure (Left (CandidateRejected "hole information unavailable"))
+
+
+
+-- Normalize and Rank
+---------------------
+
+-- We normalize expressions to group them by heuristic equivalence, and
+-- then rank them to decide which should be the canonical representative.
+
+data NormExpr
+    = NFree Text
+    | NBound Int
+    | NApp NormExpr [NormExpr]
+    | NLam Int NormExpr
+    | NLit Text
+    | NOther Text
+    deriving (Eq, Ord, Show)
+
+data CandidateRank = CandidateRank
+    { crTopLamCount :: Int
+    , crNoiseCount  :: Int
+    , crNodeCount   :: Int
+    , crSourceLen   :: Int
+    } deriving (Eq, Ord, Show)
 
 
 
