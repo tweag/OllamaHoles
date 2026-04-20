@@ -61,7 +61,7 @@ promptTemplate =
         <> "--------------------------------------------------------------------\n"
         <> "You are a typed-hole plugin within GHC, the Glasgow Haskell Compiler.\n"
         <> "You are given a hole in a Haskell program, and you need to fill it in.\n"
-        <> "The hole is represented by the following information:\n"
+        <> "The hole is represented by the following JSON encoded information:\n"
         <> "{context}\n\n"
         <> "Provide one or more Haskell expressions that could fill this hole.\n"
         <> "This means coming up with an expression of the correct type that satisfies the constraints.\n"
