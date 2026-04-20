@@ -124,32 +124,32 @@ hfPluginInitLLM = do
 pluginName :: Text
 pluginName = "Ollama Plugin"
 
-data PromptParams = PromptParams
-    { ppHoleVariable :: T.Text
-    , ppHoleType     :: T.Text
-    , ppModule       :: T.Text
-    , ppLocation     :: T.Text
-    , ppImports      :: T.Text
-    , ppConstraints  :: T.Text
-    , ppKnownFits    :: [T.Text]
-    , ppGuidance     :: T.Text
+data PromptContext = PromptContext
+    { pcHoleVariable :: T.Text
+    , pcHoleType     :: T.Text
+    , pcModule       :: T.Text
+    , pcLocation     :: T.Text
+    , pcImports      :: T.Text
+    , pcConstraints  :: T.Text
+    , pcKnownFits    :: [T.Text]
+    , pcGuidance     :: T.Text
     } deriving (Eq, Show, Generic)
 
-getPromptParams
+getPromptContext
     :: TcRef PluginState -> TypedHole -> [HoleFit]
-    -> GHC.IOEnv (Env TcGblEnv TcLclEnv) PromptParams
-getPromptParams ref hole fits = do
-    let ppHoleVariable = error "todo: hole variable"
-    let ppHoleType = error "todo: hole type"
-    let ppModule = error "todo: module"
-    let ppLocation = error "todo: location"
-    let ppImports = error "todo: imports"
-    let ppConstraints = error "todo: constraints"
-    let ppKnownFits = error "todo: known fits"
-    let ppGuidance = error "todo: guidance"
-    pure $ PromptParams
-      { ppHoleVariable, ppHoleType, ppModule, ppLocation
-      , ppImports, ppConstraints, ppKnownFits, ppGuidance
+    -> GHC.IOEnv (Env TcGblEnv TcLclEnv) PromptContext
+getPromptContext ref hole fits = do
+    let pcHoleVariable = error "todo: hole variable"
+    let pcHoleType = error "todo: hole type"
+    let pcModule = error "todo: module"
+    let pcLocation = error "todo: location"
+    let pcImports = error "todo: imports"
+    let pcConstraints = error "todo: constraints"
+    let pcKnownFits = error "todo: known fits"
+    let pcGuidance = error "todo: guidance"
+    pure $ PromptContext
+      { pcHoleVariable, pcHoleType, pcModule, pcLocation
+      , pcImports, pcConstraints, pcKnownFits, pcGuidance
       }
 
 fitPluginLLM
