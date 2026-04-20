@@ -8,9 +8,15 @@
 module GHC.Plugin.OllamaHoles where
 
 import Control.Monad (filterM, unless, when)
+import Data.Aeson
+import Data.Aeson.Encoding qualified as Enc
+import Data.Aeson.Text
 import Data.Char (isSpace)
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
+import Data.Text.Lazy qualified as LT
+import Data.Text.Lazy.Encoding qualified as LT
 import Data.Text.IO qualified as T
 import GHC.Generics (Generic)
 import GHC.Plugins hiding ((<>))
@@ -79,6 +85,7 @@ promptTemplate =
         <> "Do not include explanations, introductions, or any surrounding text.\n"
         <> "If you are using a function from scope, make sure to use the qualified name from the list of things in scope.\n"
         <> "Output a maximum of {numexpr} expresssions.\n"
+        <> "Context: {context}\n"
 
 -- | Determine which backend to use
 getBackend :: Flags -> Backend
@@ -131,22 +138,43 @@ data PromptContext = PromptContext
     , pcLocation     :: T.Text
     , pcImports      :: T.Text
     , pcConstraints  :: T.Text
-    , pcKnownFits    :: [T.Text]
-    , pcGuidance     :: T.Text
+    , pcKnownFits    :: T.Text
+    , pcGuidance     :: Guidance
     } deriving (Eq, Show, Generic)
 
+type Guidance = String
+
+-- Manually encoding so we have control over key order
+encodePromptContext :: PromptContext -> String
+encodePromptContext ctx = LT.unpack $ LT.decodeUtf8 $ Enc.encodingToLazyByteString $ pairs $
+    "hole_variable"  .= pcHoleVariable ctx
+    <> "hole_type"   .= pcHoleType ctx
+    <> "module"      .= pcModule ctx
+    <> "location"    .= pcLocation ctx
+    <> "imports"     .= pcImports ctx
+    <> "constraints" .= pcConstraints ctx
+    <> "known_fits"  .= pcKnownFits ctx
+    <> "guidance"    .= pcGuidance ctx
+
 getPromptContext
-    :: TcRef PluginState -> TypedHole -> [HoleFit]
-    -> GHC.IOEnv (Env TcGblEnv TcLclEnv) PromptContext
-getPromptContext ref hole fits = do
-    let pcHoleVariable = error "todo: hole variable"
-    let pcHoleType = error "todo: hole type"
-    let pcModule = error "todo: module"
-    let pcLocation = error "todo: location"
-    let pcImports = error "todo: imports"
-    let pcConstraints = error "todo: constraints"
-    let pcKnownFits = error "todo: known fits"
-    let pcGuidance = error "todo: guidance"
+    :: TypedHole -> [HoleFit] -> TcGblEnv
+    -> DynFlags -> Guidance -> Maybe PromptContext
+getPromptContext hole fits env dflags guidance = do
+    h <- th_hole hole
+    let pcHoleVariable = T.pack $ occNameString $ occName $ hole_occ h
+    let pcHoleType = T.pack $ showSDoc dflags $ ppr $ hole_ty h
+    let pcModule = T.pack $ moduleNameString $ moduleName $ tcg_mod env
+    let pcLocation = T.pack $ showSDoc dflags (ppr $ ctLocSpan . hole_loc <$> th_hole hole)
+    let pcConstraints = T.pack $ showSDoc dflags $ ppr $ th_relevant_cts hole
+    let pcKnownFits = T.pack $ showSDoc dflags $ ppr fits
+    let pcGuidance = guidance
+
+#if __GLASGOW_HASKELL__ >= 912
+    let pcImports = T.pack $ showSDoc dflags (ppr $ Map.keys $ imp_mods $ tcg_imports env)
+#else
+    let pcImports = T.pack $ showSDoc dflags (ppr $ moduleEnvKeys $ imp_mods $ tcg_imports env)
+#endif
+
     pure $ PromptContext
       { pcHoleVariable, pcHoleType, pcModule, pcLocation
       , pcImports, pcConstraints, pcKnownFits, pcGuidance
@@ -188,6 +216,8 @@ fitPluginLLM opts ref hole fits = do
                         <> "Availble models: \n"
                         <> T.unpack (T.unlines models)
             liftIO $ when debug $ T.putStrLn $ pluginName <> ": Hole Found"
+            guide <- seekGuidance cands
+            let promptContext = getPromptContext hole fits gbl_env dflags guide
             let mn = "Module: " <> mod_name
             let lc = "Location: " <> showSDoc dflags (ppr $ ctLocSpan . hole_loc <$> th_hole hole)
 #if __GLASGOW_HASKELL__ >= 912
@@ -205,6 +235,7 @@ fitPluginLLM opts ref hole fits = do
                     docs <- if include_docs then getDocs cands else return ""
 
                     guide <- seekGuidance cands
+                    let promptContext' = T.unpack $ LT.toStrict $ encodeToLazyText $ fmap encodePromptContext promptContext
                     let prompt' =
                             replacePlaceholders
                                 promptTemplate
@@ -219,6 +250,7 @@ fitPluginLLM opts ref hole fits = do
                                 , ("{guidance}", guide)
                                 , ("{scope}", scope)
                                 , ("{docs}", docs)
+                                , ("{context}", promptContext')
                                 ]
                     liftIO $ when debug $ do T.putStrLn $ pluginName <> " Prompt:\n```\n" <> prompt' <> "\n```"
                     res <- liftIO $ generateFits backend prompt' model_name model_options
