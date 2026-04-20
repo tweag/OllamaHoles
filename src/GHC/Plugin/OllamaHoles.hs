@@ -143,8 +143,6 @@ fitPluginLLM opts ref hole fits = do
     let flags@Flags{..} = parseFlags opts
     dflags <- getDynFlags
     gbl_env <- getGblEnv
-    let mod_name = moduleNameString $ moduleName $ tcg_mod gbl_env
-        imports = tcg_imports gbl_env
     let backend = getBackend flags
     available_models <- liftIO $ listModels backend
     liftIO $ when debug $ T.putStrLn $ "Running " <> pluginName <> " with flags:"
@@ -170,35 +168,16 @@ fitPluginLLM opts ref hole fits = do
             liftIO $ when debug $ T.putStrLn $ pluginName <> ": Hole Found"
             guide <- seekGuidance cands
             let promptContext = getPromptContext hole fits gbl_env dflags guide
-            let mn = "Module: " <> mod_name
-            let lc = "Location: " <> showSDoc dflags (ppr $ ctLocSpan . hole_loc <$> th_hole hole)
-#if __GLASGOW_HASKELL__ >= 912
-            let im = "Imports: " <> showSDoc dflags (ppr $ Map.keys $ imp_mods imports)
-#else
-            let im = "Imports: " <> showSDoc dflags (ppr $ moduleEnvKeys $ imp_mods imports)
-#endif
             case th_hole hole of
                 Just h -> do
-                    let hv = "Hole variable: _" <> occNameString (occName $ hole_occ h)
-                    let ht = "Hole type: " <> showSDoc dflags (ppr $ hole_ty h)
-                    let rc = "Relevant constraints: " <> showSDoc dflags (ppr $ th_relevant_cts hole)
-                    let cf = "Candidate fits: " <> showSDoc dflags (ppr fits)
                     let scope = "Things in scope: " <> showSDoc dflags (ppr $ mapMaybe fullyQualified cands)
                     docs <- if include_docs then getDocs cands else return ""
 
-                    guide <- seekGuidance cands
                     let promptContext' = T.unpack $ maybe "" encodePromptContext promptContext
                     let prompt' =
                             replacePlaceholders
                                 promptTemplate
-                                [ ("{module}", mn)
-                                , ("{location}", lc)
-                                , ("{imports}", im)
-                                , ("{hole_var}", hv)
-                                , ("{hole_type}", ht)
-                                , ("{relevant_constraints}", rc)
-                                , ("{candidate_fits}", cf)
-                                , ("{numexpr}", show num_expr)
+                                [ ("{numexpr}", show num_expr)
                                 , ("{guidance}", guide)
                                 , ("{scope}", scope)
                                 , ("{docs}", docs)
