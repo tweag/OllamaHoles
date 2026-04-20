@@ -5,7 +5,6 @@ module GHC.Plugin.OllamaHoles.Prompt
     ( PromptContext(..)
     , encodePromptContext
     , getPromptContext
-    , Guidance
     , fullyQualified
     ) where
 
@@ -24,8 +23,6 @@ import GHC.Tc.Types (TcGblEnv(..), ImportAvails(..))
 import GHC.Tc.Types.Constraint (Hole(..))
 import Text.Read (readMaybe)
 
-
-
 #if __GLASGOW_HASKELL__ >= 912
 import GHC.Tc.Types.CtLoc (ctLocSpan)
 import qualified Data.Map as Map
@@ -40,14 +37,12 @@ data PromptContext = PromptContext
     , pcHoleType     :: T.Text
     , pcModule       :: T.Text
     , pcLocation     :: Maybe T.Text
-    , pcImports      :: T.Text
+    , pcImports      :: [T.Text]
     , pcConstraints  :: [T.Text]
     , pcKnownFits    :: T.Text
     , pcGuidance     :: [T.Text]
     , pcScope        :: [T.Text]
     } deriving (Eq, Show, Generic)
-
-type Guidance = String
 
 -- Manually encoding so we have control over key order
 encodePromptContext :: PromptContext -> T.Text
@@ -79,11 +74,11 @@ getPromptContext hole fits env cands dflags = do
     let pcKnownFits = T.pack $ showSDoc dflags $ ppr fits
     let pcGuidance = seekGuidance cands
 #if __GLASGOW_HASKELL__ >= 912
-    let importsDoc = ppr $ Map.keys $ imp_mods $ tcg_imports env
+    let importMods = Map.keys $ imp_mods $ tcg_imports env
 #else
-    let importsDoc = ppr $ moduleEnvKeys $ imp_mods $ tcg_imports env
+    let importMods = moduleEnvKeys $ imp_mods $ tcg_imports env
 #endif
-    let pcImports = T.pack $ showSDoc dflags importsDoc
+    let pcImports = map (T.pack . showSDoc dflags . ppr) importMods
     let pcScope = fmap (T.pack . showSDoc dflags . ppr) (mapMaybe fullyQualified cands)
     pure $ PromptContext
         { pcHoleVariable, pcHoleType, pcModule, pcLocation, pcScope

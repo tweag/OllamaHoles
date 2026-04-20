@@ -71,7 +71,7 @@ promptTemplate =
         <> "Do not try to bind the hole variable, e.g. `_b = ...`. Produce only the expression.\n"
         <> "Do not include explanations, introductions, or any surrounding text.\n"
         <> "If you are using a function from scope, make sure to use the qualified name from the list of things in scope.\n"
-        <> "Output a maximum of {numexpr} expresssions.\n"
+        <> "Output a maximum of {numexpr} expressions.\n"
 
 -- | Determine which backend to use
 getBackend :: Flags -> Backend
