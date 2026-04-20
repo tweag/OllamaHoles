@@ -67,7 +67,6 @@ promptTemplate =
         <> "You are given a hole in a Haskell program, and you need to fill it in.\n"
         <> "The hole is represented by the following information:\n"
         <> "{context}\n\n"
-        <> "{scope}\n\n"
         <> "Provide one or more Haskell expressions that could fill this hole.\n"
         <> "This means coming up with an expression of the correct type that satisfies the constraints.\n"
         <> "Pay special attention to the type of the hole, specifically whether it is a function.\n"
@@ -157,10 +156,9 @@ fitPluginLLM opts ref hole fits = do
                         <> T.unpack (T.unlines models)
             liftIO $ when debug $ T.putStrLn $ pluginName <> ": Hole Found"
             guide <- seekGuidance cands
-            let promptContext = getPromptContext hole fits gbl_env dflags guide
+            let promptContext = getPromptContext hole fits gbl_env cands dflags guide
             case th_hole hole of
                 Just h -> do
-                    let scope = "Things in scope: " <> showSDoc dflags (ppr $ mapMaybe fullyQualified cands)
                     docs <- if include_docs then getDocs cands else return ""
 
                     let promptContext' = T.unpack $ maybe "" encodePromptContext promptContext
@@ -168,7 +166,6 @@ fitPluginLLM opts ref hole fits = do
                             replacePlaceholders
                                 promptTemplate
                                 [ ("{numexpr}", show num_expr)
-                                , ("{scope}", scope)
                                 , ("{docs}", docs)
                                 , ("{context}", promptContext')
                                 ]
@@ -333,13 +330,6 @@ getDocs cs = do
     processDoc dflags docs = first_paragraph
       where whole_string = unlines $ map (showSDoc dflags . ppr) docs
             first_paragraph = unlines $ takeWhile (not . null) $ lines whole_string
-
--- | Produce a fully qualified name, e.g. L.sort if Data.List is imported as L
-fullyQualified :: HoleFitCandidate -> Maybe RdrName
-fullyQualified (IdHFCand i) = Just $ getRdrName i
-fullyQualified (NameHFCand n) = Just $ getRdrName n
-fullyQualified (GreHFCand gre) | (n:_) <- greRdrNames gre = Just n
-fullyQualified _ = Nothing
 
 -- | Parse command line options
 parseFlags :: [CommandLineOption] -> Flags
