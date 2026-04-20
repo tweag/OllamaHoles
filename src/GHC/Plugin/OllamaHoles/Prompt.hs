@@ -21,6 +21,7 @@ import GHC.Generics (Generic)
 import GHC.Plugins hiding ((<>))
 import GHC.Tc.Types (TcGblEnv(..), ImportAvails(..))
 import GHC.Tc.Types.Constraint (Hole(..))
+import Text.Read (readMaybe)
 
 
 
@@ -37,7 +38,7 @@ data PromptContext = PromptContext
     { pcHoleVariable :: T.Text
     , pcHoleType     :: T.Text
     , pcModule       :: T.Text
-    , pcLocation     :: T.Text
+    , pcLocation     :: Maybe T.Text
     , pcImports      :: T.Text
     , pcConstraints  :: T.Text
     , pcKnownFits    :: T.Text
@@ -54,14 +55,13 @@ encodePromptContext ctx = LT.toStrict $ LT.decodeUtf8 $
     [ [ "hole_variable"  .= pcHoleVariable ctx
       , "hole_type"      .= pcHoleType ctx
       , "module"         .= pcModule ctx
-      , "location"       .= pcLocation ctx
-      , "imports"        .= pcImports ctx
+      ]
+    , maybe [] (\loc -> ["location" .= loc]) (pcLocation ctx)
+    , [ "imports"        .= pcImports ctx
       , "constraints"    .= pcConstraints ctx
       , "known_fits"     .= pcKnownFits ctx
       ]
-    , case pcGuidance ctx of
-        Just guide -> ["guidance" .= guide]
-        Nothing -> []
+    , maybe [] (\guide -> ["guidance" .= guide]) (pcGuidance ctx)
     , [ "names_in_scope" .= pcScope ctx
       ]
     ]
@@ -75,7 +75,7 @@ getPromptContext hole fits env cands dflags = do
     let pcHoleVariable = T.pack $ occNameString $ occName $ hole_occ h
     let pcHoleType = T.pack $ showSDoc dflags $ ppr $ hole_ty h
     let pcModule = T.pack $ moduleNameString $ moduleName $ tcg_mod env
-    let pcLocation = T.pack $ showSDoc dflags (ppr $ ctLocSpan . hole_loc <$> th_hole hole)
+    let pcLocation = fmap (T.pack . showSDoc dflags . ppr . ctLocSpan . hole_loc) (th_hole hole)
     let pcConstraints = T.pack $ showSDoc dflags $ ppr $ th_relevant_cts hole
     let pcKnownFits = T.pack $ showSDoc dflags $ ppr fits
     let pcGuidance = seekGuidance cands
@@ -108,6 +108,7 @@ seekGuidance cands =
                     | "Proxy" <- showPprUnsafe tc
                     , "ErrorMessage" <- showPprUnsafe errm
                     , TyConApp _ [guide_msg] <- errm_t ->
-                        Just $ T.pack $ showPprUnsafe guide_msg
+                        let rendered = showPprUnsafe guide_msg
+                        in Just $ T.pack $ maybe rendered id (readMaybe rendered :: Maybe String)
                 _ -> Nothing
         _ -> Nothing
