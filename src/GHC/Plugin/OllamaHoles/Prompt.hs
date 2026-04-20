@@ -43,16 +43,18 @@ data PromptContext = PromptContext
 type Guidance = String
 
 -- Manually encoding so we have control over key order
-encodePromptContext :: PromptContext -> String
-encodePromptContext ctx = LT.unpack $ LT.decodeUtf8 $ Enc.encodingToLazyByteString $ pairs $
-    "hole_variable"  .= pcHoleVariable ctx
-    <> "hole_type"   .= pcHoleType ctx
-    <> "module"      .= pcModule ctx
-    <> "location"    .= pcLocation ctx
-    <> "imports"     .= pcImports ctx
-    <> "constraints" .= pcConstraints ctx
-    <> "known_fits"  .= pcKnownFits ctx
-    <> "guidance"    .= pcGuidance ctx
+encodePromptContext :: PromptContext -> T.Text
+encodePromptContext ctx = LT.toStrict $ LT.decodeUtf8 $
+  Enc.encodingToLazyByteString $ pairs $ mconcat
+    [ "hole_variable" .= pcHoleVariable ctx
+    , "hole_type"     .= pcHoleType ctx
+    , "module"        .= pcModule ctx
+    , "location"      .= pcLocation ctx
+    , "imports"       .= pcImports ctx
+    , "constraints"   .= pcConstraints ctx
+    , "known_fits"    .= pcKnownFits ctx
+    , "guidance"      .= pcGuidance ctx
+    ]
 
 getPromptContext
     :: TypedHole -> [HoleFit] -> TcGblEnv
@@ -66,13 +68,12 @@ getPromptContext hole fits env dflags guidance = do
     let pcConstraints = T.pack $ showSDoc dflags $ ppr $ th_relevant_cts hole
     let pcKnownFits = T.pack $ showSDoc dflags $ ppr fits
     let pcGuidance = guidance
-
 #if __GLASGOW_HASKELL__ >= 912
-    let pcImports = T.pack $ showSDoc dflags (ppr $ Map.keys $ imp_mods $ tcg_imports env)
+    let importsDoc = ppr $ Map.keys $ imp_mods $ tcg_imports env
 #else
-    let pcImports = T.pack $ showSDoc dflags (ppr $ moduleEnvKeys $ imp_mods $ tcg_imports env)
+    let importsDoc = ppr $ moduleEnvKeys $ imp_mods $ tcg_imports env
 #endif
-
+    let pcImports = T.pack $ showSDoc dflags importsDoc
     pure $ PromptContext
       { pcHoleVariable, pcHoleType, pcModule, pcLocation
       , pcImports, pcConstraints, pcKnownFits, pcGuidance

@@ -187,7 +187,7 @@ fitPluginLLM opts ref hole fits = do
                     docs <- if include_docs then getDocs cands else return ""
 
                     guide <- seekGuidance cands
-                    let promptContext' = T.unpack $ LT.toStrict $ encodeToLazyText $ fmap encodePromptContext promptContext
+                    let promptContext' = T.unpack $ maybe "" encodePromptContext promptContext
                     let prompt' =
                             replacePlaceholders
                                 promptTemplate
