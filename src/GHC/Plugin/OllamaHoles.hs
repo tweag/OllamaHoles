@@ -1,11 +1,14 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 -- | The Ollama plugin for GHC
 module GHC.Plugin.OllamaHoles where
 
 import Control.Monad (filterM, unless, when)
+import Data.Aeson
 import Data.Char (isSpace)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -13,7 +16,7 @@ import Data.Text.IO qualified as T
 import GHC.Plugins hiding ((<>))
 import GHC.Tc.Types
 import GHC.Tc.Types.Constraint (Hole (..))
-import GHC.Tc.Utils.Monad (getGblEnv, newTcRef, writeTcRef, readTcRef, updTcRef, discardErrs, ifErrsM)
+import GHC.Tc.Utils.Monad (getGblEnv, newTcRef, readTcRef, updTcRef, discardErrs, ifErrsM)
 import qualified GHC.Tc.Utils.Monad as GHC
 
 import GHC.Plugin.OllamaHoles.Backend
@@ -34,15 +37,10 @@ import GHC.Types.SrcLoc qualified as GHC (mkRealSrcLoc)
 
 #if __GLASGOW_HASKELL__ >= 912
 import GHC.Tc.Types.CtLoc (ctLocSpan)
-import qualified Data.Map as Map
 #else
 import GHC.Tc.Types.Constraint (ctLocSpan)
 #endif
 
-import Data.Maybe (mapMaybe)
-
-import Data.List (find)
-import GHC.Core.TyCo.Rep
 import qualified GHC.HsToCore.Docs as GHC
 import qualified GHC.Types.Unique.Map as GHC
 import qualified GHC.Hs.Doc as GHC
@@ -50,9 +48,9 @@ import qualified GHC.Iface.Load as GHC (loadInterfaceForName)
 import qualified GHC.Tc.Utils.TcType as GHC (tyCoFVsOfType, mkPhiTy)
 import qualified GHC.Tc.Solver as GHC (simplifyTop, simplifyInfer, captureTopConstraints, InferMode(..))
 import qualified GHC.Tc.Solver.Monad as GHC (zonkTcType, runTcSEarlyAbort)
-import Data.Aeson (Value)
 import qualified Data.Aeson as Aeson
 
+import           GHC.Plugin.OllamaHoles.Prompt
 import qualified GHC.Plugin.OllamaHoles.Logger as Log
 
 -- | Prompt used to prompt the LLM
@@ -63,10 +61,8 @@ promptTemplate =
         <> "--------------------------------------------------------------------\n"
         <> "You are a typed-hole plugin within GHC, the Glasgow Haskell Compiler.\n"
         <> "You are given a hole in a Haskell program, and you need to fill it in.\n"
-        <> "The hole is represented by the following information:\n"
-        <> "{module}\n{location}\n{imports}\n{hole_var}\n{hole_type}\n{relevant_constraints}\n{candidate_fits}\n\n"
-        <> "{scope}\n\n"
-        <> "{guidance}\n\n"
+        <> "The hole is represented by the following JSON encoded information:\n"
+        <> "{context}\n\n"
         <> "Provide one or more Haskell expressions that could fill this hole.\n"
         <> "This means coming up with an expression of the correct type that satisfies the constraints.\n"
         <> "Pay special attention to the type of the hole, specifically whether it is a function.\n"
@@ -75,7 +71,7 @@ promptTemplate =
         <> "Do not try to bind the hole variable, e.g. `_b = ...`. Produce only the expression.\n"
         <> "Do not include explanations, introductions, or any surrounding text.\n"
         <> "If you are using a function from scope, make sure to use the qualified name from the list of things in scope.\n"
-        <> "Output a maximum of {numexpr} expresssions.\n"
+        <> "Output a maximum of {numexpr} expressions.\n"
 
 -- | Determine which backend to use
 getBackend :: Flags -> Backend
@@ -132,8 +128,6 @@ fitPluginLLM opts ref hole fits = do
     let flags@Flags{..} = parseFlags opts
     dflags <- getDynFlags
     gbl_env <- getGblEnv
-    let mod_name = moduleNameString $ moduleName $ tcg_mod gbl_env
-        imports = tcg_imports gbl_env
     let backend = getBackend flags
     available_models <- liftIO $ listModels backend
     liftIO $ when debug $ T.putStrLn $ "Running " <> pluginName <> " with flags:"
@@ -157,37 +151,18 @@ fitPluginLLM opts ref hole fits = do
                         <> "Availble models: \n"
                         <> T.unpack (T.unlines models)
             liftIO $ when debug $ T.putStrLn $ pluginName <> ": Hole Found"
-            let mn = "Module: " <> mod_name
-            let lc = "Location: " <> showSDoc dflags (ppr $ ctLocSpan . hole_loc <$> th_hole hole)
-#if __GLASGOW_HASKELL__ >= 912
-            let im = "Imports: " <> showSDoc dflags (ppr $ Map.keys $ imp_mods imports)
-#else
-            let im = "Imports: " <> showSDoc dflags (ppr $ moduleEnvKeys $ imp_mods imports)
-#endif
+            let promptContext = getPromptContext hole fits gbl_env cands dflags
             case th_hole hole of
                 Just h -> do
-                    let hv = "Hole variable: _" <> occNameString (occName $ hole_occ h)
-                    let ht = "Hole type: " <> showSDoc dflags (ppr $ hole_ty h)
-                    let rc = "Relevant constraints: " <> showSDoc dflags (ppr $ th_relevant_cts hole)
-                    let cf = "Candidate fits: " <> showSDoc dflags (ppr fits)
-                    let scope = "Things in scope: " <> showSDoc dflags (ppr $ mapMaybe fullyQualified cands)
                     docs <- if include_docs then getDocs cands else return ""
 
-                    guide <- seekGuidance cands
+                    let promptContext' = T.unpack $ maybe "" encodePromptContext promptContext
                     let prompt' =
                             replacePlaceholders
                                 promptTemplate
-                                [ ("{module}", mn)
-                                , ("{location}", lc)
-                                , ("{imports}", im)
-                                , ("{hole_var}", hv)
-                                , ("{hole_type}", ht)
-                                , ("{relevant_constraints}", rc)
-                                , ("{candidate_fits}", cf)
-                                , ("{numexpr}", show num_expr)
-                                , ("{guidance}", guide)
-                                , ("{scope}", scope)
+                                [ ("{numexpr}", show num_expr)
                                 , ("{docs}", docs)
+                                , ("{context}", promptContext')
                                 ]
                     liftIO $ when debug $ do T.putStrLn $ pluginName <> " Prompt:\n```\n" <> prompt' <> "\n```"
                     res <- liftIO $ generateFits backend prompt' model_name model_options
@@ -261,20 +236,6 @@ verifyHoleFit debug hole fit | Just h <- th_hole hole = discardErrs $ do
                       GHC.tcCheckHoleFit hole (hole_ty h) zonked
               ifErrsM (return False) (return does_fit)
 verifyHoleFit _ _ _ = return False
-
-
--- | Try to find the guide provided by the user
-seekGuidance :: [HoleFitCandidate] -> TcM String
-seekGuidance cands = do
-    case find ((== "_guide") . showPprUnsafe . occName) cands of
-      Just (IdHFCand i) | ty <- idType i -> do
-          case ty of
-            TyConApp tc [errm, errm_t] | "Proxy" <- showPprUnsafe tc,
-                                         "ErrorMessage" <- showPprUnsafe errm,
-                                         TyConApp _ [guide_msg] <- errm_t ->
-              return $ "The user provided these instructions: " <> showPprUnsafe guide_msg
-            _ -> return ""
-      _ -> return ""
 
 -- | Preprocess the response to remove empty lines, lines with only spaces, and code blocks
 preProcess :: [Text] -> [Text]
@@ -350,13 +311,6 @@ getDocs cs = do
     processDoc dflags docs = first_paragraph
       where whole_string = unlines $ map (showSDoc dflags . ppr) docs
             first_paragraph = unlines $ takeWhile (not . null) $ lines whole_string
-
--- | Produce a fully qualified name, e.g. L.sort if Data.List is imported as L
-fullyQualified :: HoleFitCandidate -> Maybe RdrName
-fullyQualified (IdHFCand i) = Just $ getRdrName i
-fullyQualified (NameHFCand n) = Just $ getRdrName n
-fullyQualified (GreHFCand gre) | (n:_) <- greRdrNames gre = Just n
-fullyQualified _ = Nothing
 
 -- | Parse command line options
 parseFlags :: [CommandLineOption] -> Flags
