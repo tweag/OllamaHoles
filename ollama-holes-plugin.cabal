@@ -133,6 +133,7 @@ library
                  , GHC.Plugin.OllamaHoles.Backend.Gemini
                  , GHC.Plugin.OllamaHoles.Logger
                  , GHC.Plugin.OllamaHoles.Prompt
+                 , GHC.Plugin.OllamaHoles.Candidate
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
