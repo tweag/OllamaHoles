@@ -56,6 +56,7 @@ encodePromptContext ctx = LT.toStrict $ LT.decodeUtf8 $
     , "guidance"      .= pcGuidance ctx
     ]
 
+-- | Construct the prompt context from runtime data.
 getPromptContext
     :: TypedHole -> [HoleFit] -> TcGblEnv
     -> DynFlags -> Guidance -> Maybe PromptContext

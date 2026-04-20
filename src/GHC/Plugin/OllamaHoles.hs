@@ -9,20 +9,14 @@ module GHC.Plugin.OllamaHoles where
 
 import Control.Monad (filterM, unless, when)
 import Data.Aeson
-import Data.Aeson.Encoding qualified as Enc
-import Data.Aeson.Text
 import Data.Char (isSpace)
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Text.Encoding qualified as T
-import Data.Text.Lazy qualified as LT
-import Data.Text.Lazy.Encoding qualified as LT
 import Data.Text.IO qualified as T
-import GHC.Generics (Generic)
 import GHC.Plugins hiding ((<>))
 import GHC.Tc.Types
 import GHC.Tc.Types.Constraint (Hole (..))
-import GHC.Tc.Utils.Monad (getGblEnv, newTcRef, writeTcRef, readTcRef, updTcRef, discardErrs, ifErrsM)
+import GHC.Tc.Utils.Monad (getGblEnv, newTcRef, readTcRef, updTcRef, discardErrs, ifErrsM)
 import qualified GHC.Tc.Utils.Monad as GHC
 
 import GHC.Plugin.OllamaHoles.Backend
@@ -43,7 +37,6 @@ import GHC.Types.SrcLoc qualified as GHC (mkRealSrcLoc)
 
 #if __GLASGOW_HASKELL__ >= 912
 import GHC.Tc.Types.CtLoc (ctLocSpan)
-import qualified Data.Map as Map
 #else
 import GHC.Tc.Types.Constraint (ctLocSpan)
 #endif
@@ -59,7 +52,6 @@ import qualified GHC.Iface.Load as GHC (loadInterfaceForName)
 import qualified GHC.Tc.Utils.TcType as GHC (tyCoFVsOfType, mkPhiTy)
 import qualified GHC.Tc.Solver as GHC (simplifyTop, simplifyInfer, captureTopConstraints, InferMode(..))
 import qualified GHC.Tc.Solver.Monad as GHC (zonkTcType, runTcSEarlyAbort)
-import Data.Aeson (Value)
 import qualified Data.Aeson as Aeson
 
 import           GHC.Plugin.OllamaHoles.Prompt
