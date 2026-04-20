@@ -66,9 +66,8 @@ promptTemplate =
         <> "You are a typed-hole plugin within GHC, the Glasgow Haskell Compiler.\n"
         <> "You are given a hole in a Haskell program, and you need to fill it in.\n"
         <> "The hole is represented by the following information:\n"
-        <> "{module}\n{location}\n{imports}\n{hole_var}\n{hole_type}\n{relevant_constraints}\n{candidate_fits}\n\n"
+        <> "{context}\n\n"
         <> "{scope}\n\n"
-        <> "{guidance}\n\n"
         <> "Provide one or more Haskell expressions that could fill this hole.\n"
         <> "This means coming up with an expression of the correct type that satisfies the constraints.\n"
         <> "Pay special attention to the type of the hole, specifically whether it is a function.\n"
@@ -78,7 +77,6 @@ promptTemplate =
         <> "Do not include explanations, introductions, or any surrounding text.\n"
         <> "If you are using a function from scope, make sure to use the qualified name from the list of things in scope.\n"
         <> "Output a maximum of {numexpr} expresssions.\n"
-        <> "Context: {context}\n"
 
 -- | Determine which backend to use
 getBackend :: Flags -> Backend
@@ -170,7 +168,6 @@ fitPluginLLM opts ref hole fits = do
                             replacePlaceholders
                                 promptTemplate
                                 [ ("{numexpr}", show num_expr)
-                                , ("{guidance}", guide)
                                 , ("{scope}", scope)
                                 , ("{docs}", docs)
                                 , ("{context}", promptContext')
