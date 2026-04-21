@@ -2,6 +2,7 @@
 module GHC.Plugin.OllamaHoles.Candidate where
 
 import Control.Monad (when)
+import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
 import GHC (GhcPs, GhcRn, LHsExpr)
@@ -11,7 +12,7 @@ import GHC.Parser qualified as GHC (parseExpression)
 import GHC.Parser.Lexer qualified as GHC
     (ParseResult(..), getPsErrorMessages, initParserState, unP)
 import GHC.Parser.PostProcess qualified as GHC (runPV, unECP)
-import GHC.Plugins hiding ((<>))
+import GHC.Plugins hiding ((<>), NameEnv)
 import GHC.Rename.Expr qualified as GHC (rnLExpr)
 import GHC.Tc.Gen.App qualified as GHC (tcInferSigma)
 import GHC.Tc.Errors.Hole qualified as GHC (tcCheckHoleFit, withoutUnification)
@@ -25,6 +26,8 @@ import GHC.Tc.Utils.Monad (discardErrs, ifErrsM)
 import GHC.Tc.Utils.TcType (TcSigmaType)
 import qualified GHC.Tc.Utils.TcType as GHC (tyCoFVsOfType, mkPhiTy)
 import GHC.Types.SrcLoc qualified as GHC (mkRealSrcLoc)
+
+import GHC.Plugin.OllamaHoles.Candidate.Compat
 
 
 
@@ -202,6 +205,161 @@ data CandidateRank = CandidateRank
     , crSourceLen   :: Int
     } deriving (Eq, Ord, Show)
 
+prepareCandidate :: PrepCtx -> CheckedCandidate -> PreparedCandidate
+prepareCandidate PrepCtx{prxDynFlags, prxHoleArity} CheckedCandidate{ccSource, ccRenamed, ccLog} =
+    let prNormKey = normalizeForHoleArity prxDynFlags prxHoleArity ccRenamed
+        prRank    = rankPreparedCandidate prxDynFlags ccSource ccRenamed
+        prLog     = addDecision StagePrepare
+            ("normalized and ranked: " <> T.pack (show prRank)) ccLog
+    in PreparedCandidate
+        { prSource  = ccSource
+        , prRenamed = ccRenamed
+        , prNormKey
+        , prRank
+        , prLog
+        }
+
+type NameEnv = M.Map Name Int
+
+normalizeForHoleArity :: DynFlags -> Int -> LHsExpr GhcRn -> NormExpr
+normalizeForHoleArity dflags holeArity expr =
+    let (outerBinders, body) = collectTopSimpleLams dflags expr
+        explicitArity        = length outerBinders
+        missingArity         = max 0 (holeArity - explicitArity)
+
+        env0 = M.map (+ missingArity) $ bindMany outerBinders M.empty
+
+        bodyKey  = normExpr dflags env0 body
+        etaArgs  = [ NBound i | i <- reverse [0 .. missingArity - 1] ]
+        bodyKey' = applyMany bodyKey etaArgs
+    in NLam (explicitArity + missingArity) bodyKey'
+
+bindMany :: [Name] -> NameEnv -> NameEnv
+bindMany ns env =
+    let n    = length ns
+        env' = M.map (+ n) env
+        newBindings =
+            M.fromList
+            [ (nm, n - 1 - i)
+            | (i, nm) <- zip [0 :: Int ..] ns
+            ]
+    in newBindings <> env'
+
+applyMany :: NormExpr -> [NormExpr] -> NormExpr
+applyMany f [] = f
+applyMany (NApp g xs) ys = NApp g (xs <> ys)
+applyMany f ys = NApp f ys
+
+normExpr :: DynFlags -> NameEnv -> LHsExpr GhcRn -> NormExpr
+normExpr dflags env expr = case viewExpr dflags expr of
+    VVar nm ->
+        maybe (NFree (renderName dflags nm)) NBound (M.lookup nm env)
+
+    VUnbound txt ->
+        NOther txt
+
+    VLit txt ->
+        NLit txt
+
+    VApp f x ->
+        case normExpr dflags env f of
+            NApp g xs -> NApp g (xs <> [normExpr dflags env x])
+            g         -> NApp g [normExpr dflags env x]
+
+    VOpApp x op y ->
+        NApp (normExpr dflags env op) [normExpr dflags env x, normExpr dflags env y]
+
+    VLam ns body ->
+        NLam (length ns) (normExpr dflags (bindMany ns env) body)
+
+    VSectionL x op ->
+        NApp (normExpr dflags env op) [normExpr dflags env x]
+
+    VSectionR op y ->
+        NApp (normExpr dflags env op) [normExpr dflags env y]
+
+    VNeg x ->
+        NApp (NFree "negate") [normExpr dflags env x]
+
+    VWrapper x ->
+        normExpr dflags env x
+
+    VUnknown txt ->
+        NOther txt
+
+renderName :: DynFlags -> Name -> Text
+renderName dflags = T.pack . showSDoc dflags . ppr
+
+collectTopSimpleLams :: DynFlags -> LHsExpr GhcRn -> ([Name], LHsExpr GhcRn)
+collectTopSimpleLams dflags e = case viewTopSimpleLam dflags e of
+    Just (ns, body) ->
+        let (ns', body') = collectTopSimpleLams dflags body
+        in (ns <> ns', body')
+    Nothing ->
+        ([], e)
+
+rankPreparedCandidate :: DynFlags -> Text -> LHsExpr GhcRn -> CandidateRank
+rankPreparedCandidate dflags src expr = CandidateRank
+    { crTopLamCount = length (fst (collectTopSimpleLams dflags expr))
+    , crNoiseCount  = wrapperCount dflags expr
+    , crNodeCount   = exprSize dflags expr
+    , crSourceLen   = T.length src
+    }
+
+wrapperCount :: DynFlags -> LHsExpr GhcRn -> Int
+wrapperCount dflags = go
+    where
+        go expr = case viewExpr dflags expr of
+            VWrapper e      -> 1 + go e
+            VApp f x        -> go f + go x
+            VOpApp x op y   -> go x + go op + go y
+            VLam _ body     -> go body
+            VSectionL x op  -> go x + go op
+            VSectionR op y  -> go op + go y
+            VNeg x          -> go x
+            _               -> 0
+
+exprSize :: DynFlags -> LHsExpr GhcRn -> Int
+exprSize dflags = go
+    where
+        go expr = 1 + case viewExpr dflags expr of
+            VApp f x        -> go f + go x
+            VOpApp x op y   -> go x + go op + go y
+            VLam _ body     -> go body
+            VSectionL x op  -> go x + go op
+            VSectionR op y  -> go op + go y
+            VNeg x          -> go x
+            VWrapper e      -> go e
+            _               -> 0
+
+dedupePreparedCandidates :: [PreparedCandidate] -> [PreparedCandidate]
+dedupePreparedCandidates = M.elems . foldl step M.empty
+  where
+    step acc pc =
+        M.insertWith chooseBetter (prNormKey pc) pc acc
+
+    chooseBetter new old =
+        if prRank new <= prRank old then new else old
+
+-- | Parse, alpha normalize, type check, and approximate a
+-- haskell expression.
+pipelineCandidate
+  :: ParseCtx -> RenameCtx -> CheckCtx -> PrepCtx -> Text
+  -> TcM (Either CandidateError PreparedCandidate)
+pipelineCandidate parseCtx renameCtx checkCtx prepCtx src = do
+    parsedE <- parseCandidate parseCtx src
+    case parsedE of
+        Left err ->
+            pure (Left err)
+        Right parsed -> do
+            renamedE <- renameCandidate renameCtx parsed
+            case renamedE of
+                Left err ->
+                    pure (Left err)
+                Right renamed -> do
+                    checkedE <- checkCandidateFit checkCtx renamed
+                    pure $ fmap (prepareCandidate prepCtx) checkedE
+
 
 
 -- Errors and Logging
@@ -231,6 +389,8 @@ data StageTag
     = StageParse
     | StageRename
     | StageCheck
+    | StagePrepare
+    | StageDedupe
     deriving (Eq, Ord, Show)
 
 emptyCandidateLog :: CandidateLog
