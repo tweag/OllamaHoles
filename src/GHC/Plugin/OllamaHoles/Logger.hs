@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module GHC.Plugin.OllamaHoles.Logger
@@ -7,6 +6,8 @@ module GHC.Plugin.OllamaHoles.Logger
     , writeLogEvent
     , LogEvent()
     , mkLogEvent
+    , Prompt
+    , Response
     ) where
 
 

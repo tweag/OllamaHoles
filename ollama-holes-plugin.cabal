@@ -133,6 +133,9 @@ library
                  , GHC.Plugin.OllamaHoles.Backend.Gemini
                  , GHC.Plugin.OllamaHoles.Logger
                  , GHC.Plugin.OllamaHoles.Prompt
+                 , GHC.Plugin.OllamaHoles.Candidate
+                 , GHC.Plugin.OllamaHoles.Candidate.Compat
+                 , GHC.Plugin.OllamaHoles.Candidate.Rewrite
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -153,9 +156,63 @@ library
                       crypton >= 1.1.2,
                       bytestring >= 0.12.2
 
-
     -- Directories containing source files.
     hs-source-dirs:   src
 
     -- Base language which the package is written in.
     default-language: GHC2021
+
+
+
+library ollama-holes-lib
+  visibility:          private
+  hs-source-dirs:      src
+  exposed-modules:
+      GHC.Plugin.OllamaHoles.Candidate
+    , GHC.Plugin.OllamaHoles.Candidate.Compat
+    , GHC.Plugin.OllamaHoles.Candidate.Rewrite
+  default-language:    GHC2021
+  build-depends:
+      base
+    , ghc
+    , containers
+    , text
+
+
+
+test-suite ollama-holes-spec
+  type:                exitcode-stdio-1.0
+  main-is:             Main.hs
+  hs-source-dirs:      spec
+  default-language:    GHC2021
+  other-modules:
+      GHC.Plugin.OllamaHoles.Candidate.Spec
+    , GHC.Plugin.OllamaHoles.Candidate.Compat.Spec
+    , GHC.Plugin.OllamaHoles.Candidate.Normalize.Spec
+    , GHC.Plugin.OllamaHoles.Candidate.Rewrite.Spec
+  build-depends:
+      base
+    , ollama-holes-plugin
+    , ollama-holes-plugin:ollama-holes-lib
+    , tasty
+    , tasty-hunit
+    , tasty-quickcheck
+    , ghc
+    , text
+    , containers
+    , temporary
+    , syb
+    , directory
+    , filepath
+    , ghc-paths
+
+
+
+executable ollama-holes-demo
+  hs-source-dirs:      Test
+  main-is:             Main.hs
+  default-language:    GHC2021
+  build-depends:
+      base >= 4 && < 5
+    , ollama-holes-plugin
+    , ollama-holes-plugin:ollama-holes-lib
