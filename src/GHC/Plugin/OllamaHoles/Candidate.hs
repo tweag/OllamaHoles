@@ -28,6 +28,7 @@ import qualified GHC.Tc.Utils.TcType as GHC (tyCoFVsOfType, mkPhiTy)
 import GHC.Types.SrcLoc qualified as GHC (mkRealSrcLoc)
 
 import GHC.Plugin.OllamaHoles.Candidate.Compat
+import GHC.Plugin.OllamaHoles.Candidate.Rewrite
 
 
 
@@ -189,15 +190,6 @@ checkCandidateFit CheckCtx{cxDebug, cxHole} RenamedCandidate{rcSource, rcRenamed
 -- We normalize expressions to group them by heuristic equivalence, and
 -- then rank them to decide which should be the canonical representative.
 
-data NormExpr
-    = NFree Text
-    | NBound Int
-    | NApp NormExpr [NormExpr]
-    | NLam Int NormExpr
-    | NLit Text
-    | NOther Text
-    deriving (Eq, Ord, Show)
-
 data CandidateRank = CandidateRank
     { crTopLamCount :: Int
     , crNoiseCount  :: Int
@@ -207,17 +199,22 @@ data CandidateRank = CandidateRank
 
 prepareCandidate :: PrepCtx -> CheckedCandidate -> PreparedCandidate
 prepareCandidate PrepCtx{prxDynFlags, prxHoleArity} CheckedCandidate{ccSource, ccRenamed, ccLog} =
-    let prNormKey = normalizeForHoleArity prxDynFlags prxHoleArity ccRenamed
-        prRank    = rankPreparedCandidate prxDynFlags ccSource ccRenamed
-        prLog     = addDecision StagePrepare
-            ("normalized and ranked: " <> T.pack (show prRank)) ccLog
-    in PreparedCandidate
-        { prSource  = ccSource
-        , prRenamed = ccRenamed
-        , prNormKey
-        , prRank
-        , prLog
-        }
+  let rawKey             = normalizeForHoleArity prxDynFlags prxHoleArity ccRenamed
+      canonicalKey       = canonicalizeNormExpr rawKey
+      (prNormKey, trace) = normalizeNormExpr canonicalKey
+      prRank             = rankPreparedCandidate prxDynFlags ccSource ccRenamed
+      prLog              =
+        addDecision StagePrepare
+          ("rewrite steps: " <> T.pack (show (length trace))) $
+            addDecision StagePrepare
+              ("normalized and ranked: " <> T.pack (show prRank)) ccLog
+  in PreparedCandidate
+       { prSource  = ccSource
+       , prRenamed = ccRenamed
+       , prNormKey
+       , prRank
+       , prLog
+       }
 
 type NameEnv = M.Map Name Int
 

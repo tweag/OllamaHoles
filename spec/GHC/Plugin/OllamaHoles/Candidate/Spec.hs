@@ -10,11 +10,8 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck qualified as QC
 
-import GHC.Plugin.OllamaHoles.Candidate
-    ( CandidateRank(..)
-    , NormExpr(..)
-    , keepBestByKey
-    )
+import GHC.Plugin.OllamaHoles.Candidate (CandidateRank(..), keepBestByKey)
+import GHC.Plugin.OllamaHoles.Candidate.Rewrite (NormExpr(..))
 
 --------------------------------------------------------------------------------
 -- Dummy type for pure dedupe tests

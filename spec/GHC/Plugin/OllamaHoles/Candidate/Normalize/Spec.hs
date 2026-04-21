@@ -46,7 +46,6 @@ import qualified GHC.Paths as GHC.Paths
 
 import GHC.Plugin.OllamaHoles.Candidate
     ( CandidateRank(..)
-    , NormExpr
     , PreparedCandidate(..)
     , dedupePreparedCandidates
     , emptyCandidateLog

@@ -169,6 +169,7 @@ library ollama-holes-lib
   exposed-modules:
       GHC.Plugin.OllamaHoles.Candidate
     , GHC.Plugin.OllamaHoles.Candidate.Compat
+    , GHC.Plugin.OllamaHoles.Candidate.Rewrite
   default-language:    GHC2021
   build-depends:
       base
@@ -183,6 +184,11 @@ test-suite ollama-holes-spec
   main-is:             Main.hs
   hs-source-dirs:      spec
   default-language:    GHC2021
+  other-modules:
+      GHC.Plugin.OllamaHoles.Candidate.Spec
+    , GHC.Plugin.OllamaHoles.Candidate.Compat.Spec
+    , GHC.Plugin.OllamaHoles.Candidate.Normalize.Spec
+    , GHC.Plugin.OllamaHoles.Candidate.Rewrite.Spec
   build-depends:
       base
     , ollama-holes-plugin
