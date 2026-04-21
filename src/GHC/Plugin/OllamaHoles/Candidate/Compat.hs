@@ -1,8 +1,11 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE LambdaCase #-}
+
 module GHC.Plugin.OllamaHoles.Candidate.Compat
     ( viewExpr
     , viewTopSimpleLam
     , ExprView(..)
+    , showExprView
     ) where
 
 
@@ -31,6 +34,22 @@ data ExprView
     | VNeg (LHsExpr GhcRn)
     | VWrapper (LHsExpr GhcRn)
     | VUnknown Text
+
+showExprView :: ExprView -> String
+showExprView = \case
+    VVar nm       -> "VVar " <> occNameString (occName nm)
+    VUnbound t    -> "VUnbound " <> T.unpack t
+    VLit t        -> "VLit " <> T.unpack t
+    VApp _ _      -> "VApp"
+    VOpApp _ _ _  -> "VOpApp"
+    VLam ns _     -> "VLam " <> show (map (occNameString . occName) ns)
+    VSectionL _ _ -> "VSectionL"
+    VSectionR _ _ -> "VSectionR"
+    VNeg _        -> "VNeg"
+    VWrapper _    -> "VWrapper"
+    VUnknown t    -> "VUnknown " <> T.unpack t
+
+
 
 viewExpr :: DynFlags -> LHsExpr GhcRn -> ExprView
 viewExpr dflags e@(L _ e0) = case e0 of

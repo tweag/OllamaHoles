@@ -259,20 +259,6 @@ matchGroupBody MG{mg_alts = L _ [L _ Match{m_grhss = GRHSs{grhssGRHSs = [L _ (GR
 matchGroupBody _ =
     Nothing
 
-showExprView :: ExprView -> String
-showExprView = \case
-    VVar nm       -> "VVar " <> occNameString (occName nm)
-    VUnbound t    -> "VUnbound " <> T.unpack t
-    VLit t        -> "VLit " <> T.unpack t
-    VApp _ _      -> "VApp"
-    VOpApp _ _ _  -> "VOpApp"
-    VLam ns _     -> "VLam " <> show (map (occNameString . occName) ns)
-    VSectionL _ _ -> "VSectionL"
-    VSectionR _ _ -> "VSectionR"
-    VNeg _        -> "VNeg"
-    VWrapper _    -> "VWrapper"
-    VUnknown t    -> "VUnknown " <> T.unpack t
-
 showTopSimpleLamResult :: Maybe ([Name], LHsExpr GhcRn) -> String
 showTopSimpleLamResult = \case
     Nothing ->

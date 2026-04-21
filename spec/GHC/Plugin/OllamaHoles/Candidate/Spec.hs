@@ -10,8 +10,11 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck qualified as QC
 
-import GHC.Plugin.OllamaHoles.Candidate (CandidateRank(..), keepBestByKey)
+import GHC.Plugin.OllamaHoles.Candidate
+  (CandidateRank(..), keepBestByKey, dedupePreparedCandidates, PreparedCandidate(..), mkPrepared)
+import GHC.Plugin.OllamaHoles.Candidate.Compat
 import GHC.Plugin.OllamaHoles.Candidate.Rewrite (NormExpr(..))
+import GHC.Plugin.OllamaHoles.Candidate.WithRenamedExpr
 
 --------------------------------------------------------------------------------
 -- Dummy type for pure dedupe tests
@@ -91,6 +94,35 @@ unitTests = testGroup "unit"
             b = Dummy (NFree "b") (CandidateRank 0 0 1 1) "b"
             out = L.sortOn dLabel (keepBestByKey dKey dRank [a, b])
         out @?= [a, b]
+
+    , testCase "mixed candidate set dedupes only intended equivalence classes" $
+        withRenamedExpr [] "f" $ \dflags eF ->
+        withRenamedExpr [] "\\x -> f x" $ \_ eFEta ->
+        withRenamedExpr [] "g" $ \_ eG ->
+        withRenamedExpr [] "\\y -> g y" $ \_ eGEta ->
+        withRenamedExpr [] "\\z -> z" $ \_ eId -> do
+            let pF    = mkPrepared dflags 1 "f" eF
+                pFEta = mkPrepared dflags 1 "\\x -> f x" eFEta
+                pG    = mkPrepared dflags 1 "g" eG
+                pGEta = mkPrepared dflags 1 "\\y -> g y" eGEta
+                pId   = mkPrepared dflags 1 "\\z -> z" eId
+
+                out = L.sortOn prSource $
+                    dedupePreparedCandidates [pFEta, pG, pGEta, pId, pF]
+
+            map prSource out @?= ["\\z -> z", "f", "g"]
+
+    , testCase "viewExpr gives up on case expressions" $
+        withRenamedExpr [] "case x of y -> y" $ \dflags e ->
+            case viewExpr dflags e of
+                VUnknown _ -> pure ()
+                other      -> assertFailure $ "expected VUnknown, got: " <> showExprView other
+
+    , testCase "viewExpr gives up on let expressions" $
+        withRenamedExpr [] "let z = x in z" $ \dflags e ->
+            case viewExpr dflags e of
+                VUnknown _ -> pure ()
+                other      -> assertFailure $ "expected VUnknown, got: " <> showExprView other
     ]
 
 propertyTests :: TestTree
@@ -111,4 +143,14 @@ propertyTests = testGroup "properties"
                     [ (dKey x, dRank x) | x <- xs ]
 
             in all (\y -> M.lookup (dKey y) minima == Just (dRank y)) ys
+
+    , localOption (QC.QuickCheckTests 12) $
+        QC.testProperty "deduped prepared candidates have distinct normalization keys" $
+        QC.ioProperty $
+            withTwoRenamedExpr [] "f" "\\x -> f x" $ \dflags e1 e2 -> do
+                let p1 = mkPrepared dflags 1 "f" e1
+                    p2 = mkPrepared dflags 1 "\\x -> f x" e2
+                    out = dedupePreparedCandidates [p1, p2]
+                    keys = map prNormKey out
+                pure (length keys == length (L.nub keys))
     ]

@@ -43,6 +43,25 @@ isStructurallyCanonical = \case
         isApp (NApp _ _) = True
         isApp _          = False
 
+hasApplicableRewrite :: [RewriteRule] -> NormExpr -> Bool
+hasApplicableRewrite rules expr =
+     applicableHere expr
+  || case expr of
+       NApp f xs  -> hasApplicableRewrite rules f || any (hasApplicableRewrite rules) xs
+       NLam _ bod -> hasApplicableRewrite rules bod
+       _          -> False
+  where
+    applicableHere e =
+      any (\rule -> fires rule e) rules
+
+    fires RewriteRule{rrStep} e =
+      case rrStep e of
+        Just e' -> rewriteMeasure e' < rewriteMeasure e
+        Nothing -> False
+
+hasNoApplicableRewrite :: [RewriteRule] -> NormExpr -> Bool
+hasNoApplicableRewrite rules = not . hasApplicableRewrite rules
+
 --------------------------------------------------------------------------------
 -- Unit tests
 --------------------------------------------------------------------------------
@@ -171,6 +190,28 @@ unitTests = testGroup "unit"
                 NApp (NApp (NFree "$") [NApp (NFree ".") [NFree "f", NFree "g"]]) [NBound 0]
             (after, _) = normalizeNormExpr before
         assertBool "expected canonical normalized form" (isStructurallyCanonical after)
+
+    , testCase "canonicalizeNormExpr flattens nested application spines" $ do
+        let before =
+                NApp (NApp (NFree "f") [NFree "a"]) [NFree "b", NFree "c"]
+            expected =
+                NApp (NFree "f") [NFree "a", NFree "b", NFree "c"]
+        canonicalizeNormExpr before @?= expected
+
+    , testCase "eta-reduce-1 rule does not match when binder occurs in function" $ do
+        let before =
+                NLam 1 (NApp (NApp (NBound 0) [NFree "f"]) [NBound 0])
+        rrStep etaReduce1Rule before @?= Nothing
+
+    , testCase "normalization leaves no applicable rewrite behind" $ do
+        let before =
+                NApp (NFree "$")
+                [ NApp (NFree ".") [NFree "id", NFree "g"]
+                , NBound 0
+                ]
+            (after, _) = normalizeNormExpr before
+        assertBool "expected no applicable rewrite after normalization"
+            (hasNoApplicableRewrite defaultRewriteRules after)
     ]
 
 --------------------------------------------------------------------------------
@@ -237,6 +278,11 @@ propertyTests = localOption (QC.QuickCheckMaxSize 20) $ testGroup "properties"
         \(expr :: NormExpr) ->
             let (_, steps) = normalizeNormExprWith [] expr
             in null steps
+
+    , QC.testProperty "normalizeNormExpr leaves no applicable rewrite behind" $
+        \(expr :: NormExpr) ->
+            let (n, _) = normalizeNormExpr expr
+            in hasNoApplicableRewrite defaultRewriteRules n
 
     , QC.testProperty "compose-app handles extra trailing arguments" $
         \(extraCount :: QC.NonNegative Int) ->
