@@ -11,7 +11,7 @@ import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck qualified as QC
 
 import GHC.Plugin.OllamaHoles.Candidate
-  (CandidateRank(..), keepBestByKey, dedupePreparedCandidates, PreparedCandidate(..), mkPrepared)
+  (CandidateRank(..), keepBestByKey, dedupePreparedCandidates, normalizeForHoleArity, PreparedCandidate(..), mkPrepared)
 import GHC.Plugin.OllamaHoles.Candidate.Compat
 import GHC.Plugin.OllamaHoles.Candidate.Rewrite (NormExpr(..))
 import GHC.Plugin.OllamaHoles.Candidate.WithRenamedExpr
@@ -123,6 +123,108 @@ unitTests = testGroup "unit"
             case viewExpr dflags e of
                 VUnknown _ -> pure ()
                 other      -> assertFailure $ "expected VUnknown, got: " <> showExprView other
+
+    , testCase "left and right sections normalize differently" $
+        withTwoRenamedExpr [] "(\"x\" ++)" "(++ \"x\")" $ \dflags eLeft eRight -> do
+            let kLeft  = normalizeForHoleArity dflags 1 eLeft
+                kRight = normalizeForHoleArity dflags 1 eRight
+            assertBool
+                ("expected distinct keys for left and right sections\n"
+                    <> "left:  " <> show kLeft <> "\n"
+                    <> "right: " <> show kRight)
+                (kLeft /= kRight)
+
+    , testCase "dedupe preserves both left and right sections" $
+        withTwoRenamedExpr [] "(\"x\" ++)" "(++ \"x\")" $ \dflags eLeft eRight -> do
+            let pLeft  = mkPrepared dflags 1 "(\"x\" ++)" eLeft
+                pRight = mkPrepared dflags 1 "(++ \"x\")" eRight
+                out    = dedupePreparedCandidates [pLeft, pRight]
+            map prSource (L.sortOn prSource out) @?=
+                ["(\"x\" ++)", "(++ \"x\")"]
+
+    , testCase "viewExpr reveals shape of left section" $
+        withRenamedExpr [] "(\"x\" ++)" $ \dflags e ->
+            case viewExpr dflags e of
+                VSectionL _ _ -> pure ()
+                VLam _ _      -> pure ()
+                VWrapper _    -> pure ()
+                VUnknown _    -> pure ()
+                other         -> assertFailure $ "unexpected shape: " <> showExprView other
+
+    , testCase "viewExpr reveals shape of right section" $
+        withRenamedExpr [] "(++ \"x\")" $ \dflags e ->
+            case viewExpr dflags e of
+                VSectionR _ _ -> pure ()
+                VLam _ _      -> pure ()
+                VWrapper _    -> pure ()
+                VUnknown _    -> pure ()
+                other         -> assertFailure $ "unexpected shape: " <> showExprView other
+
+    , testCase "prepareCandidate collapses eta and composition variants but keeps distinct fits" $
+        withRenamedExpr [] "map id . id" $ \dflags e1 ->
+        withRenamedExpr [] "\\x -> map id (id x)" $ \_ e2 ->
+        withRenamedExpr [] "\\x -> x - 1" $ \_ e3 -> do
+            let p1 = mkPrepared dflags 1 "map id . id" e1
+                p2 = mkPrepared dflags 1 "\\x -> map id (id x)" e2
+                p3 = mkPrepared dflags 1 "\\x -> x - 1" e3
+
+                out = L.sortOn prSource (dedupePreparedCandidates [p2, p3, p1])
+
+            p1 `seq` p2 `seq` pure ()  -- optional, just to force construction
+
+            assertEqual "equivalent candidates should get the same key"
+                (prNormKey p1)
+                (prNormKey p2)
+
+            assertBool "distinct fit should stay distinct"
+                (prNormKey p1 /= prNormKey p3)
+
+            map prSource out @?=
+                ["\\x -> x - 1", "map id . id"]
+
+    -- Regression test: Left and right sections are not equivalent. This must remain
+    -- true even if Compat later learns to recognize sections more precisely instead
+    -- of falling back to VUnknown.
+    , testCase "left and right sections are never semantically deduplicated" $
+        withTwoRenamedExpr [] "(\"x\" ++)" "(++ \"x\")" $ \dflags eLeft eRight -> do
+            let pLeft  = mkPrepared dflags 1 "(\"x\" ++)" eLeft
+                pRight = mkPrepared dflags 1 "(++ \"x\")" eRight
+
+            assertBool
+                ("expected distinct normalization keys\n"
+                    <> "left:  " <> show (prNormKey pLeft) <> "\n"
+                    <> "right: " <> show (prNormKey pRight))
+                (prNormKey pLeft /= prNormKey pRight)
+
+            let out = dedupePreparedCandidates [pLeft, pRight]
+                outSources = L.sort (map prSource out)
+
+            outSources @?= L.sort ["(\"x\" ++)", "(++ \"x\")"]
+
+    , testCase "left and right sections remain distinct after rewrite normalization" $
+        withTwoRenamedExpr [] "(\"x\" ++)" "(++ \"x\")" $ \dflags eLeft eRight -> do
+            let kLeft  = normalizeForHoleArity dflags 1 eLeft
+                kRight = normalizeForHoleArity dflags 1 eRight
+
+            assertBool
+                ("expected distinct rewritten keys\n"
+                    <> "left:  " <> show kLeft <> "\n"
+                    <> "right: " <> show kRight)
+                (kLeft /= kRight)
+
+    , testCase "operand order matters for subtraction" $
+        withTwoRenamedExpr [] "\\x -> 1 - x" "\\x -> x - 1" $ \dflags eLeft eRight -> do
+            let pLeft  = mkPrepared dflags 1 "\\x -> 1 - x" eLeft
+                pRight = mkPrepared dflags 1 "\\x -> x - 1" eRight
+
+            assertBool
+                ("expected distinct normalization keys\n"
+                    <> "left:  " <> show (prNormKey pLeft) <> "\n"
+                    <> "right: " <> show (prNormKey pRight))
+                (prNormKey pLeft /= prNormKey pRight)
+
+            let out = dedupePreparedCandidates [pLeft, pRight]
+            length out @?= 2
     ]
 
 propertyTests :: TestTree

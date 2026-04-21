@@ -101,13 +101,15 @@ data PreparedCandidate = PreparedCandidate
     }
 
 mkPrepared :: DynFlags -> Int -> Text -> LHsExpr GhcRn -> PreparedCandidate
-mkPrepared dflags arity src expr = PreparedCandidate
-    { prSource  = src
-    , prRenamed = expr
-    , prNormKey = normalizeForHoleArity dflags arity expr
-    , prRank    = rankPreparedCandidate dflags src expr
-    , prLog     = emptyCandidateLog
-    }
+mkPrepared dflags arity src expr =
+  prepareCandidate
+    (mkPrepCtx dflags arity)
+    (CheckedCandidate
+        { ccSource   = src
+        , ccRenamed  = expr
+        , ccExprType = error "mkChecked: ccExprType unused by prepareCandidate"
+        , ccLog      = emptyCandidateLog
+        })
 
 
 
@@ -251,11 +253,6 @@ bindMany ns env =
             ]
     in newBindings <> env'
 
-applyMany :: NormExpr -> [NormExpr] -> NormExpr
-applyMany f [] = f
-applyMany (NApp g xs) ys = NApp g (xs <> ys)
-applyMany f ys = NApp f ys
-
 normExpr :: DynFlags -> NameEnv -> LHsExpr GhcRn -> NormExpr
 normExpr dflags env expr = case viewExpr dflags expr of
     VVar nm ->
@@ -279,10 +276,10 @@ normExpr dflags env expr = case viewExpr dflags expr of
         NLam (length ns) (normExpr dflags (bindMany ns env) body)
 
     VSectionL x op ->
-        NApp (normExpr dflags env op) [normExpr dflags env x]
+        NSectionL (normExpr dflags env x) (normExpr dflags env op)
 
     VSectionR op y ->
-        NApp (normExpr dflags env op) [normExpr dflags env y]
+        NSectionR (normExpr dflags env op) (normExpr dflags env y)
 
     VNeg x ->
         NApp (NFree "negate") [normExpr dflags env x]

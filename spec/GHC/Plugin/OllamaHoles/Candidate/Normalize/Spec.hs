@@ -47,10 +47,14 @@ import qualified GHC.Paths as GHC.Paths
 import GHC.Plugin.OllamaHoles.Candidate
     ( CandidateRank(..)
     , PreparedCandidate(..)
+    , CheckedCandidate(..)
     , dedupePreparedCandidates
     , emptyCandidateLog
     , normalizeForHoleArity
     , rankPreparedCandidate
+    , prepareCandidate
+    , mkPrepCtx
+    , mkPrepared
     )
 
 tests :: TestTree
@@ -141,15 +145,6 @@ propertyTests = testGroup "properties"
 --------------------------------------------------------------------------------
 -- Small helpers
 --------------------------------------------------------------------------------
-
-mkPrepared :: DynFlags -> Int -> Text -> LHsExpr GhcRn -> PreparedCandidate
-mkPrepared dflags arity src expr = PreparedCandidate
-    { prSource  = src
-    , prRenamed = expr
-    , prNormKey = normalizeForHoleArity dflags arity expr
-    , prRank    = rankPreparedCandidate dflags src expr
-    , prLog     = emptyCandidateLog
-    }
 
 withTwoRenamedExpr
     :: [String]

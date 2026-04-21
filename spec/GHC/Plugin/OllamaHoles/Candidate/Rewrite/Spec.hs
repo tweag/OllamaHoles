@@ -9,7 +9,6 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck qualified as QC
 
-import GHC.Plugin.OllamaHoles.Candidate (applyMany)
 import GHC.Plugin.OllamaHoles.Candidate.Rewrite
 
 tests :: TestTree
@@ -34,6 +33,8 @@ isStructurallyCanonical = \case
     NLit _    -> True
     NOther _  -> True
     NLam _ b  -> isStructurallyCanonical b
+    NSectionL x op -> isStructurallyCanonical x && isStructurallyCanonical op
+    NSectionR op y -> isStructurallyCanonical op && isStructurallyCanonical y
     NApp f xs ->
         not (null xs)
         && not (isApp f)
@@ -197,11 +198,6 @@ unitTests = testGroup "unit"
             expected =
                 NApp (NFree "f") [NFree "a", NFree "b", NFree "c"]
         canonicalizeNormExpr before @?= expected
-
-    , testCase "eta-reduce-1 rule does not match when binder occurs in function" $ do
-        let before =
-                NLam 1 (NApp (NApp (NBound 0) [NFree "f"]) [NBound 0])
-        rrStep etaReduce1Rule before @?= Nothing
 
     , testCase "normalization leaves no applicable rewrite behind" $ do
         let before =

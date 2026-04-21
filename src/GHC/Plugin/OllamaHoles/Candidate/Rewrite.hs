@@ -17,6 +17,7 @@ module GHC.Plugin.OllamaHoles.Candidate.Rewrite
     , canonicalizeNormExpr
     , rewriteMeasure
     , usesBound
+    , applyMany
     ) where
 
 import Data.List (find)
@@ -33,6 +34,8 @@ data NormExpr
     | NApp NormExpr [NormExpr]
     | NLam Int NormExpr
     | NLit Text
+    | NSectionL NormExpr NormExpr -- left operand, operator
+    | NSectionR NormExpr NormExpr -- operator, right operand
     | NOther Text
     deriving (Eq, Ord, Show)
 
@@ -153,6 +156,12 @@ canonicalizeNormExpr = \case
   NLam n body ->
     NLam n (canonicalizeNormExpr body)
 
+  NSectionL x op ->
+    NSectionL (canonicalizeNormExpr x) (canonicalizeNormExpr op)
+
+  NSectionR op y ->
+    NSectionR (canonicalizeNormExpr op) (canonicalizeNormExpr y)
+
   other ->
     other
 
@@ -201,9 +210,11 @@ firstDecreasingRewrite rules before = do
                 maybe False (\a -> rewriteMeasure a < rewriteMeasure before) (rrStep before))
 
 applyMany :: NormExpr -> [NormExpr] -> NormExpr
-applyMany f [] = f
-applyMany (NApp g xs) ys = NApp g (xs <> ys)
-applyMany f ys = NApp f ys
+applyMany f                []         = f
+applyMany (NApp g xs)      ys         = NApp g (xs <> ys)
+applyMany (NSectionL x op) (a : rest) = applyMany (NApp op [x, a]) rest
+applyMany (NSectionR op y) (a : rest) = applyMany (NApp op [a, y]) rest
+applyMany f                ys         = NApp f ys
 
 usesBound :: Int -> NormExpr -> Bool
 usesBound k = \case
@@ -228,3 +239,5 @@ exprSize = \case
     NOther _   -> 1
     NApp f xs  -> 1 + exprSize f + sum (map exprSize xs)
     NLam _ bod -> 1 + exprSize bod
+    NSectionL x op -> 1 + exprSize x + exprSize op
+    NSectionR op y -> 1 + exprSize op + exprSize y
