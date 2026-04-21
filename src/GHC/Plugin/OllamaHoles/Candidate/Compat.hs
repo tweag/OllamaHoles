@@ -1,6 +1,8 @@
 {-# LANGUAGE CPP #-}
 module GHC.Plugin.OllamaHoles.Candidate.Compat
     ( viewExpr
+    , viewTopSimpleLam
+    , ExprView(..)
     ) where
 
 

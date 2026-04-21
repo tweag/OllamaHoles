@@ -332,14 +332,21 @@ exprSize dflags = go
             VWrapper e      -> go e
             _               -> 0
 
-dedupePreparedCandidates :: [PreparedCandidate] -> [PreparedCandidate]
-dedupePreparedCandidates = M.elems . foldl step M.empty
+keepBestByKey :: Ord k => (a -> k) -> (a -> CandidateRank) -> [a] -> [a]
+keepBestByKey keyOf rankOf =
+  M.elems . foldl step M.empty
   where
-    step acc pc =
-        M.insertWith chooseBetter (prNormKey pc) pc acc
+    step acc x =
+      M.insertWith chooseBetter (keyOf x) x acc
 
     chooseBetter new old =
-        if prRank new <= prRank old then new else old
+      if rankOf new <= rankOf old then new else old
+
+dedupePreparedCandidates :: [PreparedCandidate] -> [PreparedCandidate]
+dedupePreparedCandidates =
+  keepBestByKey prNormKey prRank
+
+
 
 -- | Parse, alpha normalize, type check, and approximate a
 -- haskell expression.
