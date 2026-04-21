@@ -134,6 +134,7 @@ library
                  , GHC.Plugin.OllamaHoles.Logger
                  , GHC.Plugin.OllamaHoles.Prompt
                  , GHC.Plugin.OllamaHoles.Candidate
+                 , GHC.Plugin.OllamaHoles.Candidate.Compat
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
