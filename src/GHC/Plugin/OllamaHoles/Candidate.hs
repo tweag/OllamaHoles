@@ -177,8 +177,6 @@ checkCandidateFit CheckCtx{cxDebug, cxHole} RenamedCandidate{rcSource, rcRenamed
 
             let onError = do
                     let msg = "type inference or hole-fit check failed"
-                    when cxDebug $ liftIO $
-                        putStrLn (T.unpack msg <> ": " <> T.unpack rcSource)
                     pure (Left (CandidateTypeError msg))
 
             ifErrsM onError $

@@ -154,9 +154,7 @@ library
                       filepath >= 1.5.5,
                       time >= 1.14,
                       crypton >= 1.1.2,
-                      bytestring >= 0.12.2,
-                      ollama-holes-plugin:ollama-holes-lib
-
+                      bytestring >= 0.12.2
 
     -- Directories containing source files.
     hs-source-dirs:   src

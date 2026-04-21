@@ -208,7 +208,8 @@ extractHoleFitsFromResponse dflags prompt' rsp logger hole h debug = do
 
     -- check that we reach the same conclusion as
     -- the original fit check
-    regressionCheck hole surfaceUnique preparedE
+    when debug $
+      regressionCheck hole surfaceUnique preparedE
 
     let failures = [ (src, err) | (src, Left err) <- zip surfaceUnique preparedE ]
     let prepared = [ pc | Right pc <- preparedE ]
