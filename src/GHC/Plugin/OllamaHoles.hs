@@ -7,12 +7,13 @@
 -- | The Ollama plugin for GHC
 module GHC.Plugin.OllamaHoles where
 
-import Control.Monad (filterM, unless, when)
+import Control.Monad (filterM, unless, when, forM_)
 import Data.Aeson
 import Data.Char (isSpace)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import Data.List qualified as L
 import GHC.Plugins hiding ((<>))
 import GHC.Tc.Types
 import GHC.Tc.Types.Constraint (Hole (..))
@@ -52,6 +53,7 @@ import qualified Data.Aeson as Aeson
 
 import           GHC.Plugin.OllamaHoles.Prompt
 import qualified GHC.Plugin.OllamaHoles.Logger as Log
+import           GHC.Plugin.OllamaHoles.Candidate
 
 -- | Prompt used to prompt the LLM
 promptTemplate :: Text
@@ -167,14 +169,8 @@ fitPluginLLM opts ref hole fits = do
                     liftIO $ when debug $ do T.putStrLn $ pluginName <> " Prompt:\n```\n" <> prompt' <> "\n```"
                     res <- liftIO $ generateFits backend prompt' model_name model_options
                     case res of
-                        Right rsp -> do
-                            let lns = (preProcess . T.lines) rsp
-                            liftIO $ when debug $ do T.putStrLn $ pluginName <> " Response:\n```\n" <> rsp <> "\n```"
-                            verified <- filterM (verifyHoleFit debug hole) lns
-                            let fits' = map (RawHoleFit . text . T.unpack) verified
-                            liftIO $ Log.writeLogEvent logger $ Log.mkLogEvent prompt' rsp (length lns) 0 (length verified)
-                            -- Return the generated fits
-                            return fits'
+                        Right rsp ->
+                            extractHoleFitsFromResponse dflags prompt' rsp logger hole h debug
                         Left err -> do
                             liftIO $
                                 when debug $
@@ -183,6 +179,59 @@ fitPluginLLM opts ref hole fits = do
                             -- Return the original fits without modification
                             return fits
                 Nothing -> return fits
+
+extractHoleFitsFromResponse
+    :: DynFlags -> Log.Prompt -> Log.Response -> Log.Logger
+    -> TypedHole -> Hole -> Bool -> TcM [HoleFit]
+extractHoleFitsFromResponse dflags prompt' rsp logger hole h debug = do
+    let rawLines      = preProcess (T.lines rsp) -- raw candidate list
+    let surfaceUnique = L.nub rawLines           -- remove syntactic duplicates
+
+    liftIO $ when debug $ do
+        putStrLn "--- raw candidates ---"
+        mapM_ T.putStrLn rawLines
+        putStrLn ""
+        putStrLn "--- syntactic uniques ---"
+        mapM_ T.putStrLn surfaceUnique
+        putStrLn ""
+
+    let parseCtx  = mkParseCtx dflags
+    let renameCtx = mkRenameCtx debug
+    let checkCtx  = mkCheckCtx debug hole
+    let prepCtx   = mkPrepCtx dflags (holeArity h)
+
+    -- prepare candidates for semantic deduplication
+    preparedE <- traverse
+        (pipelineCandidate parseCtx renameCtx checkCtx prepCtx)
+        surfaceUnique
+
+    let failures = [ (src, err) | (src, Left err) <- zip surfaceUnique preparedE ]
+    let prepared = [ pc | Right pc <- preparedE ]
+    let deduped  = dedupePreparedCandidates prepared
+    let fits'    = map (RawHoleFit . text . T.unpack . prSource) deduped
+
+    liftIO $ when debug $ do
+        putStrLn "--- candidate validation failures ---"
+        mapM_ (putStrLn . uncurry renderCandidateError) failures
+        putStrLn ""
+        putStrLn "--- prepared for semantic-ish deduplication ---"
+        forM_ prepared $ \pc -> do
+            putStrLn ("source: " <> T.unpack (prSource pc))
+            putStrLn ("rank:   " <> show (prRank pc))
+            putStrLn ("key:    " <> show (prNormKey pc))
+            putStrLn ""
+        putStrLn "--- semantic-ish uniques ---"
+        mapM_ (putStrLn . T.unpack . prSource) deduped
+        putStrLn ""
+
+    liftIO $ Log.writeLogEvent logger $ Log.mkLogEvent
+        prompt' rsp (length rawLines) (length deduped) (length prepared)
+
+    return fits'
+
+holeArity :: Hole -> Int
+holeArity = length . fst . splitFunTys . hole_ty
+
 
 
 -- | Parse an expression in the current context

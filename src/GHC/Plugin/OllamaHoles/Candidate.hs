@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
+
 module GHC.Plugin.OllamaHoles.Candidate where
 
 import Control.Monad (when)
@@ -375,6 +377,13 @@ data CandidateError
     | CandidateTypeError Text
     | CandidateRejected Text
     deriving (Eq, Show)
+
+renderCandidateError :: Text -> CandidateError -> String
+renderCandidateError src = \case
+    CandidateParseError msg  -> "parse failed: " <> T.unpack src <> "\n  " <> T.unpack msg
+    CandidateRenameError msg -> "rename failed: " <> T.unpack src <> "\n  " <> T.unpack msg
+    CandidateTypeError msg   -> "type inference or hole-fit check failed: " <> T.unpack src <> "\n  " <> T.unpack msg
+    CandidateRejected msg    -> "rejected: " <> T.unpack src <> "\n  " <> T.unpack msg
 
 
 
