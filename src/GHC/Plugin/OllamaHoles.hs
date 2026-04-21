@@ -7,12 +7,13 @@
 -- | The Ollama plugin for GHC
 module GHC.Plugin.OllamaHoles where
 
-import Control.Monad (filterM, unless, when, forM_)
+import Control.Monad (unless, when, forM_)
 import Data.Aeson
 import Data.Char (isSpace)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import Data.Traversable (for)
 import Data.List qualified as L
 import GHC.Plugins hiding ((<>))
 import GHC.Tc.Types
@@ -205,6 +206,10 @@ extractHoleFitsFromResponse dflags prompt' rsp logger hole h debug = do
         (pipelineCandidate parseCtx renameCtx checkCtx prepCtx)
         surfaceUnique
 
+    -- check that we reach the same conclusion as
+    -- the original fit check
+    regressionCheck hole surfaceUnique preparedE
+
     let failures = [ (src, err) | (src, Left err) <- zip surfaceUnique preparedE ]
     let prepared = [ pc | Right pc <- preparedE ]
     let deduped  = dedupePreparedCandidates prepared
@@ -233,7 +238,33 @@ extractHoleFitsFromResponse dflags prompt' rsp logger hole h debug = do
 holeArity :: Hole -> Int
 holeArity = length . fst . splitFunTys . hole_ty
 
+-- | This is meant to be a temporary regression check. We changed how
+-- parsing/checking is done; this check asserts that the new method
+-- agrees with @verifyHoleFit@.
+regressionCheck
+  :: TypedHole -> [Text] -> [Either a b] -> TcM ()
+regressionCheck hole surfaceUnique preparedE = do
+    -- temporary regression check: old validator vs new staged pipeline
+    agreement <- for surfaceUnique $ \src -> do
+        oldOk <- verifyHoleFit False hole src
+        let newOk = case lookup src (zip surfaceUnique preparedE) of
+                Just (Right _) -> True
+                _              -> False
+        pure (src, oldOk, newOk)
 
+    let disagreements =
+          [ (src, oldOk, newOk)
+          | (src, oldOk, newOk) <- agreement
+          , oldOk /= newOk
+          ]
+
+    liftIO $ when (not $ null disagreements) $ do
+        putStrLn "--- validation disagreements (old verifyHoleFit vs new pipeline) ---"
+        forM_ disagreements $ \(src, oldOk, newOk) -> do
+            putStrLn ("candidate: " <> T.unpack src)
+            putStrLn ("old: " <> show oldOk)
+            putStrLn ("new: " <> show newOk)
+            putStrLn ""
 
 -- | Parse an expression in the current context
 parseInContext :: Text -> TcM (Either String (LHsExpr GhcPs))
@@ -251,14 +282,11 @@ parseInContext fit = do
 
 -- | Check that the hole fit matches the type of the hole
 verifyHoleFit :: Bool -> TypedHole -> Text -> TcM Bool
-verifyHoleFit debug hole fit | Just h <- th_hole hole = discardErrs $ do
+verifyHoleFit _ hole fit | Just h <- th_hole hole = discardErrs $ do
     -- Instaniate a new IORef session with the current HscEnv.
     parsed <- parseInContext fit
     case parsed of
-        Left err_msg-> do
-            liftIO $ when debug $ do
-              T.putStrLn $ "Error during validation of " <> fit
-              putStrLn err_msg
+        Left _ -> do
             return False
         Right p_e -> do
             -- If parsing was successful, we try renaming the expression

@@ -100,6 +100,15 @@ data PreparedCandidate = PreparedCandidate
     , prLog     :: CandidateLog
     }
 
+mkPrepared :: DynFlags -> Int -> Text -> LHsExpr GhcRn -> PreparedCandidate
+mkPrepared dflags arity src expr = PreparedCandidate
+    { prSource  = src
+    , prRenamed = expr
+    , prNormKey = normalizeForHoleArity dflags arity expr
+    , prRank    = rankPreparedCandidate dflags src expr
+    , prLog     = emptyCandidateLog
+    }
+
 
 
 -- Analysis
