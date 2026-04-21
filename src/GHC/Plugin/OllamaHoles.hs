@@ -211,9 +211,10 @@ extractHoleFitsFromResponse dflags prompt' rsp logger hole h debug = do
     let fits'    = map (RawHoleFit . text . T.unpack . prSource) deduped
 
     liftIO $ when debug $ do
-        putStrLn "--- candidate validation failures ---"
-        mapM_ (putStrLn . uncurry renderCandidateError) failures
-        putStrLn ""
+        when (not $ null failures) $ do
+            putStrLn "--- candidate validation failures ---"
+            mapM_ (putStrLn . uncurry renderCandidateError) failures
+            putStrLn ""
         putStrLn "--- prepared for semantic-ish deduplication ---"
         forM_ prepared $ \pc -> do
             putStrLn ("source: " <> T.unpack (prSource pc))

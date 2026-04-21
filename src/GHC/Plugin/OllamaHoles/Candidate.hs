@@ -131,8 +131,6 @@ renameCandidate RenameCtx{rxDebug} ParsedCandidate{pcSource, pcParsed, pcLog} =
     discardErrs $ do
         let onError = do
                 let msg = "rename failed" :: Text
-                when rxDebug $ liftIO $
-                    putStrLn $ T.unpack (msg <> ": " <> pcSource)
                 pure (Left (CandidateRenameError msg))
         (rn_e, _) <- GHC.rnLExpr pcParsed
         ifErrsM onError $
