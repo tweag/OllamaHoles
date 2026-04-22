@@ -215,9 +215,9 @@ unsafeCreateRawTemplateName = TemplateName
 -- names like ".." or "foo\bar".
 parseTemplateName :: Text -> Either TemplateError TemplateName
 parseTemplateName t
-  | T.null t = Left (InvalidTemplateName t)
-  | T.all nameSafeChar t = Right (TemplateName t)
-  | otherwise = Left (InvalidTemplateName t)
+    | T.null t = Left (InvalidTemplateName t)
+    | T.all nameSafeChar t = Right (TemplateName t)
+    | otherwise = Left (InvalidTemplateName t)
 
 nameSafeChar :: Char -> Bool
 nameSafeChar c = isAlphaNum c || c == '-' || c == '_'

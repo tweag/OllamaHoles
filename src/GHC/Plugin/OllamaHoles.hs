@@ -19,7 +19,7 @@ import GHC.Plugins hiding ((<>))
 import GHC.Tc.Types
 import GHC.Tc.Types.Constraint (Hole (..))
 import GHC.Tc.Utils.Monad (getGblEnv, newTcRef, readTcRef, updTcRef, discardErrs, ifErrsM)
-import qualified GHC.Tc.Utils.Monad as GHC
+import GHC.Tc.Utils.Monad qualified as GHC
 
 import GHC.Plugin.OllamaHoles.Backend
 import GHC.Plugin.OllamaHoles.Backend.Gemini (geminiBackend)
@@ -43,19 +43,19 @@ import GHC.Tc.Types.CtLoc (ctLocSpan)
 import GHC.Tc.Types.Constraint (ctLocSpan)
 #endif
 
-import qualified GHC.HsToCore.Docs as GHC
-import qualified GHC.Types.Unique.Map as GHC
-import qualified GHC.Hs.Doc as GHC
-import qualified GHC.Iface.Load as GHC (loadInterfaceForName)
-import qualified GHC.Tc.Utils.TcType as GHC (tyCoFVsOfType, mkPhiTy)
-import qualified GHC.Tc.Solver as GHC (simplifyTop, simplifyInfer, captureTopConstraints, InferMode(..))
-import qualified GHC.Tc.Solver.Monad as GHC (zonkTcType, runTcSEarlyAbort)
-import qualified Data.Aeson as Aeson
+import GHC.HsToCore.Docs qualified as GHC
+import GHC.Types.Unique.Map qualified as GHC
+import GHC.Hs.Doc qualified as GHC
+import GHC.Iface.Load qualified as GHC (loadInterfaceForName)
+import GHC.Tc.Utils.TcType qualified as GHC (tyCoFVsOfType, mkPhiTy)
+import GHC.Tc.Solver qualified as GHC (simplifyTop, simplifyInfer, captureTopConstraints, InferMode(..))
+import GHC.Tc.Solver.Monad qualified as GHC (zonkTcType, runTcSEarlyAbort)
+import Data.Aeson qualified as Aeson
 
-import           GHC.Plugin.OllamaHoles.Prompt
-import qualified GHC.Plugin.OllamaHoles.Logger as Log
-import           GHC.Plugin.OllamaHoles.Candidate
-import           GHC.Plugin.OllamaHoles.Template
+import GHC.Plugin.OllamaHoles.Prompt
+import GHC.Plugin.OllamaHoles.Logger qualified as Log
+import GHC.Plugin.OllamaHoles.Candidate
+import GHC.Plugin.OllamaHoles.Template
 
 
 
@@ -71,7 +71,7 @@ mkHoleFitPluginR opts = HoleFitPluginR
   { hfPluginInit = hfPluginInitLLM opts
   , hfPluginStop = \_ -> return ()
   , hfPluginRun = \ref -> HoleFitPlugin
-    { candPlugin = \_ c -> updTcRef ref (setCandidates c) >> return c
+    { candPlugin = \_ cs -> updTcRef ref (setCandidates cs) >> return cs
     , fitPlugin = fitPluginLLM opts ref
     }
   }
@@ -117,7 +117,6 @@ getBackend Flags{backend_name = "ollama"} = ollamaBackend
 getBackend Flags{backend_name = "gemini"} = geminiBackend
 getBackend Flags{backend_name = "openai", ..} = openAICompatibleBackend openai_base_url openai_key_name
 getBackend Flags{..} = error $ "unknown backend: " <> T.unpack backend_name
-
 
 
 
