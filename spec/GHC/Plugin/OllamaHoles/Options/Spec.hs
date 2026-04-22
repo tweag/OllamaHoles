@@ -14,6 +14,7 @@ import GHC.Plugin.OllamaHoles
 import GHC.Plugin.OllamaHoles.Template
     ( TemplateSpec(..)
     , TemplateSource(..)
+    , TemplateError(..)
     , unsafeCreateRawTemplateName
     )
 
@@ -102,10 +103,10 @@ mkTemplateSpecTests :: TestTree
 mkTemplateSpecTests = testGroup "mkTemplateSpec"
     [ testCase "default flags choose DefaultTemplate" $ do
         mkTemplateSpec defaultFlags
-            @?= TemplateSpec
+            @?= Right (TemplateSpec
                 { tsSearchDir = "."
                 , tsSource = DefaultTemplate
-                }
+                })
 
     , testCase "path chooses TemplateFile" $ do
         let flags = defaultFlags
@@ -114,10 +115,10 @@ mkTemplateSpecTests = testGroup "mkTemplateSpec"
               , template_search_dir = "/tmp/templates"
               }
         mkTemplateSpec flags
-            @?= TemplateSpec
+            @?= Right (TemplateSpec
                 { tsSearchDir = "/tmp/templates"
                 , tsSource = TemplateFile "/tmp/prompt.txt"
-                }
+                })
 
     , testCase "name chooses NamedTemplate" $ do
         let flags = defaultFlags
@@ -126,19 +127,19 @@ mkTemplateSpecTests = testGroup "mkTemplateSpec"
               , template_search_dir = "/tmp/templates"
               }
         mkTemplateSpec flags
-            @?= TemplateSpec
+            @?= Right (TemplateSpec
                 { tsSearchDir = "/tmp/templates"
                 , tsSource = NamedTemplate $ unsafeCreateRawTemplateName "qwen"
-                }
+                })
 
     , testCase "search dir is preserved with default template" $ do
         let flags = defaultFlags
               { template_search_dir = "/tmp/templates" }
         mkTemplateSpec flags
-            @?= TemplateSpec
+            @?= Right (TemplateSpec
                 { tsSearchDir = "/tmp/templates"
                 , tsSource = DefaultTemplate
-                }
+                })
 
     , testCase "path beats name in mkTemplateSpec if both are present" $ do
         let flags = defaultFlags
@@ -147,8 +148,17 @@ mkTemplateSpecTests = testGroup "mkTemplateSpec"
               , template_search_dir = "/tmp/templates"
               }
         mkTemplateSpec flags
-            @?= TemplateSpec
+            @?= Right (TemplateSpec
                 { tsSearchDir = "/tmp/templates"
                 , tsSource = TemplateFile "/tmp/prompt.txt"
-                }
+                })
+
+    , testCase "invalid name is rejected" $ do
+        let flags = defaultFlags
+              { template_path = Nothing
+              , template_name = Just "../secrets"
+              , template_search_dir = "/tmp/templates"
+              }
+        mkTemplateSpec flags
+            @?= Left (InvalidTemplateName "../secrets")
     ]

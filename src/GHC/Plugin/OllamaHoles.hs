@@ -97,7 +97,9 @@ mkHoleFitPluginR opts =
 hfPluginInitLLM :: [CommandLineOption] -> TcM (TcRef PluginState)
 hfPluginInitLLM opts = do
     let flags = parseFlags opts
-    let spec = mkTemplateSpec flags
+    spec <- case mkTemplateSpec flags of
+        Left err -> error $ "Template spec error: " <> show err
+        Right ok -> pure ok
     logger <- liftIO Log.initLogger
     template <- liftIO $ do
         raw <- loadTemplate spec
@@ -447,11 +449,14 @@ parseFlags = parseFlags' defaultFlags . reverse -- reverse so outside options co
     parseFlags' flags _ = flags
 
 -- | Helper function to interpret a @TemplateSpec@ from the flags.
-mkTemplateSpec :: Flags -> TemplateSpec
-mkTemplateSpec Flags{..} =TemplateSpec
-    { tsSearchDir = template_search_dir
-    , tsSource = case (template_path, template_name) of
-          (Just fp, _) -> TemplateFile fp
-          (_, Just nm) -> NamedTemplate $ parseTemplateName nm
-          _            -> DefaultTemplate
-    }
+mkTemplateSpec :: Flags -> Either TemplateError TemplateSpec
+mkTemplateSpec Flags{..} = do
+    let mkSpec source = TemplateSpec
+            { tsSearchDir = template_search_dir
+            , tsSource = source
+            }
+    case (template_path, template_name) of
+        (Just fp, _) -> Right $ mkSpec $ TemplateFile fp
+        (_, Just nm) -> fmap (mkSpec . NamedTemplate) $ parseTemplateName nm
+        _            -> Right $ mkSpec $ DefaultTemplate
+
