@@ -35,7 +35,7 @@ loadTemplateTests =
         result <- loadTemplate (TemplateSpec "" DefaultTemplate)
         case result of
           Right (Template txt) ->
-            assertBool "expected non-empty default template" (not (T.null txt))
+            assertBool "expected non-empty default template" (not (null txt))
           Left err ->
             assertFailure ("expected default template to load, got: " <> show err)
 
@@ -44,7 +44,7 @@ loadTemplateTests =
           let fp = dir </> "prompt.txt"
           writeFile fp "hello {{name}}"
           result <- loadTemplate (TemplateSpec dir (TemplateFile fp))
-          result @?= Right (Template "hello {{name}}")
+          result @?= Right (Template [TemplateChunk "hello ", TemplateVar "name"])
 
     , testCase "TemplateFile reports missing file" $
         withSystemTempDirectory "ollama-holes-template-spec" $ \dir -> do
@@ -57,7 +57,7 @@ loadTemplateTests =
           let fp = dir </> "qwen.txt"
           writeFile fp "hello {{context}}"
           result <- loadTemplate (TemplateSpec dir (NamedTemplate "qwen"))
-          result @?= Right (Template "hello {{context}}")
+          result @?= Right (Template [TemplateChunk "hello ", TemplateVar "context"])
 
     , testCase "NamedTemplate reports unknown name" $
         withSystemTempDirectory "ollama-holes-template-spec" $ \dir -> do
@@ -76,9 +76,8 @@ loadAndParseTests =
           case loaded of
             Left err ->
               assertFailure ("unexpected load error: " <> show err)
-            Right tmpl ->
-              parseTemplate tmpl @?=
-                Right
+            Right (Template exprs) ->
+              exprs @?=
                   [ TemplateChunk "A "
                   , TemplateVar (Placeholder "foo")
                   , TemplateChunk " B "
@@ -91,15 +90,8 @@ loadAndParseTests =
         case loaded of
           Left err ->
             assertFailure ("unexpected load error: " <> show err)
-          Right tmpl ->
-            case parseTemplate tmpl of
-              Left err ->
-                assertFailure ("default template failed to parse: " <> show err)
-              Right exprs -> do
-                let vars =
-                      [ v
-                      | TemplateVar v <- exprs
-                      ]
+          Right (Template exprs) -> do
+                let vars = [ v | TemplateVar v <- exprs ]
                 assertBool
                   ("expected docs placeholder in default template, saw: " <> show vars)
                   (Placeholder "docs" `elem` vars)
@@ -113,16 +105,11 @@ loadAndParseTests =
     , testCase "default template includes at least one variable" $ do
         loaded <- loadTemplate (TemplateSpec "" DefaultTemplate)
         case loaded of
-          Left err ->
-            assertFailure ("unexpected load error: " <> show err)
-          Right tmpl ->
-            case parseTemplate tmpl of
-              Left err ->
-                assertFailure ("default template failed to parse: " <> show err)
-              Right exprs ->
-                assertBool
-                  "expected at least one TemplateVar in default template"
-                  (any isVar exprs)
+            Left err ->
+                assertFailure ("unexpected load error: " <> show err)
+            Right (Template exprs) -> assertBool
+                "expected at least one TemplateVar in default template"
+                (any isVar exprs)
     ]
   where
     isVar (TemplateVar _) = True

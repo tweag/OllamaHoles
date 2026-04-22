@@ -57,25 +57,7 @@ import qualified GHC.Plugin.OllamaHoles.Logger as Log
 import           GHC.Plugin.OllamaHoles.Candidate
 import           GHC.Plugin.OllamaHoles.Template
 
--- | Prompt used to prompt the LLM
-promptTemplate :: Text
-promptTemplate =
-           "Preliminaries:"
-        <> "{docs}\n\n"
-        <> "--------------------------------------------------------------------\n"
-        <> "You are a typed-hole plugin within GHC, the Glasgow Haskell Compiler.\n"
-        <> "You are given a hole in a Haskell program, and you need to fill it in.\n"
-        <> "The hole is represented by the following JSON encoded information:\n"
-        <> "{context}\n\n"
-        <> "Provide one or more Haskell expressions that could fill this hole.\n"
-        <> "This means coming up with an expression of the correct type that satisfies the constraints.\n"
-        <> "Pay special attention to the type of the hole, specifically whether it is a function.\n"
-        <> "Make sure you synthesize an expression that matches the type of the hole.\n"
-        <> "Output ONLY the raw Haskell expression(s), one per line.\n"
-        <> "Do not try to bind the hole variable, e.g. `_b = ...`. Produce only the expression.\n"
-        <> "Do not include explanations, introductions, or any surrounding text.\n"
-        <> "If you are using a function from scope, make sure to use the qualified name from the list of things in scope.\n"
-        <> "Output a maximum of {numexpr} expressions.\n"
+
 
 -- | Determine which backend to use
 getBackend :: Flags -> Backend
@@ -87,7 +69,8 @@ getBackend Flags{..} = error $ "unknown backend: " <> T.unpack backend_name
 data PluginState = PluginState
     { candidates     :: [HoleFitCandidate]
     , writeLogEvent  :: Log.Logger
-    , parsedTemplate :: [TemplateExpr]
+    , templateSpec   :: TemplateSpec
+    , parsedTemplate :: Template
     }
 
 -- | Ollama plugin for GHC
@@ -114,15 +97,17 @@ mkHoleFitPluginR opts =
 hfPluginInitLLM :: [CommandLineOption] -> TcM (TcRef PluginState)
 hfPluginInitLLM opts = do
     let flags = parseFlags opts
+    let spec = mkTemplateSpec flags
     logger <- liftIO Log.initLogger
     template <- liftIO $ do
-        raw <- loadTemplate (mkTemplateSpec flags)
-        case raw >>= parseTemplate of
+        raw <- loadTemplate spec
+        case raw of
             Left err -> error $ "template parse error: " <> show err
             Right ok -> pure ok
     newTcRef $ PluginState
         { candidates    = []
         , writeLogEvent = logger
+        , templateSpec = spec
         , parsedTemplate = template
         }
 
@@ -136,7 +121,7 @@ fitPluginLLM
     -> [HoleFit]
     -> GHC.IOEnv (Env TcGblEnv TcLclEnv) [HoleFit]
 fitPluginLLM opts ref hole fits = do
-    PluginState cands logger template <- readTcRef ref
+    PluginState cands logger templateSpec template <- readTcRef ref
     let flags@Flags{..} = parseFlags opts
     dflags <- getDynFlags
     gbl_env <- getGblEnv
@@ -177,7 +162,7 @@ fitPluginLLM opts ref hole fits = do
                             , ("model"   , model_name)
                             , ("guidance", maybe "" (mconcat . pcGuidance) promptContext)
                             ]
-                    prompt'' <- case expandTemplateExprs env template of
+                    prompt'' <- case expandTemplate env template of
                         Left err -> error $ "Template substitution error: " <> show err
                         Right ok -> pure ok
                     liftIO $ when debug $ do T.putStrLn $ "NEW PROMPT:\n\n" <> prompt'' <> "\n\n"

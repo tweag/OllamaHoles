@@ -195,6 +195,9 @@ test-suite ollama-holes-spec
     , GHC.Plugin.OllamaHoles.Candidate.Compat.Spec
     , GHC.Plugin.OllamaHoles.Candidate.Normalize.Spec
     , GHC.Plugin.OllamaHoles.Candidate.Rewrite.Spec
+    , GHC.Plugin.OllamaHoles.Candidate.WithRenamedExpr
+    , GHC.Plugin.OllamaHoles.Template.Load.Spec
+    , GHC.Plugin.OllamaHoles.Template.Parse.Spec
   build-depends:
       base
     , ollama-holes-plugin

@@ -28,83 +28,83 @@ unitTests :: TestTree
 unitTests =
   testGroup "unit"
     [ testCase "empty template parses to empty token list" $
-        parseTemplate (Template "") @?= Right []
+        parseTemplate "" @?= Right (Template [])
 
     , testCase "plain text parses to one chunk" $
-        parseTemplate (Template "hello world")
-          @?= Right [TemplateChunk "hello world"]
+        parseTemplate "hello world"
+          @?= Right (Template [TemplateChunk "hello world"])
 
     , testCase "single placeholder parses" $
-        parseTemplate (Template "{{name}}")
-          @?= Right [TemplateVar (Placeholder "name")]
+        parseTemplate "{{name}}"
+          @?= Right (Template [TemplateVar (Placeholder "name")])
 
     , testCase "text around placeholder parses" $
-        parseTemplate (Template "hello {{name}}!")
+        parseTemplate "hello {{name}}!"
           @?=
-            Right
+            Right (Template
               [ TemplateChunk "hello "
               , TemplateVar (Placeholder "name")
               , TemplateChunk "!"
-              ]
+              ])
 
     , testCase "adjacent placeholders parse" $
-        parseTemplate (Template "{{foo}}{{bar}}")
+        parseTemplate "{{foo}}{{bar}}"
           @?=
-            Right
+            Right (Template
               [ TemplateVar (Placeholder "foo")
               , TemplateVar (Placeholder "bar")
-              ]
+              ])
 
     , testCase "multiple chunks and placeholders parse" $
-        parseTemplate (Template "a{{x}}b{{y}}c")
+        parseTemplate "a{{x}}b{{y}}c"
           @?=
-            Right
+            Right (Template
               [ TemplateChunk "a"
               , TemplateVar (Placeholder "x")
               , TemplateChunk "b"
               , TemplateVar (Placeholder "y")
               , TemplateChunk "c"
-              ]
+              ])
 
     , testCase "empty placeholder is rejected" $
-        parseTemplate (Template "{{}}")
+        parseTemplate "{{}}"
           @?= Left (MalformedTemplate 0 0 (MalformedPlaceholder ""))
 
     , testCase "placeholder with hyphen is rejected" $
-        parseTemplate (Template "{{foo-bar}}")
+        parseTemplate "{{foo-bar}}"
           @?= Left (MalformedTemplate 0 0 (MalformedPlaceholder "foo-bar"))
 
     , testCase "placeholder with space is rejected" $
-        parseTemplate (Template "{{foo bar}}")
+        parseTemplate "{{foo bar}}"
           @?= Left (MalformedTemplate 0 0 (MalformedPlaceholder "foo bar"))
 
     , testCase "unclosed placeholder is rejected" $
-        parseTemplate (Template "{{foo")
+        parseTemplate "{{foo"
           @?= Left (MalformedTemplate 0 0 (MalformedPlaceholder "foo"))
 
     , testCase "lone opening brace stays ordinary text" $
-        parseTemplate (Template "{foo")
-          @?= Right [TemplateChunk "{foo"]
+        parseTemplate "{foo"
+          @?= Right (Template [TemplateChunk "{foo"])
 
     , testCase "single braces around name stay ordinary text" $
-        parseTemplate (Template "{name}")
-          @?= Right [TemplateChunk "{name}"]
+        parseTemplate "{name}"
+          @?= Right (Template [TemplateChunk "{name}"])
 
     , testCase "malformed placeholder after prefix reports start position" $
-        parseTemplate (Template "abc{{foo-bar}}")
+        parseTemplate "abc{{foo-bar}}"
           @?= Left (MalformedTemplate 0 3 (MalformedPlaceholder "foo-bar"))
 
     , testCase "malformed placeholder after newline reports line and column" $
-        parseTemplate (Template "abc\n{{foo-bar}}")
+        parseTemplate "abc\n{{foo-bar}}"
           @?= Left (MalformedTemplate 1 0 (MalformedPlaceholder "foo-bar"))
 
     , testCase "valid placeholder after newline reports no error" $
-        parseTemplate (Template "abc\n{{foo}}")
+        parseTemplate "abc\n{{foo}}"
           @?=
-            Right
+            Right (Template
               [ TemplateChunk "abc\n"
               , TemplateVar (Placeholder "foo")
-              ]
+              ])
     ]
 
 propertyTests :: TestTree
@@ -112,13 +112,13 @@ propertyTests =
   testGroup "properties"
     [ QC.testProperty "nonempty plain ascii text without '{{' parses as a single chunk" $
         QC.forAll genPlainChunk1 $ \s ->
-          parseTemplate (Template (T.pack s))
-            == Right [TemplateChunk (T.pack s)]
+          parseTemplate (T.pack s)
+            == Right (Template [TemplateChunk (T.pack s)])
 
     , QC.testProperty "valid placeholder names parse as variables" $
         QC.forAll genPlaceholderName $ \nm ->
-          parseTemplate (Template ("{{" <> T.pack nm <> "}}"))
-            == Right [TemplateVar (Placeholder (T.pack nm))]
+          parseTemplate ("{{" <> T.pack nm <> "}}")
+            == Right (Template [TemplateVar (Placeholder (T.pack nm))])
     ]
 
 genPlainChunk1 :: QC.Gen String
