@@ -133,7 +133,6 @@ fitPluginLLM opts ref hole fits = do
     PluginState cands logger templateSpec template <- readTcRef ref
     let flags@Flags{..} = parseFlags opts
     dflags <- getDynFlags
-    gbl_env <- getGblEnv
     let backend = getBackend flags
     available_models <- liftIO $ listModels backend
     liftIO $ when debug $ T.putStrLn $ "Running " <> pluginName <> " with flags:"
@@ -157,23 +156,26 @@ fitPluginLLM opts ref hole fits = do
                         <> "Availble models: \n"
                         <> T.unpack (T.unlines models)
             liftIO $ when debug $ T.putStrLn $ pluginName <> ": Hole Found"
+
+            -- Prepare the prompt
+            gbl_env <- getGblEnv
             let promptContext = getPromptContext hole fits gbl_env cands dflags
+            let promptContext'' = maybe "" encodePromptContext promptContext
+            docs <- if include_docs then getDocs cands else return ""
+            let env = mkTemplateEnv
+                    [ ("context" , promptContext'')
+                    , ("docs"    , T.pack docs)
+                    , ("numexpr" , T.pack (show num_expr))
+                    , ("backend" , backend_name)
+                    , ("model"   , model_name)
+                    , ("guidance", maybe "" (mconcat . pcGuidance) promptContext)
+                    ]
+            prompt'' <- case expandTemplate env template of
+                Left err -> error $ "Template substitution error: " <> show err
+                Right ok -> pure ok
+
             case th_hole hole of
                 Just h -> do
-                    docs <- if include_docs then getDocs cands else return ""
-
-                    let promptContext'' = maybe "" encodePromptContext promptContext
-                    let env = mkTemplateEnv
-                            [ ("context" , promptContext'')
-                            , ("docs"    , T.pack docs)
-                            , ("numexpr" , T.pack (show num_expr))
-                            , ("backend" , backend_name)
-                            , ("model"   , model_name)
-                            , ("guidance", maybe "" (mconcat . pcGuidance) promptContext)
-                            ]
-                    prompt'' <- case expandTemplate env template of
-                        Left err -> error $ "Template substitution error: " <> show err
-                        Right ok -> pure ok
                     liftIO $ when debug $ do T.putStrLn $ "NEW PROMPT:\n\n" <> prompt'' <> "\n\n"
                     res <- liftIO $ generateFits backend prompt'' model_name model_options
                     case res of
