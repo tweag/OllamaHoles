@@ -59,6 +59,58 @@ import           GHC.Plugin.OllamaHoles.Template
 
 
 
+-- | Ollama plugin for GHC
+plugin :: Plugin
+plugin = defaultPlugin
+  { holeFitPlugin = Just . mkHoleFitPluginR
+  }
+
+mkHoleFitPluginR
+  :: [CommandLineOption] -> HoleFitPluginR
+mkHoleFitPluginR opts = HoleFitPluginR
+  { hfPluginInit = hfPluginInitLLM opts
+  , hfPluginStop = \_ -> return ()
+  , hfPluginRun = \ref -> HoleFitPlugin
+    { candPlugin = \_ c -> updTcRef ref (setCandidates c) >> return c
+    , fitPlugin = fitPluginLLM opts ref
+    }
+  }
+
+-- State
+--------
+
+data PluginState = PluginState
+  { candidates     :: [HoleFitCandidate]
+  , writeLogEvent  :: Log.Logger
+  , templateSpec   :: TemplateSpec
+  , parsedTemplate :: Template
+  }
+
+setCandidates :: [HoleFitCandidate] -> PluginState -> PluginState
+setCandidates cs st = st { candidates = cs }
+
+-- | Initialize the plugin state
+hfPluginInitLLM :: [CommandLineOption] -> TcM (TcRef PluginState)
+hfPluginInitLLM opts = do
+  let flags = parseFlags opts
+  spec <- case mkTemplateSpec flags of
+    Left err -> error $ "Template spec error: " <> show err
+    Right ok -> pure ok
+  logger <- liftIO Log.initLogger
+  template <- liftIO $ do
+    raw <- loadTemplate spec
+    case raw of
+      Left err -> error $ "template parse error: " <> show err
+      Right ok -> pure ok
+  newTcRef $ PluginState
+    { candidates     = []
+    , writeLogEvent  = logger
+    , templateSpec   = spec
+    , parsedTemplate = template
+    }
+
+
+
 -- | Determine which backend to use
 getBackend :: Flags -> Backend
 getBackend Flags{backend_name = "ollama"} = ollamaBackend
@@ -66,52 +118,8 @@ getBackend Flags{backend_name = "gemini"} = geminiBackend
 getBackend Flags{backend_name = "openai", ..} = openAICompatibleBackend openai_base_url openai_key_name
 getBackend Flags{..} = error $ "unknown backend: " <> T.unpack backend_name
 
-data PluginState = PluginState
-    { candidates     :: [HoleFitCandidate]
-    , writeLogEvent  :: Log.Logger
-    , templateSpec   :: TemplateSpec
-    , parsedTemplate :: Template
-    }
 
--- | Ollama plugin for GHC
-plugin :: Plugin
-plugin =
-    defaultPlugin
-        { holeFitPlugin = mkHoleFitPluginR
-        }
 
-mkHoleFitPluginR
-    :: [CommandLineOption] -> Maybe HoleFitPluginR
-mkHoleFitPluginR opts =
-    Just $
-        HoleFitPluginR
-            { hfPluginInit = hfPluginInitLLM opts
-            , hfPluginStop = \_ -> return ()
-            , hfPluginRun = \ref ->
-                    HoleFitPlugin
-                        { candPlugin = \_ c -> updTcRef ref (\st -> st { candidates = c }) >> return c
-                        , fitPlugin = fitPluginLLM opts ref
-                        }
-            }
-
-hfPluginInitLLM :: [CommandLineOption] -> TcM (TcRef PluginState)
-hfPluginInitLLM opts = do
-    let flags = parseFlags opts
-    spec <- case mkTemplateSpec flags of
-        Left err -> error $ "Template spec error: " <> show err
-        Right ok -> pure ok
-    logger <- liftIO Log.initLogger
-    template <- liftIO $ do
-        raw <- loadTemplate spec
-        case raw of
-            Left err -> error $ "template parse error: " <> show err
-            Right ok -> pure ok
-    newTcRef $ PluginState
-        { candidates    = []
-        , writeLogEvent = logger
-        , templateSpec = spec
-        , parsedTemplate = template
-        }
 
 pluginName :: Text
 pluginName = "Ollama Plugin"
