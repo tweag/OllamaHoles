@@ -8,8 +8,11 @@ module GHC.Plugin.OllamaHoles.Template
     , TemplateExpr(..)
     , Placeholder(..)
     , TemplateParseError(..)
+    , mkTemplateEnv
     , loadTemplate
     , parseTemplate
+    , expandTemplate
+    , expandTemplateExprs
     ) where
 
 import Data.Char (isAlpha, isAscii)
@@ -91,6 +94,10 @@ data TemplateEnv
     = TemplateEnv (Map Placeholder Text)
     deriving (Eq, Show)
 
+mkTemplateEnv :: [(Text, Text)] -> TemplateEnv
+mkTemplateEnv = TemplateEnv . M.fromList .
+  fmap (\(k,v) -> (Placeholder k, v))
+
 lookupPlaceholder
     :: TemplateEnv -> Placeholder -> Either Placeholder Text
 lookupPlaceholder (TemplateEnv m) name =
@@ -124,6 +131,17 @@ collectEithers f g = go [] []
             x:rest -> case x of
                 Left  a -> go (a:as) bs rest
                 Right b -> go as (b:bs) rest
+
+expandTemplate
+  :: TemplateEnv -> Template -> Either TemplateError Text
+expandTemplate env template = do
+    parseTemplate template >>= expandTemplateExprs env
+
+
+
+
+-- Parsing
+----------
 
 type Line = Int
 type Col  = Int

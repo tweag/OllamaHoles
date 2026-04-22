@@ -55,6 +55,7 @@ import qualified Data.Aeson as Aeson
 import           GHC.Plugin.OllamaHoles.Prompt
 import qualified GHC.Plugin.OllamaHoles.Logger as Log
 import           GHC.Plugin.OllamaHoles.Candidate
+import           GHC.Plugin.OllamaHoles.Template
 
 -- | Prompt used to prompt the LLM
 promptTemplate :: Text
@@ -84,9 +85,10 @@ getBackend Flags{backend_name = "openai", ..} = openAICompatibleBackend openai_b
 getBackend Flags{..} = error $ "unknown backend: " <> T.unpack backend_name
 
 data PluginState = PluginState
-  { candidates    :: [HoleFitCandidate]
-  , writeLogEvent :: Log.Logger
-  }
+    { candidates     :: [HoleFitCandidate]
+    , writeLogEvent  :: Log.Logger
+    , parsedTemplate :: [TemplateExpr]
+    }
 
 -- | Ollama plugin for GHC
 plugin :: Plugin
@@ -100,7 +102,7 @@ mkHoleFitPluginR
 mkHoleFitPluginR opts =
     Just $
         HoleFitPluginR
-            { hfPluginInit = hfPluginInitLLM
+            { hfPluginInit = hfPluginInitLLM opts
             , hfPluginStop = \_ -> return ()
             , hfPluginRun = \ref ->
                     HoleFitPlugin
@@ -109,12 +111,19 @@ mkHoleFitPluginR opts =
                         }
             }
 
-hfPluginInitLLM :: TcM (TcRef PluginState)
-hfPluginInitLLM = do
+hfPluginInitLLM :: [CommandLineOption] -> TcM (TcRef PluginState)
+hfPluginInitLLM opts = do
+    let flags = parseFlags opts
     logger <- liftIO Log.initLogger
+    template <- liftIO $ do
+        raw <- loadTemplate (mkTemplateSpec flags)
+        case raw >>= parseTemplate of
+            Left err -> error $ "template parse error: " <> show err
+            Right ok -> pure ok
     newTcRef $ PluginState
         { candidates    = []
         , writeLogEvent = logger
+        , parsedTemplate = template
         }
 
 pluginName :: Text
@@ -127,7 +136,7 @@ fitPluginLLM
     -> [HoleFit]
     -> GHC.IOEnv (Env TcGblEnv TcLclEnv) [HoleFit]
 fitPluginLLM opts ref hole fits = do
-    PluginState cands logger <- readTcRef ref
+    PluginState cands logger template <- readTcRef ref
     let flags@Flags{..} = parseFlags opts
     dflags <- getDynFlags
     gbl_env <- getGblEnv
@@ -159,19 +168,23 @@ fitPluginLLM opts ref hole fits = do
                 Just h -> do
                     docs <- if include_docs then getDocs cands else return ""
 
-                    let promptContext' = T.unpack $ maybe "" encodePromptContext promptContext
-                    let prompt' =
-                            replacePlaceholders
-                                promptTemplate
-                                [ ("{numexpr}", show num_expr)
-                                , ("{docs}", docs)
-                                , ("{context}", promptContext')
-                                ]
-                    liftIO $ when debug $ do T.putStrLn $ pluginName <> " Prompt:\n```\n" <> prompt' <> "\n```"
-                    res <- liftIO $ generateFits backend prompt' model_name model_options
+                    let promptContext'' = maybe "" encodePromptContext promptContext
+                    let env = mkTemplateEnv
+                            [ ("context" , promptContext'')
+                            , ("docs"    , T.pack docs)
+                            , ("numexpr" , T.pack (show num_expr))
+                            , ("backend" , backend_name)
+                            , ("model"   , model_name)
+                            , ("guidance", maybe "" (mconcat . pcGuidance) promptContext)
+                            ]
+                    prompt'' <- case expandTemplateExprs env template of
+                        Left err -> error $ "Template substitution error: " <> show err
+                        Right ok -> pure ok
+                    liftIO $ when debug $ do T.putStrLn $ "NEW PROMPT:\n\n" <> prompt'' <> "\n\n"
+                    res <- liftIO $ generateFits backend prompt'' model_name model_options
                     case res of
                         Right rsp ->
-                            extractHoleFitsFromResponse dflags prompt' rsp logger hole h debug
+                            extractHoleFitsFromResponse dflags prompt'' rsp logger hole h debug
                         Left err -> do
                             liftIO $
                                 when debug $
@@ -345,6 +358,9 @@ data Flags = Flags
     , openai_base_url :: Text
     , openai_key_name :: Text
     , model_options :: Maybe Value
+    , template_path     :: Maybe FilePath
+    , template_name     :: Maybe Text
+    , template_search_dir :: FilePath
     } deriving (Show)
 
 -- | Default flags for the plugin
@@ -359,6 +375,9 @@ defaultFlags =
         , openai_base_url = "https://api.openai.com"
         , openai_key_name = "OPENAI_API_KEY"
         , model_options = Nothing
+        , template_path = Nothing
+        , template_name = Nothing
+        , template_search_dir = "."
         }
 
 -- | Produce the documentation of all the HolefitCandidates.
@@ -428,11 +447,26 @@ parseFlags = parseFlags' defaultFlags . reverse -- reverse so outside options co
             in case m_opts of
                 Right o -> parseFlags' flags{model_options = Just o } opts
                 Left err -> error $ "Failed to parse model-options: " <> err
+    parseFlags' flags (opt : opts)
+        | T.isPrefixOf "template=" (T.pack opt) =
+            let template_path = Just . T.unpack $ T.drop (T.length "template=") (T.pack opt)
+            in parseFlags' flags{template_path = template_path, template_name = Nothing} opts
+    parseFlags' flags (opt : opts)
+        | T.isPrefixOf "template-name=" (T.pack opt) =
+            let template_name = Just $ T.drop (T.length "template-name=") (T.pack opt)
+            in parseFlags' flags{template_name = template_name, template_path = Nothing} opts
+    parseFlags' flags (opt : opts)
+        | T.isPrefixOf "template-dir=" (T.pack opt) =
+            let template_search_dir = T.unpack $ T.drop (T.length "template-dir=") (T.pack opt)
+            in parseFlags' flags{template_search_dir = template_search_dir} opts
     parseFlags' flags _ = flags
 
--- | Helper function to replace placeholders in a template string
-replacePlaceholders :: Text -> [(Text, String)] -> Text
-replacePlaceholders = foldl replacePlaceholder
-  where
-    replacePlaceholder :: Text -> (Text, String) -> Text
-    replacePlaceholder str (placeholder, value) = T.replace placeholder (T.pack value) str
+-- | Helper function to interpret a @TemplateSpec@ from the flags.
+mkTemplateSpec :: Flags -> TemplateSpec
+mkTemplateSpec Flags{..} =TemplateSpec
+    { tsSearchDir = template_search_dir
+    , tsSource = case (template_path, template_name) of
+          (Just fp, _) -> TemplateFile fp
+          (_, Just nm) -> NamedTemplate nm
+          _            -> DefaultTemplate
+    }
