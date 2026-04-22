@@ -5,6 +5,7 @@ import qualified GHC.Plugin.OllamaHoles.Candidate.Spec as CandidateSpec
 import qualified GHC.Plugin.OllamaHoles.Candidate.Normalize.Spec as NormalizeSpec
 import qualified GHC.Plugin.OllamaHoles.Candidate.Rewrite.Spec as RewriteSpec
 import qualified GHC.Plugin.OllamaHoles.Candidate.Compat.Spec as CompatSpec
+import qualified GHC.Plugin.OllamaHoles.Template.Parse.Spec as ParseSpec
 
 main :: IO ()
 main = defaultMain $
@@ -13,4 +14,5 @@ main = defaultMain $
         , NormalizeSpec.tests
         , RewriteSpec.tests
         , CompatSpec.tests
+        , ParseSpec.tests
         ]

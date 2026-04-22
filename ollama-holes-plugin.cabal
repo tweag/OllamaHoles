@@ -136,6 +136,7 @@ library
                  , GHC.Plugin.OllamaHoles.Candidate
                  , GHC.Plugin.OllamaHoles.Candidate.Compat
                  , GHC.Plugin.OllamaHoles.Candidate.Rewrite
+                 , GHC.Plugin.OllamaHoles.Template
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -154,7 +155,8 @@ library
                       filepath >= 1.5.5,
                       time >= 1.14,
                       crypton >= 1.1.2,
-                      bytestring >= 0.12.2
+                      bytestring >= 0.12.2,
+                      directory >= 1.3.10.1
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -171,12 +173,15 @@ library ollama-holes-lib
       GHC.Plugin.OllamaHoles.Candidate
     , GHC.Plugin.OllamaHoles.Candidate.Compat
     , GHC.Plugin.OllamaHoles.Candidate.Rewrite
+    , GHC.Plugin.OllamaHoles.Template
   default-language:    GHC2021
   build-depends:
       base
     , ghc
     , containers
     , text
+    , directory
+    , filepath
 
 
 
