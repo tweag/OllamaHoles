@@ -14,15 +14,12 @@ module GHC.Plugin.OllamaHoles.Logger
 
 import           Control.Monad (unless)
 import qualified Crypto.Hash as H
-import           Data.Aeson (encode, FromJSON(..), ToJSON(..), (.:), (.=))
+import           Data.Aeson ((.=))
 import qualified Data.Aeson as Aeson
 import           Data.Aeson.Encoding (pairs, encodingToLazyByteString)
-import qualified Data.Aeson.Key as Key
-import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as T
-import qualified Data.Text.Lazy as LT
 import qualified Data.Text.Encoding as TE
 import           Data.Time.Clock (getCurrentTime)
 import           Data.Time.Format (defaultTimeLocale, formatTime)
