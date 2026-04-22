@@ -125,6 +125,7 @@ library
 
     -- Modules exported by the library.
     exposed-modules:  GHC.Plugin.OllamaHoles
+                    , GHC.Plugin.OllamaHoles.Template
 
     -- Modules included in this library but not exported.
     other-modules: GHC.Plugin.OllamaHoles.Backend
@@ -154,7 +155,8 @@ library
                       filepath >= 1.5.5,
                       time >= 1.14,
                       crypton >= 1.1.2,
-                      bytestring >= 0.12.2
+                      bytestring >= 0.12.2,
+                      directory >= 1.3.10.1
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -171,12 +173,15 @@ library ollama-holes-lib
       GHC.Plugin.OllamaHoles.Candidate
     , GHC.Plugin.OllamaHoles.Candidate.Compat
     , GHC.Plugin.OllamaHoles.Candidate.Rewrite
+    --, GHC.Plugin.OllamaHoles.Template
   default-language:    GHC2021
   build-depends:
       base
     , ghc
     , containers
     , text
+    , directory
+    , filepath
 
 
 
@@ -190,6 +195,10 @@ test-suite ollama-holes-spec
     , GHC.Plugin.OllamaHoles.Candidate.Compat.Spec
     , GHC.Plugin.OllamaHoles.Candidate.Normalize.Spec
     , GHC.Plugin.OllamaHoles.Candidate.Rewrite.Spec
+    , GHC.Plugin.OllamaHoles.Candidate.WithRenamedExpr
+    , GHC.Plugin.OllamaHoles.Template.Load.Spec
+    , GHC.Plugin.OllamaHoles.Template.Parse.Spec
+    , GHC.Plugin.OllamaHoles.Options.Spec
   build-depends:
       base
     , ollama-holes-plugin
