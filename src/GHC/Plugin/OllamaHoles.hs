@@ -452,6 +452,6 @@ mkTemplateSpec Flags{..} =TemplateSpec
     { tsSearchDir = template_search_dir
     , tsSource = case (template_path, template_name) of
           (Just fp, _) -> TemplateFile fp
-          (_, Just nm) -> NamedTemplate nm
+          (_, Just nm) -> NamedTemplate $ parseTemplateName nm
           _            -> DefaultTemplate
     }

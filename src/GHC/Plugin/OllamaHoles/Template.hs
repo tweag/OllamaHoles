@@ -6,15 +6,19 @@ module GHC.Plugin.OllamaHoles.Template
     , Placeholder(..)
     , TemplateSpec(..)
     , TemplateSource(..)
+    , TemplateName()
+    , parseTemplateName
     , TemplateError(..)
     , TemplateParseError(..)
     , mkTemplateEnv
     , loadTemplate
     , parseTemplate
     , expandTemplate
+    --
+    , unsafeCreateRawTemplateName
     ) where
 
-import Data.Char (isAlpha, isAscii)
+import Data.Char (isAlpha, isAscii, isAlphaNum)
 import Data.Map (Map)
 import Data.Map qualified as M
 import Data.String (IsString(..))
@@ -193,10 +197,27 @@ data TemplateSpec = TemplateSpec
     } deriving (Eq, Show)
 
 data TemplateSource
-    = DefaultTemplate       -- Used if the spec is not specified
-    | TemplateFile FilePath -- When using a specific template by path
-    | NamedTemplate Text    -- When using a template by name in @tsSearchDir@
+    = DefaultTemplate            -- Used if the spec is not specified
+    | TemplateFile FilePath      -- When using a specific template by path
+    | NamedTemplate TemplateName -- When using a template by name in @tsSearchDir@
     deriving (Eq, Show)
+
+newtype TemplateName
+    = TemplateName Text
+    deriving (Eq, Show)
+
+-- For tests
+unsafeCreateRawTemplateName :: Text -> TemplateName
+unsafeCreateRawTemplateName = TemplateName
+
+-- This is spliced into a string and read as a filename;
+-- restricting to alphanumerics, -, and _ avoids malicious
+-- names like ".." or "foo\bar".
+parseTemplateName :: Text -> TemplateName
+parseTemplateName = TemplateName . T.filter nameSafeChar
+
+nameSafeChar :: Char -> Bool
+nameSafeChar c = isAlphaNum c || c == '-' || c == '_'
 
 loadTemplate :: TemplateSpec -> IO (Either TemplateError Template)
 loadTemplate spec = do
@@ -214,12 +235,15 @@ loadTemplate spec = do
                 then fmap parseTemplate $ T.readFile path
                 else pure $ Left $ TemplateFileNotFound path
 
-        NamedTemplate name -> do
-            let path = searchDir </> T.unpack name <> ".txt"
-            exists <- doesFileExist path
-            if exists
-                then fmap parseTemplate $ T.readFile path
-                else pure (Left (UnknownTemplateName searchDir name))
+        NamedTemplate (TemplateName name) -> do
+            if T.any (not . nameSafeChar) name || T.null name
+                then pure (Left $ InvalidTemplateName name)
+                else do
+                    let path = searchDir </> T.unpack name <> ".txt"
+                    exists <- doesFileExist path
+                    if exists
+                        then fmap parseTemplate $ T.readFile path
+                        else pure (Left (UnknownTemplateName searchDir name))
 
 
 
@@ -231,6 +255,7 @@ data TemplateError
     | UnknownTemplateName FilePath Text
     | UnknownPlaceholders [Placeholder]
     | MalformedTemplate Line Col TemplateParseError
+    | InvalidTemplateName Text
     deriving (Eq, Show)
 
 

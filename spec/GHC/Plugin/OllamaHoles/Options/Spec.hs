@@ -14,6 +14,7 @@ import GHC.Plugin.OllamaHoles
 import GHC.Plugin.OllamaHoles.Template
     ( TemplateSpec(..)
     , TemplateSource(..)
+    , unsafeCreateRawTemplateName
     )
 
 tests :: TestTree
@@ -127,7 +128,7 @@ mkTemplateSpecTests = testGroup "mkTemplateSpec"
         mkTemplateSpec flags
             @?= TemplateSpec
                 { tsSearchDir = "/tmp/templates"
-                , tsSource = NamedTemplate "qwen"
+                , tsSource = NamedTemplate $ unsafeCreateRawTemplateName "qwen"
                 }
 
     , testCase "search dir is preserved with default template" $ do
