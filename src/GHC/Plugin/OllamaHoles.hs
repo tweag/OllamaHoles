@@ -19,7 +19,7 @@ import GHC.Plugins hiding ((<>))
 import GHC.Tc.Types
 import GHC.Tc.Types.Constraint (Hole (..))
 import GHC.Tc.Utils.Monad (getGblEnv, newTcRef, readTcRef, updTcRef, discardErrs, ifErrsM)
-import qualified GHC.Tc.Utils.Monad as GHC
+import GHC.Tc.Utils.Monad qualified as GHC
 
 import GHC.Plugin.OllamaHoles.Backend
 import GHC.Plugin.OllamaHoles.Backend.Gemini (geminiBackend)
@@ -43,19 +43,71 @@ import GHC.Tc.Types.CtLoc (ctLocSpan)
 import GHC.Tc.Types.Constraint (ctLocSpan)
 #endif
 
-import qualified GHC.HsToCore.Docs as GHC
-import qualified GHC.Types.Unique.Map as GHC
-import qualified GHC.Hs.Doc as GHC
-import qualified GHC.Iface.Load as GHC (loadInterfaceForName)
-import qualified GHC.Tc.Utils.TcType as GHC (tyCoFVsOfType, mkPhiTy)
-import qualified GHC.Tc.Solver as GHC (simplifyTop, simplifyInfer, captureTopConstraints, InferMode(..))
-import qualified GHC.Tc.Solver.Monad as GHC (zonkTcType, runTcSEarlyAbort)
-import qualified Data.Aeson as Aeson
+import GHC.HsToCore.Docs qualified as GHC
+import GHC.Types.Unique.Map qualified as GHC
+import GHC.Hs.Doc qualified as GHC
+import GHC.Iface.Load qualified as GHC (loadInterfaceForName)
+import GHC.Tc.Utils.TcType qualified as GHC (tyCoFVsOfType, mkPhiTy)
+import GHC.Tc.Solver qualified as GHC (simplifyTop, simplifyInfer, captureTopConstraints, InferMode(..))
+import GHC.Tc.Solver.Monad qualified as GHC (zonkTcType, runTcSEarlyAbort)
+import Data.Aeson qualified as Aeson
 
-import           GHC.Plugin.OllamaHoles.Prompt
-import qualified GHC.Plugin.OllamaHoles.Logger as Log
-import           GHC.Plugin.OllamaHoles.Candidate
-import           GHC.Plugin.OllamaHoles.Template
+import GHC.Plugin.OllamaHoles.Prompt
+import GHC.Plugin.OllamaHoles.Logger qualified as Log
+import GHC.Plugin.OllamaHoles.Candidate
+import GHC.Plugin.OllamaHoles.Template
+
+
+
+-- | Ollama plugin for GHC
+plugin :: Plugin
+plugin = defaultPlugin
+  { holeFitPlugin = Just . mkHoleFitPluginR
+  }
+
+mkHoleFitPluginR
+  :: [CommandLineOption] -> HoleFitPluginR
+mkHoleFitPluginR opts = HoleFitPluginR
+  { hfPluginInit = hfPluginInitLLM opts
+  , hfPluginStop = \_ -> return ()
+  , hfPluginRun = \ref -> HoleFitPlugin
+    { candPlugin = \_ cs -> updTcRef ref (setCandidates cs) >> return cs
+    , fitPlugin = fitPluginLLM opts ref
+    }
+  }
+
+-- State
+--------
+
+data PluginState = PluginState
+  { candidates     :: [HoleFitCandidate]
+  , writeLogEvent  :: Log.Logger
+  , templateSpec   :: TemplateSpec
+  , parsedTemplate :: Template
+  }
+
+setCandidates :: [HoleFitCandidate] -> PluginState -> PluginState
+setCandidates cs st = st { candidates = cs }
+
+-- | Initialize the plugin state
+hfPluginInitLLM :: [CommandLineOption] -> TcM (TcRef PluginState)
+hfPluginInitLLM opts = do
+  let flags = parseFlags opts
+  spec <- case mkTemplateSpec flags of
+    Left err -> error $ "Template spec error: " <> show err
+    Right ok -> pure ok
+  logger <- liftIO Log.initLogger
+  template <- liftIO $ do
+    raw <- loadTemplate spec
+    case raw of
+      Left err -> error $ "template parse error: " <> show err
+      Right ok -> pure ok
+  newTcRef $ PluginState
+    { candidates     = []
+    , writeLogEvent  = logger
+    , templateSpec   = spec
+    , parsedTemplate = template
+    }
 
 
 
@@ -66,52 +118,7 @@ getBackend Flags{backend_name = "gemini"} = geminiBackend
 getBackend Flags{backend_name = "openai", ..} = openAICompatibleBackend openai_base_url openai_key_name
 getBackend Flags{..} = error $ "unknown backend: " <> T.unpack backend_name
 
-data PluginState = PluginState
-    { candidates     :: [HoleFitCandidate]
-    , writeLogEvent  :: Log.Logger
-    , templateSpec   :: TemplateSpec
-    , parsedTemplate :: Template
-    }
 
--- | Ollama plugin for GHC
-plugin :: Plugin
-plugin =
-    defaultPlugin
-        { holeFitPlugin = mkHoleFitPluginR
-        }
-
-mkHoleFitPluginR
-    :: [CommandLineOption] -> Maybe HoleFitPluginR
-mkHoleFitPluginR opts =
-    Just $
-        HoleFitPluginR
-            { hfPluginInit = hfPluginInitLLM opts
-            , hfPluginStop = \_ -> return ()
-            , hfPluginRun = \ref ->
-                    HoleFitPlugin
-                        { candPlugin = \_ c -> updTcRef ref (\st -> st { candidates = c }) >> return c
-                        , fitPlugin = fitPluginLLM opts ref
-                        }
-            }
-
-hfPluginInitLLM :: [CommandLineOption] -> TcM (TcRef PluginState)
-hfPluginInitLLM opts = do
-    let flags = parseFlags opts
-    spec <- case mkTemplateSpec flags of
-        Left err -> error $ "Template spec error: " <> show err
-        Right ok -> pure ok
-    logger <- liftIO Log.initLogger
-    template <- liftIO $ do
-        raw <- loadTemplate spec
-        case raw of
-            Left err -> error $ "template parse error: " <> show err
-            Right ok -> pure ok
-    newTcRef $ PluginState
-        { candidates    = []
-        , writeLogEvent = logger
-        , templateSpec = spec
-        , parsedTemplate = template
-        }
 
 pluginName :: Text
 pluginName = "Ollama Plugin"
@@ -126,7 +133,6 @@ fitPluginLLM opts ref hole fits = do
     PluginState cands logger templateSpec template <- readTcRef ref
     let flags@Flags{..} = parseFlags opts
     dflags <- getDynFlags
-    gbl_env <- getGblEnv
     let backend = getBackend flags
     available_models <- liftIO $ listModels backend
     liftIO $ when debug $ T.putStrLn $ "Running " <> pluginName <> " with flags:"
@@ -150,23 +156,26 @@ fitPluginLLM opts ref hole fits = do
                         <> "Availble models: \n"
                         <> T.unpack (T.unlines models)
             liftIO $ when debug $ T.putStrLn $ pluginName <> ": Hole Found"
+
+            -- Prepare the prompt
+            gbl_env <- getGblEnv
             let promptContext = getPromptContext hole fits gbl_env cands dflags
+            let promptContext'' = maybe "" encodePromptContext promptContext
+            docs <- if include_docs then getDocs cands else return ""
+            let env = mkTemplateEnv
+                    [ ("context" , promptContext'')
+                    , ("docs"    , T.pack docs)
+                    , ("numexpr" , T.pack (show num_expr))
+                    , ("backend" , backend_name)
+                    , ("model"   , model_name)
+                    , ("guidance", maybe "" (mconcat . pcGuidance) promptContext)
+                    ]
+            prompt'' <- case expandTemplate env template of
+                Left err -> error $ "Template substitution error: " <> show err
+                Right ok -> pure ok
+
             case th_hole hole of
                 Just h -> do
-                    docs <- if include_docs then getDocs cands else return ""
-
-                    let promptContext'' = maybe "" encodePromptContext promptContext
-                    let env = mkTemplateEnv
-                            [ ("context" , promptContext'')
-                            , ("docs"    , T.pack docs)
-                            , ("numexpr" , T.pack (show num_expr))
-                            , ("backend" , backend_name)
-                            , ("model"   , model_name)
-                            , ("guidance", maybe "" (mconcat . pcGuidance) promptContext)
-                            ]
-                    prompt'' <- case expandTemplate env template of
-                        Left err -> error $ "Template substitution error: " <> show err
-                        Right ok -> pure ok
                     liftIO $ when debug $ do T.putStrLn $ "NEW PROMPT:\n\n" <> prompt'' <> "\n\n"
                     res <- liftIO $ generateFits backend prompt'' model_name model_options
                     case res of
