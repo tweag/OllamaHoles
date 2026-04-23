@@ -28,7 +28,7 @@ data Flags = Flags
     , template_path       :: Maybe FilePath
     , template_name       :: Maybe Text
     , template_search_dir :: FilePath
-    } deriving (Show)
+    } deriving (Eq, Show)
 
 -- | Default flags for the plugin
 defaultFlags :: Flags
