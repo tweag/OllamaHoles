@@ -184,6 +184,7 @@ library ollama-holes-lib
     , text
     , directory
     , filepath
+    , aeson
 
 
 
