@@ -4,16 +4,34 @@ module GHC.Plugin.OllamaHoles.Options
     ( Flags(..)
     , defaultFlags
     , parseFlags
+    , parseCommandLineOptions
     ) where
 
 import GHC.Driver.Plugins (CommandLineOption)
 
+import Control.Monad (foldM)
 import Data.Aeson (Value)
 import Data.Aeson qualified as Aeson
 import Data.Text (Text)
 import Data.Text qualified as T
 
 
+
+parseCommandLineOptions
+    :: Flags -> [CommandLineOption]
+    -> Either [OptError] (Flags, [(Text, Maybe Text)])
+parseCommandLineOptions defaults opts = do
+    let (flags, errs, unk) = parseOptions $ reverse opts
+    if not (null errs)
+        then Left (reverse errs)
+        else case applyFlags defaults flags of
+            Left err -> Left (err : reverse errs)
+            Right ok -> Right (ok, reverse unk)
+
+
+
+-- Flags
+--------
 
 -- | Command line options for the plugin
 data Flags = Flags
@@ -48,9 +66,74 @@ defaultFlags = Flags
 
 
 
--- | Parse command line options
+-- Updating
+-----------
+
+data Flag
+    = BooleanFlag FlagName
+    | ValueFlag FlagName Text
+
+type FlagName = Text
+
+applyFlags :: Flags -> [Flag] -> Either OptError Flags
+applyFlags = foldM applyFlag
+
+applyFlag :: Flags -> Flag -> Either OptError Flags
+applyFlag fs flag = case flag of
+    -- unrecognized; do nothing
+    otherwise -> Right fs
+
+
+
+-- Parsing
+----------
+
+parseOptions :: [CommandLineOption] -> ([Flag], [OptError], [(Text, Maybe Text)])
+parseOptions = mconcat . fmap (parseOption thOptions)
+
+parseOption
+    :: ((Text, Maybe Text) -> ([Flag], [OptError], [(Text, Maybe Text)]))
+    -> CommandLineOption -> ([Flag], [OptError], [(Text, Maybe Text)])
+parseOption parse opt = case breakOpt opt of
+    Nothing -> (mempty, [MalformedOption opt], mempty)
+    Just ok -> parse ok
+    where
+        breakOpt :: CommandLineOption -> Maybe (Text, Maybe Text)
+        breakOpt str = case T.breakOn "=" (T.pack str) of
+            (prefix, rest) -> if T.null prefix
+                then Nothing
+                else case rest of
+                    T.Empty -> Just (prefix, Nothing)
+                    '=' T.:< suffix -> Just (prefix, Just suffix)
+                    otherwise -> Nothing
+
+thOptions :: (Text, Maybe Text) -> ([Flag], [OptError], [(Text, Maybe Text)])
+thOptions (key, mVal) = case key of
+    -- well formed but unrecognized
+    otherwise -> (mempty, mempty, [(key, mVal)])
+
+
+
+-- Errors
+---------
+
+data OptError
+    = MalformedOption CommandLineOption
+    deriving (Eq, Show)
+
+
+
+-- Old
+------
+
 parseFlags :: [CommandLineOption] -> Flags
-parseFlags = parseFlags' defaultFlags . reverse -- reverse so outside options come first
+parseFlags opts = case parseCommandLineOptions defaultFlags opts of
+    Left _ -> defaultFlags
+    Right (ok, _) -> ok
+
+-- | Parse command line options
+parseFlagsOld :: [CommandLineOption] -> Flags
+parseFlagsOld = parseFlags' defaultFlags . reverse -- reverse so outside options come first
   where
     parseFlags' :: Flags -> [CommandLineOption] -> Flags
     parseFlags' flags [] = flags
