@@ -17,6 +17,9 @@ import GHC.Plugin.OllamaHoles.Options
   , OptError(..)
   , Token(..)
   )
+import GHC.Plugin.OllamaHoles.Logger
+  ( LogMode(..)
+  )
 import GHC.Plugin.OllamaHoles.Template
   ( TemplateSpec(..)
   , TemplateSource(..)
@@ -31,6 +34,7 @@ tests =
     , parserSimpleTests
     , parserPrecedenceTests
     , parserFailureTests
+    , parserLogOptionTests
     , templateParserTests
     , mkTemplateSpecTests
     ]
@@ -198,6 +202,79 @@ parserFailureTests =
             pure ()
           other ->
             assertFailure ("expected InvalidJson, got: " <> show other)
+
+    , testCase "unknown options are reported and do not block recognized options" $ do
+        (flags, unknowns) <- expectParseOk ["bogus-option", "model=qwen3", "debug"]
+        model_name flags @?= "qwen3"
+        debug flags @?= True
+        unknowns @?= [BooleanToken "bogus-option"]
+
+    , testCase "value-like unknown options are reported and do not block recognized options" $ do
+        (flags, unknowns) <- expectParseOk ["bogus=thing", "backend=openai"]
+        backend_name flags @?= "openai"
+        unknowns @?= [ValueToken "bogus" "thing"]
+    ]
+
+parserLogOptionTests :: TestTree
+parserLogOptionTests =
+  testGroup "parseCommandLineOptions logging options"
+    [ testCase "log=off sets log_mode" $ do
+        (flags, unknowns) <- expectParseOk ["log=off"]
+        log_mode flags @?= Just LogOff
+        unknowns @?= []
+
+    , testCase "log=basic sets log_mode" $ do
+        (flags, unknowns) <- expectParseOk ["log=basic"]
+        log_mode flags @?= Just LogBasic
+        unknowns @?= []
+
+    , testCase "log=full sets log_mode" $ do
+        (flags, unknowns) <- expectParseOk ["log=full"]
+        log_mode flags @?= Just LogFull
+        unknowns @?= []
+
+    , testCase "log-dir sets log_dir" $ do
+        (flags, unknowns) <- expectParseOk ["log-dir=/tmp/ollama-holes-logs"]
+        log_dir flags @?= Just "/tmp/ollama-holes-logs"
+        unknowns @?= []
+
+    , testCase "leftmost log= wins" $ do
+        (flags, unknowns) <- expectParseOk ["log=basic", "log=off"]
+        log_mode flags @?= Just LogBasic
+        unknowns @?= []
+
+    , testCase "leftmost log-dir= wins" $ do
+        (flags, unknowns) <- expectParseOk
+          [ "log-dir=/tmp/one"
+          , "log-dir=/tmp/two"
+          ]
+        log_dir flags @?= Just "/tmp/one"
+        unknowns @?= []
+
+    , testCase "log option interleaves with other options" $ do
+        (flags, unknowns) <- expectParseOk
+          [ "model=qwen3"
+          , "log=basic"
+          , "debug"
+          , "log-dir=/tmp/logs"
+          ]
+        model_name flags @?= "qwen3"
+        debug flags @?= True
+        log_mode flags @?= Just LogBasic
+        log_dir flags @?= Just "/tmp/logs"
+        unknowns @?= []
+
+    , testCase "empty log value is an error" $ do
+        parseCommandLineOptions defaultFlags ["log="]
+          @?= Left (EmptyValue "log")
+
+    , testCase "empty log-dir value is an error" $ do
+        parseCommandLineOptions defaultFlags ["log-dir="]
+          @?= Left (EmptyValue "log-dir")
+
+    , testCase "invalid log mode is a structured error" $ do
+        parseCommandLineOptions defaultFlags ["log=weird"]
+          @?= Left (InvalidEnum "log" "weird" ["off", "basic", "full"])
     ]
 
 templateParserTests :: TestTree
