@@ -52,6 +52,7 @@ import GHC.Tc.Solver qualified as GHC (simplifyTop, simplifyInfer, captureTopCon
 import GHC.Tc.Solver.Monad qualified as GHC (zonkTcType, runTcSEarlyAbort)
 import Data.Aeson qualified as Aeson
 
+import GHC.Plugin.OllamaHoles.Options
 import GHC.Plugin.OllamaHoles.Prompt
 import GHC.Plugin.OllamaHoles.Logger qualified as Log
 import GHC.Plugin.OllamaHoles.Candidate
@@ -344,20 +345,7 @@ preProcess (ln : lns) = transform ln : preProcess lns
     transform :: Text -> Text
     transform = T.strip
 
--- | Command line options for the plugin
-data Flags = Flags
-    { model_name :: Text
-    , backend_name :: Text
-    , num_expr :: Int
-    , debug :: Bool
-    , include_docs :: Bool
-    , openai_base_url :: Text
-    , openai_key_name :: Text
-    , model_options :: Maybe Value
-    , template_path     :: Maybe FilePath
-    , template_name     :: Maybe Text
-    , template_search_dir :: FilePath
-    } deriving (Show)
+
 
 -- | Default flags for the plugin
 defaultFlags :: Flags
