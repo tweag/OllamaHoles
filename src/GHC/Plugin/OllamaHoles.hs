@@ -73,7 +73,7 @@ mkHoleFitPluginR opts = HoleFitPluginR
   , hfPluginStop = \_ -> return ()
   , hfPluginRun = \ref -> HoleFitPlugin
     { candPlugin = \_ cs -> updTcRef ref (setCandidates cs) >> return cs
-    , fitPlugin = fitPluginLLM opts ref
+    , fitPlugin = fitPluginLLM ref
     }
   }
 
@@ -133,12 +133,11 @@ pluginName :: Text
 pluginName = "Ollama Plugin"
 
 fitPluginLLM
-    :: [CommandLineOption]
-    -> TcRef PluginState
+    :: TcRef PluginState
     -> TypedHole
     -> [HoleFit]
     -> GHC.IOEnv (Env TcGblEnv TcLclEnv) [HoleFit]
-fitPluginLLM opts ref hole fits = do
+fitPluginLLM ref hole fits = do
     PluginState cands logger templateSpec template flags <- readTcRef ref
     dflags <- getDynFlags
     let Flags{..} = flags
