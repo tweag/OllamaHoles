@@ -126,13 +126,13 @@ library
     -- Modules exported by the library.
     exposed-modules:  GHC.Plugin.OllamaHoles
                     , GHC.Plugin.OllamaHoles.Template
+                    , GHC.Plugin.OllamaHoles.Options
 
     -- Modules included in this library but not exported.
     other-modules: GHC.Plugin.OllamaHoles.Backend
                  , GHC.Plugin.OllamaHoles.Backend.Ollama
                  , GHC.Plugin.OllamaHoles.Backend.OpenAI
                  , GHC.Plugin.OllamaHoles.Backend.Gemini
-                 , GHC.Plugin.OllamaHoles.Options
                  , GHC.Plugin.OllamaHoles.Logger
                  , GHC.Plugin.OllamaHoles.Prompt
                  , GHC.Plugin.OllamaHoles.Candidate
@@ -175,7 +175,7 @@ library ollama-holes-lib
     , GHC.Plugin.OllamaHoles.Candidate.Compat
     , GHC.Plugin.OllamaHoles.Candidate.Rewrite
     --, GHC.Plugin.OllamaHoles.Template
-    , GHC.Plugin.OllamaHoles.Options
+    --, GHC.Plugin.OllamaHoles.Options
   default-language:    GHC2021
   build-depends:
       base

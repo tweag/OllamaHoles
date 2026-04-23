@@ -6,10 +6,12 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import GHC.Plugin.OllamaHoles
+    ( mkTemplateSpec
+    )
+import GHC.Plugin.OllamaHoles.Options
     ( Flags(..)
     , defaultFlags
     , parseFlags
-    , mkTemplateSpec
     )
 import GHC.Plugin.OllamaHoles.Template
     ( TemplateSpec(..)
