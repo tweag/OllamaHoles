@@ -5,6 +5,8 @@ module GHC.Plugin.OllamaHoles.Options
     , defaultFlags
     , parseFlags
     , parseCommandLineOptions
+    , OptError(..)
+    , Token(..)
     ) where
 
 import GHC.Driver.Plugins (CommandLineOption)
@@ -140,11 +142,11 @@ interpret :: Flag -> Either OptError (Endo Flags, [Token])
 interpret flag = case flag of
     NoOp token -> pure (Endo id, [token])
 
-    SetModel name -> makeOk $ \fs -> fs
-        { model_name = name }
+    SetModel name -> requireNonEmpty "model" name $
+        makeOk $ \fs -> fs { model_name = name }
 
-    SetBackend name -> makeOk $ \fs -> fs
-        { backend_name = name }
+    SetBackend name -> requireNonEmpty "backend" name $
+        makeOk $ \fs -> fs { backend_name = name }
 
     EnableDebug -> makeOk $ \fs -> fs
         { debug = True }
@@ -152,34 +154,43 @@ interpret flag = case flag of
     EnableDocs -> makeOk $ \fs -> fs
         { include_docs = True }
 
-    SetOpenAIBaseUrl url -> makeOk $ \fs -> fs
-        { openai_base_url = url }
+    SetOpenAIBaseUrl url -> requireNonEmpty "openai_base_url" url $
+        makeOk $ \fs -> fs { openai_base_url = url }
 
-    SetOpenAIKeyName key -> makeOk $ \fs -> fs
-        { openai_key_name = key }
+    SetOpenAIKeyName key -> requireNonEmpty "openai_key_name" key $
+        makeOk $ \fs -> fs { openai_key_name = key }
 
-    SetTemplatePath path -> makeOk $ \fs -> fs
-        { template_path = Just (T.unpack path)
-        , template_name = Nothing }
+    SetTemplatePath path -> requireNonEmpty "template" path $
+        makeOk $ \fs -> fs
+            { template_path = Just (T.unpack path)
+            , template_name = Nothing }
 
-    SetTemplateName name -> makeOk $ \fs -> fs
-        { template_name = Just name
-        , template_path = Nothing }
+    SetTemplateName name -> requireNonEmpty "template-name" name $
+        makeOk $ \fs -> fs
+            { template_name = Just name
+            , template_path = Nothing }
 
-    SetTemplateDir dir -> makeOk $ \fs -> fs
-        { template_search_dir = T.unpack dir }
+    SetTemplateDir dir -> requireNonEmpty "template-dir" dir $
+        makeOk $ \fs -> fs { template_search_dir = T.unpack dir }
 
-    SetNumExpr txt -> case readMaybe (T.unpack txt) of
-        Just n -> makeOk $ \fs -> fs { num_expr = n }
-        Nothing -> Left (InvalidInt "n" txt)
+    SetNumExpr txt -> requireNonEmpty "n" txt $
+        case readMaybe (T.unpack txt) of
+            Just n -> makeOk $ \fs -> fs { num_expr = n }
+            Nothing -> Left (InvalidInt "n" txt)
 
-    SetModelOptions txt -> case Aeson.eitherDecodeStrictText txt of
-        Right opts -> makeOk $ \fs -> fs { model_options = Just opts }
-        Left err -> Left (InvalidJson "model-options" txt err)
+    SetModelOptions txt -> requireNonEmpty "model-options" txt $
+        case Aeson.eitherDecodeStrictText txt of
+            Right opts -> makeOk $ \fs -> fs { model_options = Just opts }
+            Left err -> Left (InvalidJson "model-options" txt err)
 
     where
         makeOk :: (Applicative f) => (a -> a) -> f (Endo a, [b])
         makeOk x = pure (Endo x, [])
+
+        requireNonEmpty :: FlagName -> Text -> Either OptError a -> Either OptError a
+        requireNonEmpty name txt k
+            | T.null txt = Left (EmptyValue name)
+            | otherwise  = k
 
 
 
@@ -191,6 +202,7 @@ data OptError
     | MalformedOption CommandLineOption
     | MissingValue FlagName
     | UnexpectedValue FlagName Text
+    | EmptyValue FlagName
     | InvalidInt FlagName Text
     | InvalidJson FlagName Text String
     deriving (Eq, Show)

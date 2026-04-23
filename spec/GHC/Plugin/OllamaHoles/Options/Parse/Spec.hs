@@ -12,8 +12,11 @@ import Test.Tasty.HUnit
 
 import GHC.Plugin.OllamaHoles.Options
   ( Flags(..)
+  , parseCommandLineOptions
   , defaultFlags
   , parseFlags
+  , OptError(..)
+  , Token(..)
   )
 
 tests :: TestTree
@@ -75,10 +78,16 @@ simpleOptionTests = testGroup "simple options"
         let flags = parseFlags ["bogus-option", "another=thing"]
         flags @?= defaultFlags
 
-    , testCase "unknown option stops later parsing after reverse-order processing" $ do
-        let flags = parseFlags ["debug", "model=qwen3", "unknown"]
-        debug flags @?= False
-        model_name flags @?= "qwen3:latest"
+    , testCase "unknown options are reported but do not block recognized options" $ do
+        let result = parseCommandLineOptions defaultFlags
+                ["bogus-option", "model=qwen3", "debug"]
+        case result of
+            Left err ->
+                assertFailure ("unexpected error: " <> show err)
+            Right (flags, unknowns) -> do
+                model_name flags @?= "qwen3"
+                debug flags @?= True
+                unknowns @?= [BooleanToken "bogus-option"]
     ]
 
 precedenceTests :: TestTree
@@ -145,11 +154,16 @@ precedenceTests = testGroup "precedence"
 
 failureBehaviorTests :: TestTree
 failureBehaviorTests = testGroup "current failure behavior"
-    [ testCase "invalid n= currently throws" $ do
-        assertThrows (evaluate (num_expr (parseFlags ["n=not-an-int"])))
+    [ testCase "invalid n returns structured error" $ do
+        parseCommandLineOptions defaultFlags ["n=not-an-int"]
+            @?= Left (InvalidInt "n" "not-an-int")
 
-    , testCase "invalid model-options= currently throws" $ do
-        assertThrows (evaluate (parseFlags ["model-options={not json}"]))
+    , testCase "invalid model-options returns structured error" $ do
+        case parseCommandLineOptions defaultFlags ["model-options={not json}"] of
+            Left (InvalidJson "model-options" "{not json}" _) ->
+                pure ()
+            other ->
+                assertFailure ("expected InvalidJson, got: " <> show other)
     ]
 
 assertThrows :: IO a -> Assertion
