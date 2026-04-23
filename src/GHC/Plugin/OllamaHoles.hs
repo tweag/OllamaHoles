@@ -104,7 +104,7 @@ hfPluginInitLLM opts = do
   spec <- case mkTemplateSpec flags of
     Left err -> error $ "Template spec error: " <> show err
     Right ok -> pure ok
-  logger <- liftIO Log.initLogger
+  logger <- liftIO $ Log.initLogger (log_mode flags) (log_dir flags)
   template <- liftIO $ do
     raw <- loadTemplate spec
     case raw of

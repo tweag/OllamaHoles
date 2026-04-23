@@ -18,6 +18,8 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import Text.Read (readMaybe)
 
+import GHC.Plugin.OllamaHoles.Logger (LogMode(..))
+
 
 
 parseCommandLineOptions
@@ -40,6 +42,8 @@ data Flags = Flags
     , template_path       :: Maybe FilePath
     , template_name       :: Maybe Text
     , template_search_dir :: FilePath
+    , log_mode            :: Maybe LogMode
+    , log_dir             :: Maybe FilePath
     } deriving (Eq, Show)
 
 -- | Default flags for the plugin
@@ -56,6 +60,8 @@ defaultFlags = Flags
     , template_path       = Nothing
     , template_name       = Nothing
     , template_search_dir = "."
+    , log_mode            = Nothing
+    , log_dir             = Nothing
     }
 
 
@@ -99,6 +105,8 @@ data Flag
     | SetTemplatePath Text
     | SetTemplateName Text
     | SetTemplateDir Text
+    | SetLogMode Text
+    | SetLogDir Text
     deriving (Eq, Show)
 
 parse :: Token -> Either OptError Flag
@@ -115,6 +123,8 @@ parse token = case token of
         "template"        -> Left (MissingValue "template")
         "template-name"   -> Left (MissingValue "template-name")
         "template-dir"    -> Left (MissingValue "template-dir")
+        "log"             -> Left (MissingValue "log")
+        "log-dir"         -> Left (MissingValue "log-dir")
         _                 -> Right (NoOp token)
 
     ValueToken key val -> case key of
@@ -127,6 +137,8 @@ parse token = case token of
         "template"        -> Right (SetTemplatePath val)
         "template-name"   -> Right (SetTemplateName val)
         "template-dir"    -> Right (SetTemplateDir val)
+        "log"             -> Right (SetLogMode val)
+        "log-dir"         -> Right (SetLogDir val)
         "debug"           -> Left (UnexpectedValue "debug" val)
         "include-docs"    -> Left (UnexpectedValue "include-docs" val)
         _                 -> Right (NoOp token)
@@ -182,6 +194,16 @@ interpret flag = case flag of
             Right opts -> makeOk $ \fs -> fs { model_options = Just opts }
             Left err -> Left (InvalidJson "model-options" txt err)
 
+    SetLogMode txt -> requireNonEmpty "log" txt $
+        case txt of
+            "off"   -> makeOk $ \fs -> fs { log_mode = Just LogOff }
+            "basic" -> makeOk $ \fs -> fs { log_mode = Just LogBasic }
+            "full"  -> makeOk $ \fs -> fs { log_mode = Just LogFull }
+            _       -> Left (InvalidEnum "log" txt ["off", "basic", "full"])
+
+    SetLogDir txt -> requireNonEmpty "log-dir" txt $
+        makeOk $ \fs -> fs { log_dir = Just (T.unpack txt) }
+
     where
         makeOk :: (Applicative f) => (a -> a) -> f (Endo a, [b])
         makeOk x = pure (Endo x, [])
@@ -204,4 +226,5 @@ data OptError
     | EmptyValue FlagName
     | InvalidInt FlagName Text
     | InvalidJson FlagName Text String
+    | InvalidEnum FlagName Text [Text]
     deriving (Eq, Show)

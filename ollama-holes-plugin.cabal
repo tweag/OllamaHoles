@@ -127,13 +127,13 @@ library
     exposed-modules:  GHC.Plugin.OllamaHoles
                     , GHC.Plugin.OllamaHoles.Template
                     , GHC.Plugin.OllamaHoles.Options
+                    , GHC.Plugin.OllamaHoles.Logger
 
     -- Modules included in this library but not exported.
     other-modules: GHC.Plugin.OllamaHoles.Backend
                  , GHC.Plugin.OllamaHoles.Backend.Ollama
                  , GHC.Plugin.OllamaHoles.Backend.OpenAI
                  , GHC.Plugin.OllamaHoles.Backend.Gemini
-                 , GHC.Plugin.OllamaHoles.Logger
                  , GHC.Plugin.OllamaHoles.Prompt
                  , GHC.Plugin.OllamaHoles.Candidate
                  , GHC.Plugin.OllamaHoles.Candidate.Compat
@@ -176,6 +176,7 @@ library ollama-holes-lib
     , GHC.Plugin.OllamaHoles.Candidate.Rewrite
     --, GHC.Plugin.OllamaHoles.Template
     --, GHC.Plugin.OllamaHoles.Options
+    --, GHC.Plugin.OllamaHoles.Logger
   default-language:    GHC2021
   build-depends:
       base
@@ -185,6 +186,10 @@ library ollama-holes-lib
     , directory
     , filepath
     , aeson
+    , random
+    , time
+    , bytestring
+    , crypton
 
 
 
@@ -203,6 +208,7 @@ test-suite ollama-holes-spec
     , GHC.Plugin.OllamaHoles.Template.Parse.Spec
     , GHC.Plugin.OllamaHoles.Template.Expand.Spec
     , GHC.Plugin.OllamaHoles.Options.Spec
+    , GHC.Plugin.OllamaHoles.Logger.Spec
   build-depends:
       base
     , ollama-holes-plugin
@@ -219,6 +225,7 @@ test-suite ollama-holes-spec
     , filepath
     , ghc-paths
     , aeson
+    , bytestring
 
 
 

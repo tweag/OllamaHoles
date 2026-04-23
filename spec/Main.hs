@@ -9,6 +9,7 @@ import qualified GHC.Plugin.OllamaHoles.Template.Parse.Spec as ParseSpec
 import qualified GHC.Plugin.OllamaHoles.Template.Load.Spec as LoadSpec
 import qualified GHC.Plugin.OllamaHoles.Template.Expand.Spec as ExpandSpec
 import qualified GHC.Plugin.OllamaHoles.Options.Spec as OptionsSpec
+import qualified GHC.Plugin.OllamaHoles.Logger.Spec as LoggerSpec
 
 main :: IO ()
 main = defaultMain $
@@ -21,4 +22,5 @@ main = defaultMain $
         , LoadSpec.tests
         , ExpandSpec.tests
         , OptionsSpec.tests
+        , LoggerSpec.tests
         ]
