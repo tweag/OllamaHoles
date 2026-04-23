@@ -2,6 +2,7 @@
 
 module GHC.Plugin.OllamaHoles.Logger
     ( Logger()
+    , LogMode(..)
     , initLogger
     , writeLogEvent
     , LogEvent()
@@ -44,10 +45,10 @@ data Logger = Logger
     }
 
 -- | Initialize a logger
-initLogger :: IO Logger
-initLogger = do
-    logConfig <- initLogConfig
-    pure $ Logger
+initLogger :: Maybe LogMode -> Maybe FilePath -> IO Logger
+initLogger mMode mRoot = do
+    logConfig <- initLogConfig mMode mRoot
+    pure Logger
         { logEvent = recordLogEvent logConfig
         , config   = logConfig
         }
@@ -113,14 +114,14 @@ data LogMode
   | LogFull  -- JSONL events + prompt/response blobs
   deriving (Eq, Show, Generic)
 
-initLogConfig :: IO LogConfig
-initLogConfig = do
-    sId <- genSessionId
-    paths <- mkDefaultLogPaths Nothing
-    pure $ LogConfig
+initLogConfig :: Maybe LogMode -> Maybe FilePath -> IO LogConfig
+initLogConfig mMode mRoot = do
+    sId   <- genSessionId
+    paths <- mkDefaultLogPaths mRoot
+    pure LogConfig
         { sessionId = sId
         , logPaths  = paths
-        , logMode   = LogFull
+        , logMode   = maybe LogFull id mMode
         }
 
 data LogPaths = LogPaths
