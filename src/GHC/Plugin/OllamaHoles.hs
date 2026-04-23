@@ -8,7 +8,7 @@
 module GHC.Plugin.OllamaHoles where
 
 import Control.Monad (unless, when, forM_)
-import Data.Aeson
+import Control.Monad.Except (ExceptT, runExceptT, MonadError(..))
 import Data.Char (isSpace)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -50,7 +50,6 @@ import GHC.Iface.Load qualified as GHC (loadInterfaceForName)
 import GHC.Tc.Utils.TcType qualified as GHC (tyCoFVsOfType, mkPhiTy)
 import GHC.Tc.Solver qualified as GHC (simplifyTop, simplifyInfer, captureTopConstraints, InferMode(..))
 import GHC.Tc.Solver.Monad qualified as GHC (zonkTcType, runTcSEarlyAbort)
-import Data.Aeson qualified as Aeson
 
 import GHC.Plugin.OllamaHoles.Options
 import GHC.Plugin.OllamaHoles.Prompt
@@ -92,6 +91,36 @@ setCandidates :: [HoleFitCandidate] -> PluginState -> PluginState
 setCandidates cs st = st { candidates = cs }
 
 -- | Initialize the plugin state
+tryPluginInitLLM
+  :: [CommandLineOption] -> ExceptT PluginInitError TcM (TcRef PluginState)
+tryPluginInitLLM opts = do
+  let optParseResult = parseCommandLineOptions defaultFlags opts
+  flags <- case optParseResult of
+    Left err -> throwError $ OptionParseError err
+    Right (fs, unk) -> do
+      when (not $ null unk) $ do
+        throwError $ UnknownOptionError unk
+      pure fs
+  spec <- case mkTemplateSpec flags of
+    Left err -> throwError $ TemplateSpecError err
+    Right ok -> pure ok
+  logger <- liftIO $ Log.initLogger (log_mode flags) (log_dir flags)
+  template <- do
+    raw <- liftIO $ loadTemplate spec
+    case raw of
+      Left err -> throwError $ TemplateParseError err
+      Right ok -> pure ok
+  newTcRef $ PluginState
+    { candidates     = []
+    , writeLogEvent  = logger
+    , templateSpec   = spec
+    , parsedTemplate = template
+    , commandOptions = flags
+    }
+
+
+{-
+-- | Initialize the plugin state
 hfPluginInitLLM :: [CommandLineOption] -> TcM (TcRef PluginState)
 hfPluginInitLLM opts = do
   let optParseResult = parseCommandLineOptions defaultFlags opts
@@ -117,6 +146,15 @@ hfPluginInitLLM opts = do
     , parsedTemplate = template
     , commandOptions = flags
     }
+-}
+
+data PluginInitError
+    = OptionParseError OptError
+    | UnknownOptionError [Token]
+    | TemplateSpecError TemplateError
+    | TemplateParseError TemplateError
+    deriving (Eq, Show)
+
 
 
 
