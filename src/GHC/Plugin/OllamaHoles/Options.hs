@@ -9,29 +9,22 @@ module GHC.Plugin.OllamaHoles.Options
 
 import GHC.Driver.Plugins (CommandLineOption)
 
-import Control.Monad (foldM)
+import Control.Monad (foldM, (>=>))
 import Data.Aeson (Value)
 import Data.Aeson qualified as Aeson
+import Data.Monoid (Endo(..))
 import Data.Text (Text)
 import Data.Text qualified as T
+import Text.Read (readMaybe)
 
 
 
 parseCommandLineOptions
-    :: Flags -> [CommandLineOption]
-    -> Either [OptError] (Flags, [(Text, Maybe Text)])
+    :: Flags -> [CommandLineOption] -> Either OptError (Flags, [Token])
 parseCommandLineOptions defaults opts = do
-    let (flags, errs, unk) = parseOptions $ reverse opts
-    if not (null errs)
-        then Left (reverse errs)
-        else case applyFlags defaults flags of
-            Left err -> Left (err : reverse errs)
-            Right ok -> Right (ok, reverse unk)
-
-
-
--- Flags
---------
+    (Endo h, unk) <- fmap mconcat $
+        mapM (tokenize >=> parse >=> interpret) opts
+    pure (h defaults, unk)
 
 -- | Command line options for the plugin
 data Flags = Flags
@@ -66,51 +59,127 @@ defaultFlags = Flags
 
 
 
--- Updating
------------
+-- Tokenization
+---------------
 
-data Flag
-    = BooleanFlag FlagName
-    | ValueFlag FlagName Text
+-- Tokens are raw text flags or key value pairs.
+data Token
+    = BooleanToken FlagName
+    | ValueToken FlagName Text
+    deriving (Eq, Show)
 
 type FlagName = Text
 
-applyFlags :: Flags -> [Flag] -> Either OptError Flags
-applyFlags = foldM applyFlag
-
-applyFlag :: Flags -> Flag -> Either OptError Flags
-applyFlag fs flag = case flag of
-    -- unrecognized; do nothing
-    otherwise -> Right fs
+tokenize :: CommandLineOption -> Either OptError Token
+tokenize opt = case T.breakOn "=" (T.pack opt) of
+    (prefix, rest) -> if T.null prefix
+        then Left EmptyOption
+        else case T.uncons rest of
+            Nothing -> Right (BooleanToken prefix)
+            Just ('=', suffix) -> Right (ValueToken prefix suffix)
+            _other -> Left (MalformedOption opt)
 
 
 
 -- Parsing
 ----------
 
-parseOptions :: [CommandLineOption] -> ([Flag], [OptError], [(Text, Maybe Text)])
-parseOptions = mconcat . fmap (parseOption thOptions)
+-- Raw tokens are parsed into semantic tokens.
+data Flag
+    = NoOp Token
+    | SetModel Text
+    | SetBackend Text
+    | SetNumExpr Text
+    | EnableDebug
+    | EnableDocs
+    | SetOpenAIBaseUrl Text
+    | SetOpenAIKeyName Text
+    | SetModelOptions Text
+    | SetTemplatePath Text
+    | SetTemplateName Text
+    | SetTemplateDir Text
+    deriving (Eq, Show)
 
-parseOption
-    :: ((Text, Maybe Text) -> ([Flag], [OptError], [(Text, Maybe Text)]))
-    -> CommandLineOption -> ([Flag], [OptError], [(Text, Maybe Text)])
-parseOption parse opt = case breakOpt opt of
-    Nothing -> (mempty, [MalformedOption opt], mempty)
-    Just ok -> parse ok
+parse :: Token -> Either OptError Flag
+parse token = case token of
+    BooleanToken key -> case key of
+        "debug"           -> Right EnableDebug
+        "include-docs"    -> Right EnableDocs
+        "model"           -> Left (MissingValue "model")
+        "backend"         -> Left (MissingValue "backend")
+        "n"               -> Left (MissingValue "n")
+        "openai_base_url" -> Left (MissingValue "openai_base_url")
+        "openai_key_name" -> Left (MissingValue "openai_key_name")
+        "model-options"   -> Left (MissingValue "model-options")
+        "template"        -> Left (MissingValue "template")
+        "template-name"   -> Left (MissingValue "template-name")
+        "template-dir"    -> Left (MissingValue "template-dir")
+        _                 -> Right (NoOp token)
+
+    ValueToken key val -> case key of
+        "model"           -> Right (SetModel val)
+        "backend"         -> Right (SetBackend val)
+        "n"               -> Right (SetNumExpr val)
+        "openai_base_url" -> Right (SetOpenAIBaseUrl val)
+        "openai_key_name" -> Right (SetOpenAIKeyName val)
+        "model-options"   -> Right (SetModelOptions val)
+        "template"        -> Right (SetTemplatePath val)
+        "template-name"   -> Right (SetTemplateName val)
+        "template-dir"    -> Right (SetTemplateDir val)
+        "debug"           -> Left (UnexpectedValue "debug" val)
+        "include-docs"    -> Left (UnexpectedValue "include-docs" val)
+        _                 -> Right (NoOp token)
+
+
+
+-- Interpretation
+-----------------
+
+-- Semantic tokens are interpreted as functions @Flags -> Flags@.
+interpret :: Flag -> Either OptError (Endo Flags, [Token])
+interpret flag = case flag of
+    NoOp token -> pure (Endo id, [token])
+
+    SetModel name -> makeOk $ \fs -> fs
+        { model_name = name }
+
+    SetBackend name -> makeOk $ \fs -> fs
+        { backend_name = name }
+
+    EnableDebug -> makeOk $ \fs -> fs
+        { debug = True }
+
+    EnableDocs -> makeOk $ \fs -> fs
+        { include_docs = True }
+
+    SetOpenAIBaseUrl url -> makeOk $ \fs -> fs
+        { openai_base_url = url }
+
+    SetOpenAIKeyName key -> makeOk $ \fs -> fs
+        { openai_key_name = key }
+
+    SetTemplatePath path -> makeOk $ \fs -> fs
+        { template_path = Just (T.unpack path)
+        , template_name = Nothing }
+
+    SetTemplateName name -> makeOk $ \fs -> fs
+        { template_name = Just name
+        , template_path = Nothing }
+
+    SetTemplateDir dir -> makeOk $ \fs -> fs
+        { template_search_dir = T.unpack dir }
+
+    SetNumExpr txt -> case readMaybe (T.unpack txt) of
+        Just n -> makeOk $ \fs -> fs { num_expr = n }
+        Nothing -> Left (InvalidInt "n" txt)
+
+    SetModelOptions txt -> case Aeson.eitherDecodeStrictText txt of
+        Right opts -> makeOk $ \fs -> fs { model_options = Just opts }
+        Left err -> Left (InvalidJson "model-options" txt err)
+
     where
-        breakOpt :: CommandLineOption -> Maybe (Text, Maybe Text)
-        breakOpt str = case T.breakOn "=" (T.pack str) of
-            (prefix, rest) -> if T.null prefix
-                then Nothing
-                else case rest of
-                    T.Empty -> Just (prefix, Nothing)
-                    '=' T.:< suffix -> Just (prefix, Just suffix)
-                    otherwise -> Nothing
-
-thOptions :: (Text, Maybe Text) -> ([Flag], [OptError], [(Text, Maybe Text)])
-thOptions (key, mVal) = case key of
-    -- well formed but unrecognized
-    otherwise -> (mempty, mempty, [(key, mVal)])
+        makeOk :: (Applicative f) => (a -> a) -> f (Endo a, [b])
+        makeOk x = pure (Endo x, [])
 
 
 
@@ -118,7 +187,12 @@ thOptions (key, mVal) = case key of
 ---------
 
 data OptError
-    = MalformedOption CommandLineOption
+    = EmptyOption
+    | MalformedOption CommandLineOption
+    | MissingValue FlagName
+    | UnexpectedValue FlagName Text
+    | InvalidInt FlagName Text
+    | InvalidJson FlagName Text String
     deriving (Eq, Show)
 
 
@@ -127,9 +201,8 @@ data OptError
 ------
 
 parseFlags :: [CommandLineOption] -> Flags
-parseFlags opts = case parseCommandLineOptions defaultFlags opts of
-    Left _ -> defaultFlags
-    Right (ok, _) -> ok
+parseFlags opts = either (const defaultFlags) id $
+    fmap fst $ parseCommandLineOptions defaultFlags opts
 
 -- | Parse command line options
 parseFlagsOld :: [CommandLineOption] -> Flags
