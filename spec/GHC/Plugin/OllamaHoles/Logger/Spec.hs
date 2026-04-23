@@ -27,36 +27,40 @@ import GHC.Plugin.OllamaHoles.Logger
 tests :: TestTree
 tests =
   testGroup "Logger"
-    [ testCase "LogOff writes no event file and no blobs" $
+    [ testCase "LogOff does not create log directories or files" $
         withSystemTempDirectory "ollama-holes-logger-spec" $ \dir -> do
-          logger <- initLogger (Just LogOff) (Just dir)
-          writeLogEvent logger (sampleEvent "prompt-a" "response-a")
+            let root = dir </> "logs"
+                blob = root </> "blob"
+                eventsFile = root </> "hole-fit-logs.jsonl"
 
-          let eventsFile = dir </> "hole-fit-logs.jsonl"
-              blobDir    = dir </> "blob"
+            logger <- initLogger (Just LogOff) (Just root)
+            writeLogEvent logger (sampleEvent "prompt-off" "response-off")
 
-          eventsExists <- doesFileExist eventsFile
-          eventsExists @?= False
+            rootExists <- doesDirectoryExist root
+            blobExists <- doesDirectoryExist blob
+            eventsExists <- doesFileExist eventsFile
 
-          blobFiles <- listFilesRecursive blobDir
-          blobFiles @?= []
+            rootExists @?= False
+            blobExists @?= False
+            eventsExists @?= False
 
-    , testCase "LogBasic writes event file but no blobs" $
+    , testCase "LogBasic writes event file and does not create blob directory" $
         withSystemTempDirectory "ollama-holes-logger-spec" $ \dir -> do
-          logger <- initLogger (Just LogBasic) (Just dir)
-          writeLogEvent logger (sampleEvent "prompt-b" "response-b")
+            let root       = dir </> "logs"
+                eventsFile = root </> "hole-fit-logs.jsonl"
+                blobDir    = root </> "blob"
 
-          let eventsFile = dir </> "hole-fit-logs.jsonl"
-              blobDir    = dir </> "blob"
+            logger <- initLogger (Just LogBasic) (Just root)
+            writeLogEvent logger (sampleEvent "prompt-basic" "response-basic")
 
-          eventsExists <- doesFileExist eventsFile
-          assertBool "expected JSONL event file" eventsExists
+            eventsExists <- doesFileExist eventsFile
+            assertBool "expected JSONL event file" eventsExists
 
-          contents <- LBS.readFile eventsFile
-          assertBool "expected non-empty event file" (not (LBS.null contents))
+            eventContents <- LBS.readFile eventsFile
+            assertBool "expected non-empty event file" (not (LBS.null eventContents))
 
-          blobFiles <- listFilesRecursive blobDir
-          blobFiles @?= []
+            blobDirExists <- doesDirectoryExist blobDir
+            assertBool "did not expect blob directory in LogBasic mode" (not blobDirExists)
 
     , testCase "LogFull writes event file and prompt/response blobs" $
         withSystemTempDirectory "ollama-holes-logger-spec" $ \dir -> do

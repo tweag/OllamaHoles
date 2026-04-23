@@ -116,12 +116,21 @@ data LogMode
 
 initLogConfig :: Maybe LogMode -> Maybe FilePath -> IO LogConfig
 initLogConfig mMode mRoot = do
-    sId   <- genSessionId
+    sId <- genSessionId
+    let mode = maybe LogFull id mMode
     paths <- mkDefaultLogPaths mRoot
+    case mode of
+        LogOff   ->
+            pure ()
+        LogBasic ->
+            ensureRootDir paths
+        LogFull  -> do
+            ensureRootDir paths
+            ensureBlobDir paths
     pure LogConfig
         { sessionId = sId
         , logPaths  = paths
-        , logMode   = maybe LogFull id mMode
+        , logMode   = mode
         }
 
 data LogPaths = LogPaths
@@ -130,25 +139,23 @@ data LogPaths = LogPaths
     } deriving (Eq, Show, Generic)
 
 -- | Get the default location for storing logs
-mkDefaultLogPaths
-    :: Maybe FilePath -- Optional root directory
-    -> IO LogPaths
+mkDefaultLogPaths :: Maybe FilePath -> IO LogPaths
 mkDefaultLogPaths mRoot = do
     root <- case mRoot of
         Just fp -> pure fp
         Nothing -> getXdgDirectory XdgState "ollama-holes"
-    let paths = LogPaths
-          { lpRootDir   = root
-          , lpBlobDir   = root </> "blob"
-          }
-    ensureLogDirs paths
-    pure paths
+    pure LogPaths
+        { lpRootDir = root
+        , lpBlobDir = root </> "blob"
+        }
 
--- | Create any log directories that don't exist.
-ensureLogDirs :: LogPaths -> IO ()
-ensureLogDirs paths = do
-    createDirectoryIfMissing True $ lpRootDir paths
-    createDirectoryIfMissing True $ lpBlobDir paths
+ensureRootDir :: LogPaths -> IO ()
+ensureRootDir paths =
+  createDirectoryIfMissing True (lpRootDir paths)
+
+ensureBlobDir :: LogPaths -> IO ()
+ensureBlobDir paths =
+  createDirectoryIfMissing True (lpBlobDir paths)
 
 getFormattedTimestamp :: IO Timestamp
 getFormattedTimestamp = do
