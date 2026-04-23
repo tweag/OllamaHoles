@@ -85,6 +85,7 @@ data PluginState = PluginState
   , writeLogEvent  :: Log.Logger
   , templateSpec   :: TemplateSpec
   , parsedTemplate :: Template
+  , commandOptions :: Flags
   }
 
 setCandidates :: [HoleFitCandidate] -> PluginState -> PluginState
@@ -93,7 +94,13 @@ setCandidates cs st = st { candidates = cs }
 -- | Initialize the plugin state
 hfPluginInitLLM :: [CommandLineOption] -> TcM (TcRef PluginState)
 hfPluginInitLLM opts = do
-  let flags = parseFlags opts
+  let optParseResult = parseCommandLineOptions defaultFlags opts
+  flags <- case optParseResult of
+    Left err -> error $ "error parsing options: " <> show err
+    Right (flags, unk) -> do
+        when (not $ null unk) $ do
+            error $ "unknown options: " <> show unk
+        pure flags
   spec <- case mkTemplateSpec flags of
     Left err -> error $ "Template spec error: " <> show err
     Right ok -> pure ok
@@ -108,6 +115,7 @@ hfPluginInitLLM opts = do
     , writeLogEvent  = logger
     , templateSpec   = spec
     , parsedTemplate = template
+    , commandOptions = flags
     }
 
 
@@ -131,9 +139,9 @@ fitPluginLLM
     -> [HoleFit]
     -> GHC.IOEnv (Env TcGblEnv TcLclEnv) [HoleFit]
 fitPluginLLM opts ref hole fits = do
-    PluginState cands logger templateSpec template <- readTcRef ref
-    let flags@Flags{..} = parseFlags opts
+    PluginState cands logger templateSpec template flags <- readTcRef ref
     dflags <- getDynFlags
+    let Flags{..} = flags
     let backend = getBackend flags
     available_models <- liftIO $ listModels backend
     liftIO $ when debug $ T.putStrLn $ "Running " <> pluginName <> " with flags:"
