@@ -12,7 +12,6 @@ import Control.Monad (unless, when, forM_, (>=>))
 import Control.Monad.Except (ExceptT, runExceptT, MonadError(..), liftEither)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
-import Control.Monad.Trans.Except ()
 import Data.Char (isSpace)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -111,7 +110,11 @@ data PluginError
   | ModelNotFound Text [Text] Text
   | TypedHoleNotFound TypedHole
   | ResponseFailed Text
-  -- deriving (Eq, Show)
+
+isSilentError :: PluginError -> Bool
+isSilentError = \case
+  TypedHoleNotFound _ -> True
+  _                   -> False
 
 renderPluginError :: PluginError -> Text
 renderPluginError = \case
@@ -179,9 +182,9 @@ tryPluginInitLLM opts = do
     Right (fs, []) -> pure fs
     Right (_, unk) -> throwError $ UnknownOptionError unk
     Left err       -> throwError $ OptionParseError err
-  spec <- onLeftIO TemplateSpecError $ pure $ mkTemplateSpec flags
+  spec <- liftEitherIO TemplateSpecError $ pure $ mkTemplateSpec flags
   logger <- liftIO $ Log.initLogger (log_mode flags) (log_dir flags)
-  template <- onLeftIO TemplateParseError $ loadTemplate spec
+  template <- liftEitherIO TemplateParseError $ loadTemplate spec
   pure $ PluginState
     { candidates     = []
     , writeLogEvent  = logger
@@ -205,7 +208,8 @@ fitPluginLLM ref hole fits = do
   case result of
     Right ok -> pure ok
     Left err -> do
-      liftIO $ T.putStrLn $ pluginName <> ": " <> renderPluginError err
+      unless (isSilentError err) $ liftIO $
+        T.putStrLn $ pluginName <> ": " <> renderPluginError err
       pure fits
 
 tryFitPluginLLM
@@ -246,7 +250,7 @@ prepareHoleFitPrompt st hole fits = do
   dflags <- lift getDynFlags
   docs <- lift $ if include_docs flags
     then getDocs (candidates st) else return ""
-  onLeftIO TemplateSubError $ pure $
+  liftEitherIO TemplateSubError $ pure $
     expandTemplateWith (parsedTemplate st) $ mkTemplateEnv
       [ ("backend" , backend_name flags)
       , ("model"   , model_name flags)
@@ -502,5 +506,5 @@ debugMsg :: (MonadIO m) => PluginState -> Text -> m ()
 debugMsg st txt = liftIO $ when (debug $ commandOptions st) $
   T.putStrLn $ pluginName <> ": " <> txt
 
-onLeftIO :: (MonadIO m) => (e1 -> e2) -> IO (Either e1 a) -> ExceptT e2 m a
-onLeftIO f act = liftIO act >>= either (throwError . f) pure
+liftEitherIO :: (MonadIO m) => (e1 -> e2) -> IO (Either e1 a) -> ExceptT e2 m a
+liftEitherIO f act = liftIO act >>= either (throwError . f) pure
