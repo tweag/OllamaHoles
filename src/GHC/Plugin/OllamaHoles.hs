@@ -107,7 +107,7 @@ data PluginError
   | TemplateParseError TemplateError
   | TemplateSubError TemplateError
   | NoModelsAvailable
-  | ModelNotFound Text [Text] Text
+  | ModelNotFound Text [Text] BackendSlug
   | TypedHoleNotFound TypedHole
   | ResponseFailed Text
 
@@ -145,9 +145,9 @@ renderPluginError = \case
     [ "model "
     , modelName
     , " not found for backend "
-    , backendName
+    , renderBackendSlug backendName
     , ". "
-    , if backendName == "ollama"
+    , if backendName == Ollama
         then "Use `ollama pull` to download the model, or "
         else ""
     , "specify another model using "
@@ -257,7 +257,7 @@ prepareHoleFitPrompt st hole fits = do
     then getDocs (candidates st) else return ""
   liftEitherIO TemplateSubError $ pure $
     expandTemplateWith (parsedTemplate st) $ mkTemplateEnv
-      [ ("backend" , backend_name flags)
+      [ ("backend" , renderBackendSlug $ backend_name flags)
       , ("model"   , model_name flags)
       , ("numexpr" , T.pack (show $ num_expr flags))
       , ("docs"    , T.pack docs)
@@ -497,10 +497,10 @@ mkTemplateSpec Flags{..} = do
 
 -- | Determine which backend to use
 getBackend :: Flags -> Backend
-getBackend Flags{backend_name = "ollama"} = ollamaBackend
-getBackend Flags{backend_name = "gemini"} = geminiBackend
-getBackend Flags{backend_name = "openai", ..} = openAICompatibleBackend openai_base_url openai_key_name
-getBackend Flags{..} = error $ "unknown backend: " <> T.unpack backend_name -- TODO
+getBackend flags = case backend_name flags of
+    Gemini -> geminiBackend
+    Ollama -> ollamaBackend
+    OpenAI -> openAICompatibleBackend (openai_base_url flags) (openai_key_name flags)
 
 
 
