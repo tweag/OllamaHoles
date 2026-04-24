@@ -8,7 +8,7 @@
 module GHC.Plugin.OllamaHoles where
 
 import Control.Monad (unless, when, forM_, (>=>))
-import Control.Monad.Except (ExceptT, runExceptT, MonadError(..))
+import Control.Monad.Except (ExceptT, runExceptT, MonadError(..), liftEither)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Trans.Except ()
@@ -166,42 +166,52 @@ getBackend Flags{..} = error $ "unknown backend: " <> T.unpack backend_name
 pluginName :: Text
 pluginName = "Ollama Plugin"
 
+
+
 fitPluginLLM
+  :: TcRef (Either PluginError PluginState)
+  -> TypedHole
+  -> [HoleFit] -- Known hole fits from GHC
+  -> TcM [HoleFit]
+fitPluginLLM ref hole fits = do
+  result <- runExceptT $ tryFitPluginLLM ref hole fits
+  case result of
+    Right ok -> pure ok
+    Left err -> do
+      liftIO $ T.putStrLn $ pluginName <> ": " <> renderPluginError err
+      pure fits
+
+tryFitPluginLLM
     :: TcRef (Either PluginError PluginState)
     -> TypedHole
-    -> [HoleFit]
-    -> GHC.IOEnv (Env TcGblEnv TcLclEnv) [HoleFit]
-fitPluginLLM ref hole fits = do
-    refResult <- readTcRef ref
-    case refResult of
-        Left err -> do
-            liftIO $ putStrLn $ "Initializing OllamaHoles failed with the following error: " -- <> show err
-            pure fits
-        Right (PluginState cands logger templateSpec template flags) -> do
-            dflags <- getDynFlags
-            let Flags{..} = flags
-            let backend = getBackend flags
-            liftIO $ when debug $ T.putStrLn $ "Running " <> pluginName <> " with flags:"
-            liftIO $ when debug $ print flags
+    -> [HoleFit] -- Known hole fits from GHC
+    -> ExceptT PluginError TcM [HoleFit]
+tryFitPluginLLM ref typedHole fits = do
+    PluginState cands logger templateSpec template flags <- readTcRef ref >>= liftEither
+    dflags <- getDynFlags
+    let debugMode = debug flags
+    liftIO $ when debugMode $ T.putStrLn $ "Running " <> pluginName <> " with flags:"
+    liftIO $ when debugMode $ print flags
 
-            crashOnError $ usingModel model_name backend backend_name
+    checkModel flags
 
-            liftIO $ when debug $ T.putStrLn $ pluginName <> ": Hole Found"
+    liftIO $ when debugMode $ T.putStrLn $ pluginName <> ": Hole Found"
 
-            h <- crashOnError $ atHole hole
-            prompt <- crashOnError $ prepareHoleFitPrompt dflags flags hole fits cands template
-            liftIO $ when debug $ do T.putStrLn $ "NEW PROMPT:\n\n" <> prompt <> "\n\n"
-            rsp <- crashOnError $ submitRequest backend prompt model_name model_options
-            extractHoleFitsFromResponse dflags prompt rsp logger hole h debug
+    h <- atHole typedHole
+    prompt <- prepareHoleFitPrompt dflags flags typedHole fits cands template
+    liftIO $ when debugMode $ do T.putStrLn $ "NEW PROMPT:\n\n" <> prompt <> "\n\n"
+    rsp <- submitRequest flags prompt
+    lift $ extractHoleFitsFromResponse dflags prompt rsp logger typedHole h debugMode
 
 -- | Ensure that the specified model exists.
-usingModel :: Text -> Backend -> Text -> ExceptT PluginError TcM ()
-usingModel modelName backend backendName = do
+checkModel :: Flags -> ExceptT PluginError TcM ()
+checkModel flags = do
+  let backend = getBackend flags
   available_models <- liftIO $ listModels backend
   case available_models of
     Nothing -> throwError NoModelsAvailable
-    Just models -> unless (modelName `elem` models) $
-      throwError $ ModelNotFound modelName models backendName
+    Just models -> unless (model_name flags `elem` models) $
+      throwError $ ModelNotFound (model_name flags) models (backend_name flags)
 
 -- | Build a prompt for the LLM from context.
 prepareHoleFitPrompt
@@ -227,19 +237,12 @@ atHole hole = case th_hole hole of
   Just ok -> pure ok
   Nothing -> throwError $ TypedHoleNotFound hole
 
--- Temporary
-crashOnError :: (Monad m) => ExceptT e m a -> m a
-crashOnError act = do
-    result <- runExceptT act
-    case result of
-        Left err -> error $ "ERROR: " -- <> show err
-        Right ok -> pure ok
-
 submitRequest
-  :: Backend -> Log.Prompt -> Text -> Maybe Value
+  :: Flags -> Log.Prompt
   -> ExceptT PluginError TcM Text
-submitRequest backend prompt modelName modelOptions = do
-  res <- liftIO $ generateFits backend prompt modelName modelOptions
+submitRequest flags prompt = do
+  let backend = getBackend flags
+  res <- liftIO $ generateFits backend prompt (model_name flags) (model_options flags)
   case res of
     Right rsp -> pure rsp
     Left err -> throwError $ ResponseFailed $ T.pack err
