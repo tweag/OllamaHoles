@@ -125,13 +125,13 @@ library
 
     -- Modules exported by the library.
     exposed-modules:  GHC.Plugin.OllamaHoles
+                    , GHC.Plugin.OllamaHoles.Backend
                     , GHC.Plugin.OllamaHoles.Template
                     , GHC.Plugin.OllamaHoles.Options
                     , GHC.Plugin.OllamaHoles.Logger
 
     -- Modules included in this library but not exported.
-    other-modules: GHC.Plugin.OllamaHoles.Backend
-                 , GHC.Plugin.OllamaHoles.Backend.Common
+    other-modules: GHC.Plugin.OllamaHoles.Backend.Common
                  , GHC.Plugin.OllamaHoles.Backend.Ollama
                  , GHC.Plugin.OllamaHoles.Backend.OpenAI
                  , GHC.Plugin.OllamaHoles.Backend.Gemini

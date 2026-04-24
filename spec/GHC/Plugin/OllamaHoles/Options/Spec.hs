@@ -26,6 +26,9 @@ import GHC.Plugin.OllamaHoles.Template
   , TemplateError(..)
   , unsafeCreateRawTemplateName
   )
+import GHC.Plugin.OllamaHoles.Backend
+  ( BackendSlug(..)
+  )
 
 tests :: TestTree
 tests =
@@ -66,7 +69,7 @@ parserSimpleTests =
 
     , testCase "backend= sets backend_name" $ do
         (flags, unknowns) <- expectParseOk ["backend=openai"]
-        backend_name flags @?= "openai"
+        backend_name flags @?= OpenAI
         unknowns @?= []
 
     , testCase "openai_base_url= sets openai_base_url" $ do
@@ -128,7 +131,7 @@ parserPrecedenceTests =
 
     , testCase "leftmost backend= wins" $ do
         (flags, unknowns) <- expectParseOk ["backend=ollama", "backend=openai"]
-        backend_name flags @?= "ollama"
+        backend_name flags @?= Ollama
         unknowns @?= []
 
     , testCase "leftmost openai_base_url= wins" $ do
@@ -183,7 +186,7 @@ parserPrecedenceTests =
           , "backend=openai"
           ]
         model_name flags @?= "first"
-        backend_name flags @?= "ollama"
+        backend_name flags @?= Ollama
         debug flags @?= True
         include_docs flags @?= True
         unknowns @?= []
@@ -211,7 +214,7 @@ parserFailureTests =
 
     , testCase "value-like unknown options are reported and do not block recognized options" $ do
         (flags, unknowns) <- expectParseOk ["bogus=thing", "backend=openai"]
-        backend_name flags @?= "openai"
+        backend_name flags @?= OpenAI
         unknowns @?= [ValueToken "bogus" "thing"]
     ]
 
