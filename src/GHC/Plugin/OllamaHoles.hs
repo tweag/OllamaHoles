@@ -113,8 +113,12 @@ data PluginError
 
 isSilentError :: PluginError -> Bool
 isSilentError = \case
-  TypedHoleNotFound _ -> True
-  _                   -> False
+  OptionParseError   _ -> True -- \
+  UnknownOptionError _ -> True --  | These are initialization errors, and
+  TemplateSpecError  _ -> True --  | are printed by printRenderedError.
+  TemplateParseError _ -> True -- /
+  TypedHoleNotFound  _ -> True -- This just means there are no typed holes.
+  _                    -> False
 
 renderPluginError :: PluginError -> Text
 renderPluginError = \case
@@ -172,7 +176,8 @@ hfPluginInitLLM
   :: [CommandLineOption]
   -> TcM (TcRef (Either PluginError PluginState))
 hfPluginInitLLM =
-  (liftIO . runExceptT . tryPluginInitLLM) >=> newTcRef
+  (liftIO . runExceptT . tryPluginInitLLM)
+    >=> printRenderedError >=> newTcRef
 
 -- | Initialize the plugin state
 tryPluginInitLLM
@@ -508,3 +513,11 @@ debugMsg st txt = liftIO $ when (debug $ commandOptions st) $
 
 liftEitherIO :: (MonadIO m) => (e1 -> e2) -> IO (Either e1 a) -> ExceptT e2 m a
 liftEitherIO f act = liftIO act >>= either (throwError . f) pure
+
+printRenderedError
+  :: (MonadIO m) => Either PluginError u -> m (Either PluginError u)
+printRenderedError x = case x of
+  Right u -> pure (Right u)
+  Left err -> do
+    liftIO $ T.putStrLn $ renderPluginError err
+    pure (Left err)
