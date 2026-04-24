@@ -115,20 +115,50 @@ data PluginError
 
 renderPluginError :: PluginError -> Text
 renderPluginError = \case
-  OptionParseError err -> mconcat
-    [ "Option parse error: ", T.pack (show err)
-    ]
+  OptionParseError err ->
+    "option parse error: " <> T.pack (show err)
+
+  UnknownOptionError toks ->
+    "unrecognized plugin option(s): "
+      <> T.intercalate ", " (map renderToken toks)
+
+  TemplateSpecError err ->
+    "template specification error: " <> T.pack (show err)
+
+  TemplateParseError err ->
+    "template load/parse error: " <> T.pack (show err)
+
+  TemplateSubError err ->
+    "template substitution error: " <> T.pack (show err)
+
+  NoModelsAvailable ->
+    "no models available; check your backend configuration"
+
   ModelNotFound modelName models backendName -> mconcat
-    [ "Model ", modelName, " not found. "
+    [ "model "
+    , modelName
+    , " not found for backend "
+    , backendName
+    , ". "
     , if backendName == "ollama"
-        then "Use `ollama pull` to download the model, or " else ""
+        then "Use `ollama pull` to download the model, or "
+        else ""
     , "specify another model using "
-    , "`-fplugin-opt=GHC.Plugin.OllamaHoles:model=<model_name>`\n"
-    , "Availble models: \n", T.unlines models
+    , "`-fplugin-opt=GHC.Plugin.OllamaHoles:model=`.\n"
+    , "Available models:\n"
+    , T.unlines models
     ]
-  _ -> mconcat
-    [ pluginName, ": ERROR - " --, T.pack (show err)
-    ]
+
+  TypedHoleNotFound _ ->
+    "could not locate the typed hole in the current context"
+
+  ResponseFailed msg ->
+    "backend request failed: " <> msg
+  where
+    renderToken :: Token -> Text
+    renderToken = \case
+      BooleanToken key -> key
+      ValueToken key val -> key <> "=" <> val
 
 
 
@@ -288,7 +318,7 @@ extractHoleFitsFromResponse st prompt rsp hole h = do
   when (not $ null prepared) $ do
     let numPrep = T.pack $ show $ length prepared
     debugMsg st $ "--- prepared for semantic-ish deduplication (" <> numPrep <> ") ---\n"
-      <> T.intercalate "\n" (foldMapFor prepared $ \pc -> (:[]) $ T.unlines
+      <> T.intercalate "\n" (flip foldMap prepared $ \pc -> (:[]) $ T.unlines
         [ "source: " <> prSource pc
         , "rank:   " <> T.pack (show $ prRank pc)
         , "key:    " <> T.pack (show $ prNormKey pc)
@@ -474,6 +504,3 @@ debugMsg st txt = liftIO $ when (debug $ commandOptions st) $
 
 onLeftIO :: (MonadIO m) => (e1 -> e2) -> IO (Either e1 a) -> ExceptT e2 m a
 onLeftIO f act = liftIO act >>= either (throwError . f) pure
-
-foldMapFor :: (Foldable t, Monoid m) => t a -> (a -> m) -> m
-foldMapFor = flip foldMap
