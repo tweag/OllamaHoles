@@ -19,6 +19,7 @@ import Data.Text qualified as T
 import Text.Read (readMaybe)
 
 import GHC.Plugin.OllamaHoles.Logger (LogMode(..))
+import GHC.Plugin.OllamaHoles.Backend (BackendSlug(..), parseBackendSlug)
 
 
 
@@ -32,7 +33,7 @@ parseCommandLineOptions defaults opts = do
 -- | Command line options for the plugin
 data Flags = Flags
     { model_name          :: Text
-    , backend_name        :: Text
+    , backend_name        :: BackendSlug
     , num_expr            :: Int
     , debug               :: Bool
     , include_docs        :: Bool
@@ -50,7 +51,7 @@ data Flags = Flags
 defaultFlags :: Flags
 defaultFlags = Flags
     { model_name          = "qwen3:latest"
-    , backend_name        = "ollama"
+    , backend_name        = Ollama
     , num_expr            = 5
     , debug               = False
     , include_docs        = False
@@ -157,7 +158,9 @@ interpret flag = case flag of
         makeOk $ \fs -> fs { model_name = name }
 
     SetBackend name -> requireNonEmpty "backend" name $
-        makeOk $ \fs -> fs { backend_name = name }
+        case parseBackendSlug name of
+            Just slug -> makeOk $ \fs -> fs { backend_name = slug }
+            Nothing -> Left (InvalidBackend name)
 
     EnableDebug -> makeOk $ \fs -> fs
         { debug = True }
@@ -227,4 +230,5 @@ data OptError
     | InvalidInt FlagName Text
     | InvalidJson FlagName Text String
     | InvalidEnum FlagName Text [Text]
+    | InvalidBackend Text
     deriving (Eq, Show)

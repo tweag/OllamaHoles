@@ -12,7 +12,7 @@ import Data.Aeson.Types (Parser, parseMaybe)
 
 import Data.Text (Text)
 import qualified Data.Text as T
-import GHC.Plugin.OllamaHoles.Backend
+import GHC.Plugin.OllamaHoles.Backend.Common
 import Data.Maybe
 
 -- | The Gemini backend

@@ -14,7 +14,7 @@ import qualified Data.Aeson as Aeson
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding (encodeUtf8)
-import GHC.Plugin.OllamaHoles.Backend
+import GHC.Plugin.OllamaHoles.Backend.Common
 import Data.Maybe (fromMaybe)
 import Text.URI (mkURI)
 
