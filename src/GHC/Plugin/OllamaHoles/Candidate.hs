@@ -380,12 +380,12 @@ data CandidateError
     | CandidateRejected Text
     deriving (Eq, Show)
 
-renderCandidateError :: Text -> CandidateError -> String
+renderCandidateError :: Text -> CandidateError -> Text
 renderCandidateError src = \case
-    CandidateParseError msg  -> "parse failed: " <> T.unpack src <> "\n  " <> T.unpack msg
-    CandidateRenameError msg -> "rename failed: " <> T.unpack src <> "\n  " <> T.unpack msg
-    CandidateTypeError msg   -> "type inference or hole-fit check failed: " <> T.unpack src <> "\n  " <> T.unpack msg
-    CandidateRejected msg    -> "rejected: " <> T.unpack src <> "\n  " <> T.unpack msg
+    CandidateParseError msg  -> "parse failed: " <> src <> "\n  " <> msg
+    CandidateRenameError msg -> "rename failed: " <> src <> "\n  " <> msg
+    CandidateTypeError msg   -> "type inference or hole-fit check failed: " <> src <> "\n  " <> msg
+    CandidateRejected msg    -> "rejected: " <> src <> "\n  " <> msg
 
 
 

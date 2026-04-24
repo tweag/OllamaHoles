@@ -3,12 +3,15 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE LambdaCase #-}
 
 -- | The Ollama plugin for GHC
 module GHC.Plugin.OllamaHoles where
 
-import Control.Monad (unless, when, forM_)
-import Data.Aeson
+import Control.Monad (unless, when, forM_, (>=>))
+import Control.Monad.Except (ExceptT, runExceptT, MonadError(..), liftEither)
+import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Trans.Class (MonadTrans(..))
 import Data.Char (isSpace)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -50,7 +53,6 @@ import GHC.Iface.Load qualified as GHC (loadInterfaceForName)
 import GHC.Tc.Utils.TcType qualified as GHC (tyCoFVsOfType, mkPhiTy)
 import GHC.Tc.Solver qualified as GHC (simplifyTop, simplifyInfer, captureTopConstraints, InferMode(..))
 import GHC.Tc.Solver.Monad qualified as GHC (zonkTcType, runTcSEarlyAbort)
-import Data.Aeson qualified as Aeson
 
 import GHC.Plugin.OllamaHoles.Options
 import GHC.Plugin.OllamaHoles.Prompt
@@ -66,16 +68,23 @@ plugin = defaultPlugin
   { holeFitPlugin = Just . mkHoleFitPluginR
   }
 
+pluginName :: Text
+pluginName = "Ollama Plugin"
+
 mkHoleFitPluginR
   :: [CommandLineOption] -> HoleFitPluginR
 mkHoleFitPluginR opts = HoleFitPluginR
-  { hfPluginInit = hfPluginInitLLM opts
+  { hfPluginInit =
+      -- Initialize the plugin (this may fail).
+      hfPluginInitLLM opts :: TcM (TcRef (Either PluginError PluginState))
   , hfPluginStop = \_ -> return ()
   , hfPluginRun = \ref -> HoleFitPlugin
-    { candPlugin = \_ cs -> updTcRef ref (setCandidates cs) >> return cs
+    { candPlugin = \_ cs -> updTcRef ref (fmap (setCandidates cs)) >> return cs
     , fitPlugin = fitPluginLLM ref
     }
   }
+
+
 
 -- State
 --------
@@ -91,26 +100,97 @@ data PluginState = PluginState
 setCandidates :: [HoleFitCandidate] -> PluginState -> PluginState
 setCandidates cs st = st { candidates = cs }
 
+data PluginError
+  = OptionParseError OptError
+  | UnknownOptionError [Token]
+  | TemplateSpecError TemplateError
+  | TemplateParseError TemplateError
+  | TemplateSubError TemplateError
+  | NoModelsAvailable
+  | ModelNotFound Text [Text] Text
+  | TypedHoleNotFound TypedHole
+  | ResponseFailed Text
+
+isSilentError :: PluginError -> Bool
+isSilentError = \case
+  OptionParseError   _ -> True -- \
+  UnknownOptionError _ -> True --  | These are initialization errors, and
+  TemplateSpecError  _ -> True --  | are printed by printRenderedError.
+  TemplateParseError _ -> True -- /
+  TypedHoleNotFound  _ -> True -- This just means there are no typed holes.
+  _                    -> False
+
+renderPluginError :: PluginError -> Text
+renderPluginError = \case
+  OptionParseError err ->
+    "option parse error: " <> T.pack (show err)
+
+  UnknownOptionError toks ->
+    "unrecognized plugin option(s): "
+      <> T.intercalate ", " (map renderToken toks)
+
+  TemplateSpecError err ->
+    "template specification error: " <> T.pack (show err)
+
+  TemplateParseError err ->
+    "template load/parse error: " <> T.pack (show err)
+
+  TemplateSubError err ->
+    "template substitution error: " <> T.pack (show err)
+
+  NoModelsAvailable ->
+    "no models available; check your backend configuration"
+
+  ModelNotFound modelName models backendName -> mconcat
+    [ "model "
+    , modelName
+    , " not found for backend "
+    , backendName
+    , ". "
+    , if backendName == "ollama"
+        then "Use `ollama pull` to download the model, or "
+        else ""
+    , "specify another model using "
+    , "`-fplugin-opt=GHC.Plugin.OllamaHoles:model=`.\n"
+    , "Available models:\n"
+    , T.unlines models
+    ]
+
+  TypedHoleNotFound _ ->
+    "could not locate the typed hole in the current context"
+
+  ResponseFailed msg ->
+    "backend request failed: " <> msg
+  where
+    renderToken :: Token -> Text
+    renderToken = \case
+      BooleanToken key -> key
+      ValueToken key val -> key <> "=" <> val
+
+
+
+-- Initialize
+-------------
+
+hfPluginInitLLM
+  :: [CommandLineOption]
+  -> TcM (TcRef (Either PluginError PluginState))
+hfPluginInitLLM =
+  (liftIO . runExceptT . tryPluginInitLLM)
+    >=> printRenderedError >=> newTcRef
+
 -- | Initialize the plugin state
-hfPluginInitLLM :: [CommandLineOption] -> TcM (TcRef PluginState)
-hfPluginInitLLM opts = do
-  let optParseResult = parseCommandLineOptions defaultFlags opts
-  flags <- case optParseResult of
-    Left err -> error $ "error parsing options: " <> show err
-    Right (flags, unk) -> do
-        when (not $ null unk) $ do
-            error $ "unknown options: " <> show unk
-        pure flags
-  spec <- case mkTemplateSpec flags of
-    Left err -> error $ "Template spec error: " <> show err
-    Right ok -> pure ok
+tryPluginInitLLM
+  :: [CommandLineOption] -> ExceptT PluginError IO PluginState
+tryPluginInitLLM opts = do
+  flags <- case parseCommandLineOptions defaultFlags opts of
+    Right (fs, []) -> pure fs
+    Right (_, unk) -> throwError $ UnknownOptionError unk
+    Left err       -> throwError $ OptionParseError err
+  spec <- liftEitherIO TemplateSpecError $ pure $ mkTemplateSpec flags
   logger <- liftIO $ Log.initLogger (log_mode flags) (log_dir flags)
-  template <- liftIO $ do
-    raw <- loadTemplate spec
-    case raw of
-      Left err -> error $ "template parse error: " <> show err
-      Right ok -> pure ok
-  newTcRef $ PluginState
+  template <- liftEitherIO TemplateParseError $ loadTemplate spec
+  pure $ PluginState
     { candidates     = []
     , writeLogEvent  = logger
     , templateSpec   = spec
@@ -120,138 +200,155 @@ hfPluginInitLLM opts = do
 
 
 
--- | Determine which backend to use
-getBackend :: Flags -> Backend
-getBackend Flags{backend_name = "ollama"} = ollamaBackend
-getBackend Flags{backend_name = "gemini"} = geminiBackend
-getBackend Flags{backend_name = "openai", ..} = openAICompatibleBackend openai_base_url openai_key_name
-getBackend Flags{..} = error $ "unknown backend: " <> T.unpack backend_name
-
-
-
-pluginName :: Text
-pluginName = "Ollama Plugin"
+-- Fit Holes
+------------
 
 fitPluginLLM
-    :: TcRef PluginState
-    -> TypedHole
-    -> [HoleFit]
-    -> GHC.IOEnv (Env TcGblEnv TcLclEnv) [HoleFit]
+  :: TcRef (Either PluginError PluginState)
+  -> TypedHole
+  -> [HoleFit] -- Known hole fits from GHC
+  -> TcM [HoleFit]
 fitPluginLLM ref hole fits = do
-    PluginState cands logger templateSpec template flags <- readTcRef ref
-    dflags <- getDynFlags
-    let Flags{..} = flags
-    let backend = getBackend flags
-    available_models <- liftIO $ listModels backend
-    liftIO $ when debug $ T.putStrLn $ "Running " <> pluginName <> " with flags:"
-    liftIO $ when debug $ print flags
+  result <- runExceptT $ tryFitPluginLLM ref hole fits
+  case result of
+    Right ok -> pure ok
+    Left err -> do
+      unless (isSilentError err) $ liftIO $
+        T.putStrLn $ pluginName <> ": " <> renderPluginError err
+      pure fits
 
-    case available_models of
-        Nothing ->
-            error $ T.unpack pluginName <> ": No models available, check your configuration"
-        Just models -> do
-            unless (model_name `elem` models) $
-                error $ T.unpack pluginName
-                        <> ": Model "
-                        <> T.unpack model_name
-                        <> " not found. "
-                        <> ( if backend_name == "ollama"
-                                then "Use `ollama pull` to download the model, or "
-                                else ""
-                            )
-                        <> "specify another model using "
-                        <> "`-fplugin-opt=GHC.Plugin.OllamaHoles:model=<model_name>`\n"
-                        <> "Availble models: \n"
-                        <> T.unpack (T.unlines models)
-            liftIO $ when debug $ T.putStrLn $ pluginName <> ": Hole Found"
+tryFitPluginLLM
+  :: TcRef (Either PluginError PluginState)
+  -> TypedHole
+  -> [HoleFit] -- Known hole fits from GHC
+  -> ExceptT PluginError TcM [HoleFit]
+tryFitPluginLLM ref typedHole fits = do
+  st <- readTcRef ref >>= liftEither
+  debugMsg st $ "running with flags\n" <> T.pack (show $ commandOptions st)
+  checkModel st
+  debugMsg st "Hole Found"
+  withTypedHole typedHole $ \hole -> do
+    prompt <- prepareHoleFitPrompt st typedHole fits
+    debugMsg st $ "prompt:\n" <> prompt
+    rsp <- submitRequest st prompt
+    lift $ extractHoleFitsFromResponse st prompt rsp typedHole hole
 
-            -- Prepare the prompt
-            gbl_env <- getGblEnv
-            let promptContext = getPromptContext hole fits gbl_env cands dflags
-            let promptContext'' = maybe "" encodePromptContext promptContext
-            docs <- if include_docs then getDocs cands else return ""
-            let env = mkTemplateEnv
-                    [ ("context" , promptContext'')
-                    , ("docs"    , T.pack docs)
-                    , ("numexpr" , T.pack (show num_expr))
-                    , ("backend" , backend_name)
-                    , ("model"   , model_name)
-                    , ("guidance", maybe "" (mconcat . pcGuidance) promptContext)
-                    ]
-            prompt'' <- case expandTemplate env template of
-                Left err -> error $ "Template substitution error: " <> show err
-                Right ok -> pure ok
+-- | Ensure that the specified model exists.
+checkModel :: PluginState -> ExceptT PluginError TcM ()
+checkModel st = do
+  let flags = commandOptions st
+  let backend = getBackend flags
+  available_models <- liftIO $ listModels backend
+  case available_models of
+    Nothing -> throwError NoModelsAvailable
+    Just models -> unless (model_name flags `elem` models) $
+      throwError $ ModelNotFound (model_name flags) models (backend_name flags)
 
-            case th_hole hole of
-                Just h -> do
-                    liftIO $ when debug $ do T.putStrLn $ "NEW PROMPT:\n\n" <> prompt'' <> "\n\n"
-                    res <- liftIO $ generateFits backend prompt'' model_name model_options
-                    case res of
-                        Right rsp ->
-                            extractHoleFitsFromResponse dflags prompt'' rsp logger hole h debug
-                        Left err -> do
-                            liftIO $
-                                when debug $
-                                    T.putStrLn $
-                                        pluginName <> " failed to generate a response.\n" <> T.pack err
-                            -- Return the original fits without modification
-                            return fits
-                Nothing -> return fits
+-- | Build a prompt for the LLM from context.
+prepareHoleFitPrompt
+  :: PluginState -> TypedHole
+  -> [HoleFit]          -- Known hole fits provided by GHC
+  -> ExceptT PluginError TcM Text
+prepareHoleFitPrompt st hole fits = do
+  let flags = commandOptions st
+  gbl_env <- lift getGblEnv
+  dflags <- lift getDynFlags
+  docs <- lift $ if include_docs flags
+    then getDocs (candidates st) else return ""
+  liftEitherIO TemplateSubError $ pure $
+    expandTemplateWith (parsedTemplate st) $ mkTemplateEnv
+      [ ("backend" , backend_name flags)
+      , ("model"   , model_name flags)
+      , ("numexpr" , T.pack (show $ num_expr flags))
+      , ("docs"    , T.pack docs)
+      , ("context" , maybe "" encodePromptContext $
+                      getPromptContext hole fits gbl_env (candidates st) dflags)
+      ]
+
+withTypedHole
+  :: TypedHole -> (Hole -> ExceptT PluginError TcM a)
+  -> ExceptT PluginError TcM a
+withTypedHole hole act = case th_hole hole of
+  Nothing -> throwError $ TypedHoleNotFound hole
+  Just ok -> act ok
+
+submitRequest
+  :: PluginState -> Log.Prompt
+  -> ExceptT PluginError TcM Text
+submitRequest st prompt = do
+  let flags = commandOptions st
+  let backend = getBackend flags
+  res <- liftIO $ generateFits
+    backend prompt (model_name flags) (model_options flags)
+  case res of
+    Right rsp -> pure rsp
+    Left err -> throwError $ ResponseFailed $ T.pack err
 
 extractHoleFitsFromResponse
-    :: DynFlags -> Log.Prompt -> Log.Response -> Log.Logger
-    -> TypedHole -> Hole -> Bool -> TcM [HoleFit]
-extractHoleFitsFromResponse dflags prompt' rsp logger hole h debug = do
-    let rawLines      = preProcess (T.lines rsp) -- raw candidate list
-    let surfaceUnique = L.nub rawLines           -- remove syntactic duplicates
+  :: PluginState -> Log.Prompt -> Log.Response
+  -> TypedHole -> Hole -> TcM [HoleFit]
+extractHoleFitsFromResponse st prompt rsp hole h = do
+  let logger = writeLogEvent st
+  let debugMode = debug (commandOptions st)
+  dflags <- getDynFlags
 
-    liftIO $ when debug $ do
-        putStrLn "--- raw candidates ---"
-        mapM_ T.putStrLn rawLines
-        putStrLn ""
-        putStrLn "--- syntactic uniques ---"
-        mapM_ T.putStrLn surfaceUnique
-        putStrLn ""
+  -- Get the raw list of candidates
+  let rawLines = preProcess (T.lines rsp)
+  when (not $ null rawLines) $ do
+    let numRaw = T.pack $ show $ length rawLines
+    debugMsg st $ "--- raw candidates (" <> numRaw <> ") ---\n"
+      <> T.unlines rawLines
 
-    let parseCtx  = mkParseCtx dflags
-    let renameCtx = mkRenameCtx debug
-    let checkCtx  = mkCheckCtx debug hole
-    let prepCtx   = mkPrepCtx dflags (holeArity h)
+  -- Remove syntactic duplicates
+  let surfaceUnique = L.nub rawLines
+  when (not $ null surfaceUnique) $ do
+    let numSurf = T.pack $ show $ length surfaceUnique
+    debugMsg st $ "--- syntactic uniques (" <> numSurf <> ") ---\n"
+      <> T.unlines surfaceUnique
 
-    -- prepare candidates for semantic deduplication
-    preparedE <- traverse
-        (pipelineCandidate parseCtx renameCtx checkCtx prepCtx)
-        surfaceUnique
+  -- prepare candidates for semantic deduplication
+  preparedE <- for surfaceUnique
+    (pipelineCandidate (mkParseCtx dflags) (mkRenameCtx debugMode)
+      (mkCheckCtx debugMode hole) (mkPrepCtx dflags (holeArity h)))
 
-    -- check that we reach the same conclusion as
-    -- the original fit check
-    when debug $
-      regressionCheck hole surfaceUnique preparedE
+  -- check that we reach the same conclusion as
+  -- the original fit check
+  regressionCheck hole surfaceUnique preparedE
 
-    let failures = [ (src, err) | (src, Left err) <- zip surfaceUnique preparedE ]
-    let prepared = [ pc | Right pc <- preparedE ]
-    let deduped  = dedupePreparedCandidates prepared
-    let fits'    = map (RawHoleFit . text . T.unpack . prSource) deduped
+  -- Report any validation errors
+  let failures = [ (src, err) | (src, Left err) <- zip surfaceUnique preparedE ]
+  when (not $ null failures) $ do
+    let numFail = T.pack $ show $ length failures
+    debugMsg st $ "--- candidate validation failures (" <> numFail <> ") ---\n"
+      <> T.unlines (fmap (uncurry renderCandidateError) failures)
 
-    liftIO $ when debug $ do
-        when (not $ null failures) $ do
-            putStrLn "--- candidate validation failures ---"
-            mapM_ (putStrLn . uncurry renderCandidateError) failures
-            putStrLn ""
-        putStrLn "--- prepared for semantic-ish deduplication ---"
-        forM_ prepared $ \pc -> do
-            putStrLn ("source: " <> T.unpack (prSource pc))
-            putStrLn ("rank:   " <> show (prRank pc))
-            putStrLn ("key:    " <> show (prNormKey pc))
-            putStrLn ""
-        putStrLn "--- semantic-ish uniques ---"
-        mapM_ (putStrLn . T.unpack . prSource) deduped
-        putStrLn ""
+  -- Normalize expressions for deduplication
+  let prepared = [ pc | Right pc <- preparedE ]
+  when (not $ null prepared) $ do
+    let numPrep = T.pack $ show $ length prepared
+    debugMsg st $ "--- prepared for semantic-ish deduplication (" <> numPrep <> ") ---\n"
+      <> T.intercalate "\n" (flip foldMap prepared $ \pc -> (:[]) $ T.unlines
+        [ "source: " <> prSource pc
+        , "rank:   " <> T.pack (show $ prRank pc)
+        , "key:    " <> T.pack (show $ prNormKey pc)
+        ])
 
-    liftIO $ Log.writeLogEvent logger $ Log.mkLogEvent
-        prompt' rsp (length rawLines) (length deduped) (length prepared)
+  -- Deduplicate expressions
+  let deduped  = dedupePreparedCandidates prepared
+  when (not $ null deduped) $ do
+    let numUniq = T.pack $ show $ length deduped
+    debugMsg st $ "--- semantic-ish uniques (" <> numUniq <> ") ---\n"
+      <> T.unlines (fmap prSource deduped)
 
-    return fits'
+  liftIO $ Log.writeLogEvent logger $ Log.mkLogEvent
+      prompt rsp (length rawLines) (length deduped) (length prepared)
+
+  let holeFits = map (RawHoleFit . text . T.unpack . prSource) deduped
+  return holeFits
+
+
+
+
 
 holeArity :: Hole -> Int
 holeArity = length . fst . splitFunTys . hole_ty
@@ -398,3 +495,29 @@ mkTemplateSpec Flags{..} = do
         (_, Just nm) -> fmap (mkSpec . NamedTemplate) $ parseTemplateName nm
         _            -> Right $ mkSpec $ DefaultTemplate
 
+-- | Determine which backend to use
+getBackend :: Flags -> Backend
+getBackend Flags{backend_name = "ollama"} = ollamaBackend
+getBackend Flags{backend_name = "gemini"} = geminiBackend
+getBackend Flags{backend_name = "openai", ..} = openAICompatibleBackend openai_base_url openai_key_name
+getBackend Flags{..} = error $ "unknown backend: " <> T.unpack backend_name -- TODO
+
+
+
+-- Utils
+--------
+
+debugMsg :: (MonadIO m) => PluginState -> Text -> m ()
+debugMsg st txt = liftIO $ when (debug $ commandOptions st) $
+  T.putStrLn $ pluginName <> ": " <> txt
+
+liftEitherIO :: (MonadIO m) => (e1 -> e2) -> IO (Either e1 a) -> ExceptT e2 m a
+liftEitherIO f act = liftIO act >>= either (throwError . f) pure
+
+printRenderedError
+  :: (MonadIO m) => Either PluginError u -> m (Either PluginError u)
+printRenderedError x = case x of
+  Right u -> pure (Right u)
+  Left err -> do
+    liftIO $ T.putStrLn $ renderPluginError err
+    pure (Left err)

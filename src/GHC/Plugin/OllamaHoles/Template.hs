@@ -14,6 +14,7 @@ module GHC.Plugin.OllamaHoles.Template
     , loadTemplate
     , parseTemplate
     , expandTemplate
+    , expandTemplateWith
     --
     , unsafeCreateRawTemplateName
     ) where
@@ -81,6 +82,10 @@ expandTemplate env (Template exprs) = do
         expandTemplateExpr env expr = case expr of
             TemplateChunk txt -> Right txt
             TemplateVar var -> lookupPlaceholder env var
+
+-- | Argument flipped @expandTemplate@.
+expandTemplateWith :: Template -> TemplateEnv -> Either TemplateError Text
+expandTemplateWith = flip expandTemplate
 
 collectEithers
     :: forall a b u v. ([a] -> u) -> ([b] -> v) -> [Either a b] -> Either u v
