@@ -116,13 +116,14 @@ data PluginError
 
 isSilentError :: PluginError -> Bool
 isSilentError = \case
-  OptionParseError         _ -> True -- \
-  UnknownOptionError       _ -> True --  | These are initialization errors, and
-  TemplateSpecError        _ -> True --  | are printed by printRenderedError.
-  TemplateParseError       _ -> True -- /
-  TypedHoleNotFound        _ -> True -- This just means there are no typed holes.
-  HoleNameDoesNotMatchPolicy -> True -- The hole exists but doesn't match the trigger.
-  _                          -> False
+  OptionParseError           _ -> True -- \
+  UnknownOptionError         _ -> True --  | These are initialization errors, and
+  TemplateSpecError          _ -> True --  | are printed by printRenderedError.
+  TemplateParseError         _ -> True -- /
+  TypedHoleNotFound          _ -> True -- This just means there are no typed holes.
+  HoleMissingTriggerName       -> True
+  HoleNameDoesNotMatchPolicy _ -> True -- The hole exists but doesn't match the trigger.
+  _                            -> False
 
 renderPluginError :: PluginError -> Text
 renderPluginError = \case
@@ -229,27 +230,30 @@ tryFitPluginLLM
 tryFitPluginLLM ref typedHole fits = do
   st <- readTcRef ref >>= liftEither
   debugMsg st $ "running with flags\n" <> T.pack (show $ commandOptions st)
-  checkModel st
 
-  -- Check the trigger policy to see if this should run at all.
-  let tpol = trigger_policy $ commandOptions st
-  case holeTriggerName typedHole of
-    Nothing -> throwError HoleMissingTriggerName
-    Just holeName -> if shouldTriggerHole tpol holeName
-      then pure ()
-      else throwError $ HoleNameDoesNotMatchPolicy holeName
-
-  debugMsg st "Hole Found"
   withTypedHole typedHole $ \hole -> do
+    let tpol = trigger_policy $ commandOptions st
+    holeName <- case holeTriggerName hole of
+        Nothing -> throwError HoleMissingTriggerName
+        Just ok -> pure ok
+
+    -- Does this hole match the trigger?
+    unless (shouldTriggerHole tpol holeName) $
+      throwError (HoleNameDoesNotMatchPolicy holeName)
+    debugMsg st "Hole Found"
+
+    -- Does the specified model exist?
+    checkModel st
+
     prompt <- prepareHoleFitPrompt st typedHole fits
     debugMsg st $ "prompt:\n" <> prompt
+
     rsp <- submitRequest st prompt
     lift $ extractHoleFitsFromResponse st prompt rsp typedHole hole
 
-holeTriggerName :: TypedHole -> Maybe Text
-holeTriggerName th = do
-  h <- th_hole th
-  pure . T.pack . occNameString . rdrNameOcc $ hole_occ h
+holeTriggerName :: Hole -> Maybe Text
+holeTriggerName =
+  pure . T.pack . occNameString . rdrNameOcc . hole_occ
 
 -- | Ensure that the specified model exists.
 checkModel :: PluginState -> ExceptT PluginError TcM ()
