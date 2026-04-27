@@ -129,6 +129,7 @@ library
                     , GHC.Plugin.OllamaHoles.Template
                     , GHC.Plugin.OllamaHoles.Options
                     , GHC.Plugin.OllamaHoles.Logger
+                    , GHC.Plugin.OllamaHoles.Trigger
 
     -- Modules included in this library but not exported.
     other-modules: GHC.Plugin.OllamaHoles.Backend.Common
@@ -212,6 +213,7 @@ test-suite ollama-holes-spec
     , GHC.Plugin.OllamaHoles.Template.Expand.Spec
     , GHC.Plugin.OllamaHoles.Options.Spec
     , GHC.Plugin.OllamaHoles.Logger.Spec
+    , GHC.Plugin.OllamaHoles.Trigger.Spec
   build-depends:
       base
     , ollama-holes-plugin

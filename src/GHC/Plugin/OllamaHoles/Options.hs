@@ -20,6 +20,12 @@ import Text.Read (readMaybe)
 
 import GHC.Plugin.OllamaHoles.Logger (LogMode(..))
 import GHC.Plugin.OllamaHoles.Backend (BackendSlug(..), parseBackendSlug)
+import GHC.Plugin.OllamaHoles.Trigger
+  ( TriggerPolicy(..)
+  , TriggerPolicyError(..)
+  , defaultTriggerPolicy
+  , parseTriggerPolicy
+  )
 
 
 
@@ -45,6 +51,7 @@ data Flags = Flags
     , template_search_dir :: FilePath
     , log_mode            :: Maybe LogMode
     , log_dir             :: Maybe FilePath
+    , trigger_policy      :: TriggerPolicy
     } deriving (Eq, Show)
 
 -- | Default flags for the plugin
@@ -63,6 +70,7 @@ defaultFlags = Flags
     , template_search_dir = "."
     , log_mode            = Nothing
     , log_dir             = Nothing
+    , trigger_policy      = defaultTriggerPolicy
     }
 
 
@@ -108,6 +116,7 @@ data Flag
     | SetTemplateDir Text
     | SetLogMode Text
     | SetLogDir Text
+    | SetTriggerPolicy Text
     deriving (Eq, Show)
 
 parse :: Token -> Either OptError Flag
@@ -126,6 +135,7 @@ parse token = case token of
         "template-dir"    -> Left (MissingValue "template-dir")
         "log"             -> Left (MissingValue "log")
         "log-dir"         -> Left (MissingValue "log-dir")
+        "trigger"         -> Left (MissingValue "trigger")
         _                 -> Right (NoOp token)
 
     ValueToken key val -> case key of
@@ -140,6 +150,7 @@ parse token = case token of
         "template-dir"    -> Right (SetTemplateDir val)
         "log"             -> Right (SetLogMode val)
         "log-dir"         -> Right (SetLogDir val)
+        "trigger"         -> Right (SetTriggerPolicy val)
         "debug"           -> Left (UnexpectedValue "debug" val)
         "include-docs"    -> Left (UnexpectedValue "include-docs" val)
         _                 -> Right (NoOp token)
@@ -207,6 +218,12 @@ interpret flag = case flag of
     SetLogDir txt -> requireNonEmpty "log-dir" txt $
         makeOk $ \fs -> fs { log_dir = Just (T.unpack txt) }
 
+    SetTriggerPolicy txt ->
+        requireNonEmpty "trigger" txt $
+          case parseTriggerPolicy txt of
+            Right pol -> makeOk $ \fs -> fs { trigger_policy = pol }
+            Left err -> Left (InvalidTriggerPolicy txt err)
+
     where
         makeOk :: (Applicative f) => (a -> a) -> f (Endo a, [b])
         makeOk x = pure (Endo x, [])
@@ -231,4 +248,5 @@ data OptError
     | InvalidJson FlagName Text String
     | InvalidEnum FlagName Text [Text]
     | InvalidBackend Text
+    | InvalidTriggerPolicy Text TriggerPolicyError
     deriving (Eq, Show)

@@ -59,6 +59,7 @@ import GHC.Plugin.OllamaHoles.Prompt
 import GHC.Plugin.OllamaHoles.Logger qualified as Log
 import GHC.Plugin.OllamaHoles.Candidate
 import GHC.Plugin.OllamaHoles.Template
+import GHC.Plugin.OllamaHoles.Trigger
 
 
 
@@ -110,15 +111,18 @@ data PluginError
   | ModelNotFound Text [Text] BackendSlug
   | TypedHoleNotFound TypedHole
   | ResponseFailed Text
+  | HoleMissingTriggerName
+  | HoleNameDoesNotMatchPolicy Text
 
 isSilentError :: PluginError -> Bool
 isSilentError = \case
-  OptionParseError   _ -> True -- \
-  UnknownOptionError _ -> True --  | These are initialization errors, and
-  TemplateSpecError  _ -> True --  | are printed by printRenderedError.
-  TemplateParseError _ -> True -- /
-  TypedHoleNotFound  _ -> True -- This just means there are no typed holes.
-  _                    -> False
+  OptionParseError           _ -> True -- \
+  UnknownOptionError         _ -> True --  | These are initialization errors, and
+  TemplateSpecError          _ -> True --  | are printed by printRenderedError.
+  TemplateParseError         _ -> True -- /
+  TypedHoleNotFound          _ -> True -- This just means there are no typed holes.
+  HoleNameDoesNotMatchPolicy _ -> True -- The hole exists but doesn't match the trigger.
+  _                            -> False
 
 renderPluginError :: PluginError -> Text
 renderPluginError = \case
@@ -161,6 +165,9 @@ renderPluginError = \case
 
   ResponseFailed msg ->
     "backend request failed: " <> msg
+
+  HoleNameDoesNotMatchPolicy holeName ->
+    "skipping " <> holeName <> " because it does not match the configured trigger policy"
   where
     renderToken :: Token -> Text
     renderToken = \case
@@ -225,13 +232,28 @@ tryFitPluginLLM
 tryFitPluginLLM ref typedHole fits = do
   st <- readTcRef ref >>= liftEither
   debugMsg st $ "running with flags\n" <> T.pack (show $ commandOptions st)
-  checkModel st
-  debugMsg st "Hole Found"
+
   withTypedHole typedHole $ \hole -> do
+    let tpol = trigger_policy $ commandOptions st
+        holeName = holeTriggerName hole
+
+    -- Does this hole match the trigger?
+    unless (shouldTriggerHole tpol holeName) $
+      throwError (HoleNameDoesNotMatchPolicy holeName)
+    debugMsg st "Hole Found"
+
+    -- Does the specified model exist?
+    checkModel st
+
     prompt <- prepareHoleFitPrompt st typedHole fits
     debugMsg st $ "prompt:\n" <> prompt
+
     rsp <- submitRequest st prompt
     lift $ extractHoleFitsFromResponse st prompt rsp typedHole hole
+
+holeTriggerName :: Hole -> Text
+holeTriggerName =
+  T.pack . occNameString . rdrNameOcc . hole_occ
 
 -- | Ensure that the specified model exists.
 checkModel :: PluginState -> ExceptT PluginError TcM ()

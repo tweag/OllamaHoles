@@ -10,6 +10,7 @@ import qualified GHC.Plugin.OllamaHoles.Template.Load.Spec as LoadSpec
 import qualified GHC.Plugin.OllamaHoles.Template.Expand.Spec as ExpandSpec
 import qualified GHC.Plugin.OllamaHoles.Options.Spec as OptionsSpec
 import qualified GHC.Plugin.OllamaHoles.Logger.Spec as LoggerSpec
+import qualified GHC.Plugin.OllamaHoles.Trigger.Spec as TriggerSpec
 
 main :: IO ()
 main = defaultMain $
@@ -23,4 +24,5 @@ main = defaultMain $
         , ExpandSpec.tests
         , OptionsSpec.tests
         , LoggerSpec.tests
+        , TriggerSpec.tests
         ]
