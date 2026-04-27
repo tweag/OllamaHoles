@@ -99,7 +99,7 @@ matchingTests =
   testGroup "matching"
     [ testCase "TriggerAll always matches" $
         matchTriggerPolicy TriggerAll "_anything"
-          @?= Just (TriggerMatch "_anything" "_anything")
+          @?= Just (TriggerMatch "_anything" Nothing)
 
     , testCase "TriggerNone never matches" $
         matchTriggerPolicy TriggerNone "_anything"
@@ -107,23 +107,23 @@ matchingTests =
 
     , testCase "prefix match succeeds on exact prefix hole" $
         matchTriggerPolicy (TriggerPrefix "foo") "_foo"
-          @?= Just (TriggerMatch "_foo" "")
+          @?= Just (TriggerMatch "_foo" (Just ""))
 
     , testCase "prefix match succeeds with numeric suffix" $
         matchTriggerPolicy (TriggerPrefix "foo") "_foo1"
-          @?= Just (TriggerMatch "_foo1" "1")
+          @?= Just (TriggerMatch "_foo1" (Just "1"))
 
     , testCase "prefix match succeeds with alphabetic suffix" $
         matchTriggerPolicy (TriggerPrefix "foo") "_foodefault"
-          @?= Just (TriggerMatch "_foodefault" "default")
+          @?= Just (TriggerMatch "_foodefault" (Just "default"))
 
     , testCase "prefix match succeeds with underscore in suffix" $
         matchTriggerPolicy (TriggerPrefix "foo") "_foo_bar"
-          @?= Just (TriggerMatch "_foo_bar" "_bar")
+          @?= Just (TriggerMatch "_foo_bar" (Just "_bar"))
 
     , testCase "prefix match succeeds with apostrophe in suffix" $
         matchTriggerPolicy (TriggerPrefix "foo") "_foo'"
-          @?= Just (TriggerMatch "_foo'" "'")
+          @?= Just (TriggerMatch "_foo'" (Just "'"))
 
     , testCase "prefix match rejects missing leading underscore" $
         matchTriggerPolicy (TriggerPrefix "foo") "foo"
@@ -204,7 +204,7 @@ propertyTests =
         QC.forAll genValidPrefix $ \pfx ->
         QC.forAll genValidSuffix $ \sfx ->
           matchTriggerPolicy (TriggerPrefix pfx) (mkTriggeredHoleName pfx sfx)
-            === Just (TriggerMatch (mkTriggeredHoleName pfx sfx) sfx)
+            === Just (TriggerMatch (mkTriggeredHoleName pfx sfx) (Just sfx))
 
     , QC.testProperty "mkTriggeredHoleName distinguishes distinct suffixes" $
         QC.forAll genValidPrefix $ \pfx ->
@@ -217,7 +217,7 @@ propertyTests =
 
     , QC.testProperty "TriggerAll always matches any generated hole name" $
         QC.forAll genHoleName $ \nm ->
-          matchTriggerPolicy TriggerAll nm === Just (TriggerMatch nm nm)
+          matchTriggerPolicy TriggerAll nm === Just (TriggerMatch nm Nothing)
 
     , QC.testProperty "valid prefix policies parse successfully" $
         QC.forAll genValidPrefix $ \pfx ->

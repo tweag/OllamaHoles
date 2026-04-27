@@ -128,7 +128,7 @@ renderTriggerPolicy = \case
 --
 data TriggerMatch = TriggerMatch
     { tmHoleName :: Text
-    , tmSuffix   :: Text
+    , tmSuffix   :: Maybe Text
     } deriving (Eq, Show)
 
 shouldTriggerHole :: TriggerPolicy -> Text -> Bool
@@ -142,7 +142,7 @@ matchTriggerPolicy pol holeName = case pol of
     TriggerNone -> Nothing
     TriggerAll -> Just TriggerMatch
         { tmHoleName = holeName
-        , tmSuffix   = holeName
+        , tmSuffix   = Nothing
         }
     TriggerPrefix pfx -> matchPrefixTrigger pfx holeName
 
@@ -154,7 +154,7 @@ matchPrefixTrigger pfx holeName
             | isValidTriggerSuffix suffix ->
                 Just TriggerMatch
                     { tmHoleName = holeName
-                    , tmSuffix   = suffix
+                    , tmSuffix   = Just suffix
                     }
         _ -> Nothing
 

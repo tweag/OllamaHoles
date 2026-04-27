@@ -121,7 +121,6 @@ isSilentError = \case
   TemplateSpecError          _ -> True --  | are printed by printRenderedError.
   TemplateParseError         _ -> True -- /
   TypedHoleNotFound          _ -> True -- This just means there are no typed holes.
-  HoleMissingTriggerName       -> True
   HoleNameDoesNotMatchPolicy _ -> True -- The hole exists but doesn't match the trigger.
   _                            -> False
 
@@ -166,6 +165,9 @@ renderPluginError = \case
 
   ResponseFailed msg ->
     "backend request failed: " <> msg
+
+  HoleNameDoesNotMatchPolicy holeName ->
+    "skipping " <> holeName <> " because it does not match the configured trigger policy"
   where
     renderToken :: Token -> Text
     renderToken = \case
@@ -233,9 +235,7 @@ tryFitPluginLLM ref typedHole fits = do
 
   withTypedHole typedHole $ \hole -> do
     let tpol = trigger_policy $ commandOptions st
-    holeName <- case holeTriggerName hole of
-        Nothing -> throwError HoleMissingTriggerName
-        Just ok -> pure ok
+        holeName = holeTriggerName hole
 
     -- Does this hole match the trigger?
     unless (shouldTriggerHole tpol holeName) $
@@ -251,9 +251,9 @@ tryFitPluginLLM ref typedHole fits = do
     rsp <- submitRequest st prompt
     lift $ extractHoleFitsFromResponse st prompt rsp typedHole hole
 
-holeTriggerName :: Hole -> Maybe Text
+holeTriggerName :: Hole -> Text
 holeTriggerName =
-  pure . T.pack . occNameString . rdrNameOcc . hole_occ
+  T.pack . occNameString . rdrNameOcc . hole_occ
 
 -- | Ensure that the specified model exists.
 checkModel :: PluginState -> ExceptT PluginError TcM ()
