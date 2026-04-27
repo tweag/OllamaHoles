@@ -59,6 +59,7 @@ import GHC.Plugin.OllamaHoles.Prompt
 import GHC.Plugin.OllamaHoles.Logger qualified as Log
 import GHC.Plugin.OllamaHoles.Candidate
 import GHC.Plugin.OllamaHoles.Template
+import GHC.Plugin.OllamaHoles.Trigger
 
 
 
@@ -110,6 +111,8 @@ data PluginError
   | ModelNotFound Text [Text] BackendSlug
   | TypedHoleNotFound TypedHole
   | ResponseFailed Text
+  | HoleMissingTriggerName
+  | HoleNameDoesNotMatchPolicy Text
 
 isSilentError :: PluginError -> Bool
 isSilentError = \case
@@ -226,12 +229,26 @@ tryFitPluginLLM ref typedHole fits = do
   st <- readTcRef ref >>= liftEither
   debugMsg st $ "running with flags\n" <> T.pack (show $ commandOptions st)
   checkModel st
+
+  -- Check the trigger policy to see if this should run at all.
+  let tpol = trigger_policy $ commandOptions st
+  case holeTriggerName typedHole of
+    Nothing -> throwError HoleMissingTriggerName
+    Just holeName -> if shouldTriggerHole tpol holeName
+      then pure ()
+      else throwError $ HoleNameDoesNotMatchPolicy holeName
+
   debugMsg st "Hole Found"
   withTypedHole typedHole $ \hole -> do
     prompt <- prepareHoleFitPrompt st typedHole fits
     debugMsg st $ "prompt:\n" <> prompt
     rsp <- submitRequest st prompt
     lift $ extractHoleFitsFromResponse st prompt rsp typedHole hole
+
+holeTriggerName :: TypedHole -> Maybe Text
+holeTriggerName th = do
+  h <- th_hole th
+  pure . T.pack . occNameString . rdrNameOcc $ hole_occ h
 
 -- | Ensure that the specified model exists.
 checkModel :: PluginState -> ExceptT PluginError TcM ()
