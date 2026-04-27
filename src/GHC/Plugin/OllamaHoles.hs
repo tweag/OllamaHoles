@@ -116,12 +116,13 @@ data PluginError
 
 isSilentError :: PluginError -> Bool
 isSilentError = \case
-  OptionParseError   _ -> True -- \
-  UnknownOptionError _ -> True --  | These are initialization errors, and
-  TemplateSpecError  _ -> True --  | are printed by printRenderedError.
-  TemplateParseError _ -> True -- /
-  TypedHoleNotFound  _ -> True -- This just means there are no typed holes.
-  _                    -> False
+  OptionParseError         _ -> True -- \
+  UnknownOptionError       _ -> True --  | These are initialization errors, and
+  TemplateSpecError        _ -> True --  | are printed by printRenderedError.
+  TemplateParseError       _ -> True -- /
+  TypedHoleNotFound        _ -> True -- This just means there are no typed holes.
+  HoleNameDoesNotMatchPolicy -> True -- The hole exists but doesn't match the trigger.
+  _                          -> False
 
 renderPluginError :: PluginError -> Text
 renderPluginError = \case
