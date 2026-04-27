@@ -20,6 +20,7 @@ import GHC.Plugin.OllamaHoles.Options
 import GHC.Plugin.OllamaHoles.Logger
   ( LogMode(..)
   )
+import GHC.Plugin.OllamaHoles.Trigger
 import GHC.Plugin.OllamaHoles.Template
   ( TemplateSpec(..)
   , TemplateSource(..)
@@ -39,6 +40,7 @@ tests =
     , parserFailureTests
     , parserLogOptionTests
     , templateParserTests
+    , triggerParserTests
     , mkTemplateSpecTests
     ]
 
@@ -216,6 +218,26 @@ parserFailureTests =
         (flags, unknowns) <- expectParseOk ["bogus=thing", "backend=openai"]
         backend_name flags @?= OpenAI
         unknowns @?= [ValueToken "bogus" "thing"]
+
+    , testCase "missing value for model is structured error" $ do
+        parseCommandLineOptions defaultFlags ["model"]
+          @?= Left (MissingValue "model")
+
+    , testCase "missing value for backend is structured error" $ do
+        parseCommandLineOptions defaultFlags ["backend"]
+          @?= Left (MissingValue "backend")
+
+    , testCase "unexpected value for debug is structured error" $ do
+        parseCommandLineOptions defaultFlags ["debug=true"]
+          @?= Left (UnexpectedValue "debug" "true")
+
+    , testCase "unexpected value for include-docs is structured error" $ do
+        parseCommandLineOptions defaultFlags ["include-docs=yes"]
+          @?= Left (UnexpectedValue "include-docs" "yes")
+
+    , testCase "empty option is structured error" $ do
+        parseCommandLineOptions defaultFlags [""]
+          @?= Left EmptyOption
     ]
 
 parserLogOptionTests :: TestTree
@@ -430,4 +452,59 @@ mkTemplateSpecTests =
         unknowns @?= []
         mkTemplateSpec flags
           @?= Left (InvalidTemplateName "../secrets")
+    ]
+
+triggerParserTests :: TestTree
+triggerParserTests =
+  testGroup "parseCommandLineOptions trigger options"
+    [ testCase "default trigger policy is the module default" $ do
+        (flags, unknowns) <- expectParseOk []
+        trigger_policy flags @?= defaultTriggerPolicy
+        unknowns @?= []
+
+    , testCase "trigger=all sets TriggerAll" $ do
+        (flags, unknowns) <- expectParseOk ["trigger=all"]
+        trigger_policy flags @?= TriggerAll
+        unknowns @?= []
+
+    , testCase "trigger=none sets TriggerNone" $ do
+        (flags, unknowns) <- expectParseOk ["trigger=none"]
+        trigger_policy flags @?= TriggerNone
+        unknowns @?= []
+
+    , testCase "trigger=prefix:foo sets TriggerPrefix foo" $ do
+        (flags, unknowns) <- expectParseOk ["trigger=prefix:foo"]
+        trigger_policy flags @?= TriggerPrefix "foo"
+        unknowns @?= []
+
+    , testCase "leftmost trigger wins" $ do
+        (flags, unknowns) <- expectParseOk
+          [ "trigger=prefix:foo"
+          , "trigger=none"
+          ]
+        trigger_policy flags @?= TriggerPrefix "foo"
+        unknowns @?= []
+
+    , testCase "trigger interleaves with other options" $ do
+        (flags, unknowns) <- expectParseOk
+          [ "model=qwen3"
+          , "trigger=prefix:foo"
+          , "debug"
+          ]
+        model_name flags @?= "qwen3"
+        debug flags @?= True
+        trigger_policy flags @?= TriggerPrefix "foo"
+        unknowns @?= []
+
+    , testCase "missing trigger value is structured error" $ do
+        parseCommandLineOptions defaultFlags ["trigger"]
+          @?= Left (MissingValue "trigger")
+
+    , testCase "empty trigger value is structured error" $ do
+        parseCommandLineOptions defaultFlags ["trigger="]
+          @?= Left (EmptyValue "trigger")
+
+    , testCase "invalid trigger policy is structured error" $ do
+        parseCommandLineOptions defaultFlags ["trigger=prefix:_foo"]
+          @?= Left (InvalidTriggerPolicy "prefix:_foo" (InvalidTriggerPrefix "_foo"))
     ]
