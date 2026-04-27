@@ -75,15 +75,9 @@ parseTriggerPolicy :: Text -> Either TriggerPolicyError TriggerPolicy
 parseTriggerPolicy raw0 =
     let raw = T.strip raw0
     in case raw of
-        "" ->
-            Left EmptyTriggerPolicy
-
-        "all" ->
-            Right TriggerAll
-
-        "none" ->
-            Right TriggerNone
-
+        "" -> Left EmptyTriggerPolicy
+        "all" -> Right TriggerAll
+        "none" -> Right TriggerNone
         _ -> case T.stripPrefix "prefix:" raw of
             Just suffix
                 | T.null suffix ->
@@ -93,8 +87,7 @@ parseTriggerPolicy raw0 =
                 | otherwise ->
                     Left (InvalidTriggerPrefix suffix)
 
-            Nothing ->
-                Left (UnknownTriggerPolicy raw)
+            Nothing -> Left (UnknownTriggerPolicy raw)
 
 renderTriggerPolicy :: TriggerPolicy -> Text
 renderTriggerPolicy = \case
