@@ -24,11 +24,6 @@ import GHC.Tc.Types.Constraint (Hole (..))
 import GHC.Tc.Utils.Monad (getGblEnv, newTcRef, readTcRef, updTcRef, discardErrs, ifErrsM)
 import GHC.Tc.Utils.Monad qualified as GHC
 
-import GHC.Plugin.OllamaHoles.Backend
-import GHC.Plugin.OllamaHoles.Backend.Gemini (geminiBackend)
-import GHC.Plugin.OllamaHoles.Backend.Ollama (ollamaBackend)
-import GHC.Plugin.OllamaHoles.Backend.OpenAI (openAICompatibleBackend)
-
 import GHC (GhcPs, LHsExpr, GhcRn)
 import GHC.Data.StringBuffer qualified as GHC (stringToStringBuffer)
 import GHC.Driver.Config.Parser qualified as GHC (initParserOpts)
@@ -54,12 +49,15 @@ import GHC.Tc.Utils.TcType qualified as GHC (tyCoFVsOfType, mkPhiTy)
 import GHC.Tc.Solver qualified as GHC (simplifyTop, simplifyInfer, captureTopConstraints, InferMode(..))
 import GHC.Tc.Solver.Monad qualified as GHC (zonkTcType, runTcSEarlyAbort)
 
+import GHC.Plugin.OllamaHoles.Backend
 import GHC.Plugin.OllamaHoles.Options
 import GHC.Plugin.OllamaHoles.Prompt
 import GHC.Plugin.OllamaHoles.Logger qualified as Log
 import GHC.Plugin.OllamaHoles.Candidate
 import GHC.Plugin.OllamaHoles.Template
 import GHC.Plugin.OllamaHoles.Trigger
+import GHC.Plugin.OllamaHoles.Error
+import GHC.Plugin.OllamaHoles.Flags
 
 
 
@@ -100,79 +98,6 @@ data PluginState = PluginState
 
 setCandidates :: [HoleFitCandidate] -> PluginState -> PluginState
 setCandidates cs st = st { candidates = cs }
-
-data PluginError
-  = OptionParseError OptError
-  | UnknownOptionError [Token]
-  | TemplateSpecError TemplateError
-  | TemplateParseError TemplateError
-  | TemplateSubError TemplateError
-  | NoModelsAvailable
-  | ModelNotFound Text [Text] BackendSlug
-  | TypedHoleNotFound TypedHole
-  | ResponseFailed Text
-  | HoleMissingTriggerName
-  | HoleNameDoesNotMatchPolicy Text
-
-isSilentError :: PluginError -> Bool
-isSilentError = \case
-  OptionParseError           _ -> True -- \
-  UnknownOptionError         _ -> True --  | These are initialization errors, and
-  TemplateSpecError          _ -> True --  | are printed by printRenderedError.
-  TemplateParseError         _ -> True -- /
-  TypedHoleNotFound          _ -> True -- This just means there are no typed holes.
-  HoleNameDoesNotMatchPolicy _ -> True -- The hole exists but doesn't match the trigger.
-  _                            -> False
-
-renderPluginError :: PluginError -> Text
-renderPluginError = \case
-  OptionParseError err ->
-    "option parse error: " <> T.pack (show err)
-
-  UnknownOptionError toks ->
-    "unrecognized plugin option(s): "
-      <> T.intercalate ", " (map renderToken toks)
-
-  TemplateSpecError err ->
-    "template specification error: " <> T.pack (show err)
-
-  TemplateParseError err ->
-    "template load/parse error: " <> T.pack (show err)
-
-  TemplateSubError err ->
-    "template substitution error: " <> T.pack (show err)
-
-  NoModelsAvailable ->
-    "no models available; check your backend configuration"
-
-  ModelNotFound modelName models backendName -> mconcat
-    [ "model "
-    , modelName
-    , " not found for backend "
-    , renderBackendSlug backendName
-    , ". "
-    , if backendName == Ollama
-        then "Use `ollama pull` to download the model, or "
-        else ""
-    , "specify another model using "
-    , "`-fplugin-opt=GHC.Plugin.OllamaHoles:model=`.\n"
-    , "Available models:\n"
-    , T.unlines models
-    ]
-
-  TypedHoleNotFound _ ->
-    "could not locate the typed hole in the current context"
-
-  ResponseFailed msg ->
-    "backend request failed: " <> msg
-
-  HoleNameDoesNotMatchPolicy holeName ->
-    "skipping " <> holeName <> " because it does not match the configured trigger policy"
-  where
-    renderToken :: Token -> Text
-    renderToken = \case
-      BooleanToken key -> key
-      ValueToken key val -> key <> "=" <> val
 
 
 
@@ -269,7 +194,7 @@ checkModel st = do
 -- | Build a prompt for the LLM from context.
 prepareHoleFitPrompt
   :: PluginState -> TypedHole
-  -> [HoleFit]          -- Known hole fits provided by GHC
+  -> [HoleFit] -- Known hole fits provided by GHC
   -> ExceptT PluginError TcM Text
 prepareHoleFitPrompt st hole fits = do
   let flags = commandOptions st
@@ -502,27 +427,6 @@ getDocs cs = do
     processDoc dflags docs = first_paragraph
       where whole_string = unlines $ map (showSDoc dflags . ppr) docs
             first_paragraph = unlines $ takeWhile (not . null) $ lines whole_string
-
-
-
--- | Helper function to interpret a @TemplateSpec@ from the flags.
-mkTemplateSpec :: Flags -> Either TemplateError TemplateSpec
-mkTemplateSpec Flags{..} = do
-    let mkSpec source = TemplateSpec
-            { tsSearchDir = template_search_dir
-            , tsSource = source
-            }
-    case (template_path, template_name) of
-        (Just fp, _) -> Right $ mkSpec $ TemplateFile fp
-        (_, Just nm) -> fmap (mkSpec . NamedTemplate) $ parseTemplateName nm
-        _            -> Right $ mkSpec $ DefaultTemplate
-
--- | Determine which backend to use
-getBackend :: Flags -> Backend
-getBackend flags = case backend_name flags of
-    Gemini -> geminiBackend
-    Ollama -> ollamaBackend
-    OpenAI -> openAICompatibleBackend (openai_base_url flags) (openai_key_name flags)
 
 
 

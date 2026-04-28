@@ -7,7 +7,7 @@ import Data.Aeson.KeyMap qualified as KM
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import GHC.Plugin.OllamaHoles
+import GHC.Plugin.OllamaHoles.Flags
   ( mkTemplateSpec
   )
 import GHC.Plugin.OllamaHoles.Options
