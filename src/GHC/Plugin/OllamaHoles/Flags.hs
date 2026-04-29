@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module GHC.Plugin.OllamaHoles.Flags where
 
 import GHC.Plugin.OllamaHoles.Backend
@@ -19,6 +21,6 @@ mkTemplateSpec flags = do
 -- | Determine which backend to use
 getBackend :: Flags -> Backend
 getBackend flags = case backend_name flags of
-    Gemini -> geminiBackend
-    Ollama -> ollamaBackend
-    OpenAI -> openAICompatibleBackend (openai_base_url flags) (openai_key_name flags)
+    Gemini -> geminiBackend $ GeminiConfig "GEMINI_API_KEY"
+    Ollama -> ollamaBackend $ OllamaConfig Nothing
+    OpenAI -> openAICompatibleBackend $ OpenAIConfig (openai_base_url flags) (openai_key_name flags)

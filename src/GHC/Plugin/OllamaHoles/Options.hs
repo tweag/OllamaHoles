@@ -6,6 +6,7 @@ module GHC.Plugin.OllamaHoles.Options
     , parseCommandLineOptions
     , OptError(..)
     , Token(..)
+    , mkDefaultConfig
     ) where
 
 import GHC.Driver.Plugins (CommandLineOption)
@@ -26,6 +27,8 @@ import GHC.Plugin.OllamaHoles.Trigger
   , defaultTriggerPolicy
   , parseTriggerPolicy
   )
+import GHC.Plugin.OllamaHoles.Template (Template())
+import GHC.Plugin.OllamaHoles.Config (ConfigPathSpec(..), DefaultConfig(..))
 
 
 
@@ -52,6 +55,7 @@ data Flags = Flags
     , log_mode            :: Maybe LogMode
     , log_dir             :: Maybe FilePath
     , trigger_policy      :: TriggerPolicy
+    , config_path         :: ConfigPathSpec
     } deriving (Eq, Show)
 
 -- | Default flags for the plugin
@@ -71,7 +75,19 @@ defaultFlags = Flags
     , log_mode            = Nothing
     , log_dir             = Nothing
     , trigger_policy      = defaultTriggerPolicy
+    , config_path         = ConfigDefault
     }
+
+mkDefaultConfig :: Template -> Flags -> DefaultConfig
+mkDefaultConfig template fs = DefaultConfig
+  { defModelName     = model_name fs
+  , defBackendName   = backend_name fs
+  , defNumExpr       = num_expr fs
+  , defIncludeDocs   = include_docs fs
+  , defModelOptions  = model_options fs
+  , defTriggerPolicy = trigger_policy fs
+  , defTemplate      = template
+  }
 
 
 
@@ -117,6 +133,7 @@ data Flag
     | SetLogMode Text
     | SetLogDir Text
     | SetTriggerPolicy Text
+    | SetConfigPath Text
     deriving (Eq, Show)
 
 parse :: Token -> Either OptError Flag
@@ -136,6 +153,7 @@ parse token = case token of
         "log"             -> Left (MissingValue "log")
         "log-dir"         -> Left (MissingValue "log-dir")
         "trigger"         -> Left (MissingValue "trigger")
+        "config"          -> Left (MissingValue "config")
         _                 -> Right (NoOp token)
 
     ValueToken key val -> case key of
@@ -151,6 +169,7 @@ parse token = case token of
         "log"             -> Right (SetLogMode val)
         "log-dir"         -> Right (SetLogDir val)
         "trigger"         -> Right (SetTriggerPolicy val)
+        "config"          -> Right (SetConfigPath val)
         "debug"           -> Left (UnexpectedValue "debug" val)
         "include-docs"    -> Left (UnexpectedValue "include-docs" val)
         _                 -> Right (NoOp token)
@@ -223,6 +242,9 @@ interpret flag = case flag of
           case parseTriggerPolicy txt of
             Right pol -> makeOk $ \fs -> fs { trigger_policy = pol }
             Left err -> Left (InvalidTriggerPolicy txt err)
+
+    SetConfigPath txt -> requireNonEmpty "config" txt $
+      makeOk $ \fs -> fs { config_path = ConfigExplicit $ T.unpack txt }
 
     where
         makeOk :: (Applicative f) => (a -> a) -> f (Endo a, [b])
