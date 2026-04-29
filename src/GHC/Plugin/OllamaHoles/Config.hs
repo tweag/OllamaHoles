@@ -12,6 +12,7 @@ import GHC.Generics (Generic)
 import GHC.Plugin.OllamaHoles.Config.Types
 import GHC.Plugin.OllamaHoles.Config.Preferences
 import GHC.Plugin.OllamaHoles.Trigger (TriggerPolicy(..))
+import GHC.Plugin.OllamaHoles.Config.Trigger
 
 
 
@@ -33,6 +34,11 @@ resolveConfig :: Preferences -> Either ConfigError Config
 resolveConfig prefs = do
   svcMap  <- buildServiceMap (prefServices prefs)
   profMap <- buildProfileMap svcMap (prefProfiles prefs)
+
+  case validateProfileTriggers (prefProfiles prefs) of
+    Left err -> Left $ AmbiguousProfileTriggers err
+    Right () -> pure ()
+
   pure Config
     { cfgServices = svcMap
     , cfgProfiles = profMap
@@ -123,4 +129,5 @@ data ConfigError
   | UnknownServiceReference ProfileName ServiceName
   | UnknownProfileReference ProfileName ProfileName
   | CyclicProfileReference [ProfileName]
+  | AmbiguousProfileTriggers TriggerConflict
   deriving (Eq, Show)

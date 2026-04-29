@@ -127,6 +127,7 @@ library
       GHC.Plugin.OllamaHoles.Config
       GHC.Plugin.OllamaHoles.Config.Preferences
       GHC.Plugin.OllamaHoles.Config.Types
+      GHC.Plugin.OllamaHoles.Config.Trigger
       GHC.Plugin.OllamaHoles.Error
       GHC.Plugin.OllamaHoles.Flags
       GHC.Plugin.OllamaHoles.Logger
@@ -153,6 +154,7 @@ library ollama-holes-lib
     , GHC.Plugin.OllamaHoles.Config
     , GHC.Plugin.OllamaHoles.Config.Preferences
     , GHC.Plugin.OllamaHoles.Config.Types
+    , GHC.Plugin.OllamaHoles.Config.Trigger
     , GHC.Plugin.OllamaHoles.Error
     , GHC.Plugin.OllamaHoles.Flags
     , GHC.Plugin.OllamaHoles.Logger
@@ -181,6 +183,7 @@ test-suite ollama-holes-spec
     , GHC.Plugin.OllamaHoles.Template.Expand.Spec
     , GHC.Plugin.OllamaHoles.Trigger.Spec
     , GHC.Plugin.OllamaHoles.Config.Preferences.Spec
+    , GHC.Plugin.OllamaHoles.Config.Spec
   build-depends:
       base
     , ghc-paths

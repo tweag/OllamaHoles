@@ -316,6 +316,7 @@ mkServiceProfile :: Text -> Text -> Profile
 mkServiceProfile prof service =
   Profile
     { profName = profN prof
+    , profTrigger = TriggerNone
     , profKind = ProfService ServiceProf
         { profService      = svcN service
         , profModel        = modelN "qwen3:4b"
@@ -323,7 +324,6 @@ mkServiceProfile prof service =
         , profModelOptions = Nothing
         , profNumExpr      = Nothing
         , profIncludeDocs  = Nothing
-        , profTrigger      = Nothing
         }
     }
 
@@ -331,14 +331,14 @@ mkRichServiceProfile :: Text -> Text -> Profile
 mkRichServiceProfile prof service =
   Profile
     { profName = profN prof
-    , profKind = ProfService ServiceProf
+    , profTrigger      = TriggerPrefix "llm"
+    , profKind = ProfService $ ServiceProf
         { profService      = svcN service
         , profModel        = modelN "gpt-4.1-mini"
         , profTemplate     = Just DefaultTemplate
         , profModelOptions = Just (Aeson.object ["temperature" Aeson..= (0.3 :: Double)])
         , profNumExpr      = Just 8
         , profIncludeDocs  = Just True
-        , profTrigger      = Just (TriggerPrefix "llm")
         }
     }
 
@@ -346,6 +346,7 @@ mkFanoutProfile :: Text -> NonEmpty Text -> Profile
 mkFanoutProfile prof children =
   Profile
     { profName = profN prof
+    , profTrigger = TriggerNone
     , profKind = ProfFanout (FanoutProf (fmap profN children))
     }
 

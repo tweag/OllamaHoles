@@ -206,6 +206,7 @@ profileDecodeTests =
         singleProfile prefs
           @?= Profile
                 { profName = ProfileName "local"
+                , profTrigger = TriggerNone
                 , profKind = ProfService ServiceProf
                     { profService      = ServiceName "ollama"
                     , profModel        = ModelName "qwen3:4b"
@@ -213,7 +214,6 @@ profileDecodeTests =
                     , profModelOptions = Nothing
                     , profNumExpr      = Nothing
                     , profIncludeDocs  = Nothing
-                    , profTrigger      = Nothing
                     }
                 }
 
@@ -231,6 +231,7 @@ profileDecodeTests =
         singleProfile prefs
           @?= Profile
                 { profName = ProfileName "local"
+                , profTrigger = TriggerNone
                 , profKind = ProfService ServiceProf
                     { profService      = ServiceName "ollama"
                     , profModel        = ModelName "qwen3:4b"
@@ -238,7 +239,6 @@ profileDecodeTests =
                     , profModelOptions = Nothing
                     , profNumExpr      = Nothing
                     , profIncludeDocs  = Nothing
-                    , profTrigger      = Nothing
                     }
                 }
 
@@ -256,14 +256,14 @@ profileDecodeTests =
         singleProfile prefs
           @?= Profile
                 { profName = ProfileName "local"
-                , profKind = ProfService ServiceProf
+                , profTrigger = TriggerNone
+                , profKind = ProfService $ ServiceProf
                     { profService      = ServiceName "ollama"
                     , profModel        = ModelName "qwen3:4b"
                     , profTemplate     = Just (NamedTemplate (unsafeCreateRawTemplateName "small"))
                     , profModelOptions = Nothing
                     , profNumExpr      = Nothing
                     , profIncludeDocs  = Nothing
-                    , profTrigger      = Nothing
                     }
                 }
 
@@ -281,6 +281,7 @@ profileDecodeTests =
         singleProfile prefs
           @?= Profile
                 { profName = ProfileName "local"
+                , profTrigger = TriggerNone
                 , profKind = ProfService ServiceProf
                     { profService      = ServiceName "ollama"
                     , profModel        = ModelName "qwen3:4b"
@@ -288,7 +289,6 @@ profileDecodeTests =
                     , profModelOptions = Nothing
                     , profNumExpr      = Nothing
                     , profIncludeDocs  = Nothing
-                    , profTrigger      = Nothing
                     }
                 }
 
@@ -317,8 +317,8 @@ profileDecodeTests =
           , "trigger = \"prefix:llm\""
           ]
         case singleProfile prefs of
-          Profile _ (ProfService sp) ->
-            profTrigger sp @?= Just (TriggerPrefix "llm")
+          Profile _ (ProfService sp) tr ->
+            tr @?= TriggerPrefix "llm"
           other ->
             assertFailure ("expected service profile, got: " <> show other)
 
@@ -349,7 +349,7 @@ profileDecodeTests =
           , "num_ctx = 32768"
           ]
         case singleProfile prefs of
-          Profile _ (ProfService sp) ->
+          Profile _ (ProfService sp) tr ->
             case profModelOptions sp of
               Just (Aeson.Object obj) -> do
                 assertBool "temperature present" ("temperature" `KM.member` obj)
@@ -371,6 +371,7 @@ profileDecodeTests =
         singleProfile prefs
           @?= Profile
                 { profName = ProfileName "pair"
+                , profTrigger = TriggerNone
                 , profKind = ProfFanout (FanoutProf
                     { profProfiles =
                         ProfileName "local" NE.:| [ProfileName "remote"]
@@ -387,7 +388,7 @@ profileDecodeTests =
           , "profiles = [\"local\"]"
           ]
         case singleProfile prefs of
-          Profile _ (ProfFanout _) -> pure ()
+          Profile _ (ProfFanout _) _ -> pure ()
           other ->
             assertFailure ("expected fanout profile, got: " <> show other)
 
@@ -487,22 +488,34 @@ propertyTests =
                TomlParseSuccess _ _ -> QC.counterexample "expected parse failure" False
 
     , QC.testProperty "valid trigger policies inside service profiles decode" $
-        QC.forAll genValidTriggerPolicyText $ \trig ->
-          let doc = T.unlines
-                [ "services = []"
-                , ""
-                , "[[profiles]]"
-                , "name = \"p\""
-                , "type = \"service\""
-                , "service = \"svc\""
-                , "model = \"m\""
-                , "trigger = \"" <> trig <> "\""
-                ]
-          in case parsePreferencesToml doc of
-               TomlParseSuccess _ (Preferences _ [Profile _ (ProfService sp)]) ->
-                 QC.property (isJustTrigger (profTrigger sp))
-               other ->
-                 QC.counterexample ("unexpected parse result: " <> show other) False
+        QC.forAll genValidTriggerPolicyCase $ \(trigText, expectedTrigger) ->
+            let
+                doc = T.unlines
+                    [ "services = []"
+                    , ""
+                    , "[[profiles]]"
+                    , "name = \"p\""
+                    , "type = \"service\""
+                    , "service = \"svc\""
+                    , "model = \"m\""
+                    , "trigger = \"" <> trigText <> "\""
+                    ]
+            in
+                case parsePreferencesToml doc of
+                    TomlParseSuccess _ prefs -> case prefProfiles prefs of
+                        [profile] ->
+                            QC.counterexample ("decoded profile: " <> show profile) $
+                            profTrigger profile QC.=== expectedTrigger
+
+                        profiles ->
+                            QC.counterexample
+                            ("expected exactly one profile, got: " <> show profiles)
+                            False
+
+                    other ->
+                        QC.counterexample
+                        ("unexpected parse result: " <> show other)
+                        False
     ]
 
 genValidTriggerPolicyText :: QC.Gen Text
@@ -514,6 +527,16 @@ genValidTriggerPolicyText =
         c0 <- QC.elements ['a' .. 'z']
         rest <- QC.listOf (QC.elements (['a' .. 'z'] <> ['A' .. 'Z'] <> ['0' .. '9'] <> "_'"))
         pure ("prefix:" <> T.pack (c0 : rest))
+    ]
+
+genValidTriggerPolicyCase :: QC.Gen (Text, TriggerPolicy)
+genValidTriggerPolicyCase =
+  QC.oneof
+    [ pure ("all", TriggerAll)
+    , pure ("none", TriggerNone)
+    , do
+        prefix <- fmap T.pack $ QC.vectorOf 5 $ QC.oneof $ fmap pure ['a'..'z']
+        pure ("prefix:" <> prefix, TriggerPrefix prefix)
     ]
 
 isJustTrigger :: Maybe a -> Bool

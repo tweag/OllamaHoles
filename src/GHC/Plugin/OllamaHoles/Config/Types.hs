@@ -11,6 +11,7 @@ import Data.Aeson.KeyMap qualified as AesonKeyMap
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
+import Data.String (IsString(..))
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Vector qualified as Vector
@@ -34,6 +35,15 @@ newtype ServiceName = ServiceName Text
 
 newtype ModelName = ModelName Text
   deriving (Eq, Ord, Show)
+
+instance IsString ProfileName where
+  fromString = ProfileName . fromString
+
+instance IsString ServiceName where
+  fromString = ServiceName . fromString
+
+instance IsString ModelName where
+  fromString = ModelName . fromString
 
 instance FromValue ProfileName where
   fromValue v = ProfileName <$> fromValue v
@@ -118,8 +128,9 @@ parseServiceConfig = \case
 -- | A @Profile@ consists of details about how
 -- to construct a prompt for a service.
 data Profile = Profile
-  { profName :: ProfileName
-  , profKind :: ProfileKind
+  { profName    :: ProfileName
+  , profKind    :: ProfileKind
+  , profTrigger :: TriggerPolicy
   } deriving (Eq, Show, Generic)
 
 data ProfileKind
@@ -134,7 +145,6 @@ data ServiceProf = ServiceProf
   , profModelOptions :: Maybe Value
   , profNumExpr      :: Maybe Int
   , profIncludeDocs  :: Maybe Bool
-  , profTrigger      :: Maybe TriggerPolicy
   } deriving (Eq, Show, Generic)
 
 data FanoutProf = FanoutProf
@@ -148,9 +158,12 @@ instance FromValue Profile where
     name <- reqKey "name"
     typ  <- reqKey "type"
     kind <- parseProfileKind typ
+    triggerTxt <- optKey "trigger"
+    trigger    <- traverse parseTriggerPolicyField triggerTxt
     pure Profile
-      { profName = name
-      , profKind = kind
+      { profName    = name
+      , profKind    = kind
+      , profTrigger = maybe TriggerNone id trigger
       }
 
 parseProfileKind :: Text -> ParseTable l ProfileKind
@@ -175,8 +188,6 @@ parseServiceProfFields = do
   modelOptions <- fmap tomlToAeson <$> (optKey "model_options" :: ParseTable l (Maybe Toml.Value))
   numExpr      <- optKey "num_expr"
   includeDocs  <- optKey "include_docs"
-  triggerTxt   <- optKey "trigger"
-  trigger      <- traverse parseTriggerPolicyField triggerTxt
 
   pure ServiceProf
     { profService      = service
@@ -185,7 +196,6 @@ parseServiceProfFields = do
     , profModelOptions = modelOptions
     , profNumExpr      = numExpr
     , profIncludeDocs  = includeDocs
-    , profTrigger      = trigger
     }
 
 parseFanoutProfFields :: ParseTable l FanoutProf
