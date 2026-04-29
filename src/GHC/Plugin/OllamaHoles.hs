@@ -58,6 +58,7 @@ import GHC.Plugin.OllamaHoles.Template
 import GHC.Plugin.OllamaHoles.Trigger
 import GHC.Plugin.OllamaHoles.Error
 import GHC.Plugin.OllamaHoles.Flags
+import GHC.Plugin.OllamaHoles.Config
 
 
 
@@ -94,6 +95,7 @@ data PluginState = PluginState
   , templateSpec   :: TemplateSpec
   , parsedTemplate :: Template
   , commandOptions :: Flags
+  , configuration  :: Maybe Config
   }
 
 setCandidates :: [HoleFitCandidate] -> PluginState -> PluginState
@@ -122,12 +124,15 @@ tryPluginInitLLM opts = do
   spec <- liftEitherIO TemplateSpecError $ pure $ mkTemplateSpec flags
   logger <- liftIO $ Log.initLogger (log_mode flags) (log_dir flags)
   template <- liftEitherIO TemplateParseError $ loadTemplate spec
+  config <- liftEitherIO SomeConfigError $
+    loadConfig (mkDefaultConfig template flags) $ config_path flags
   pure $ PluginState
     { candidates     = []
     , writeLogEvent  = logger
     , templateSpec   = spec
     , parsedTemplate = template
     , commandOptions = flags
+    , configuration  = config
     }
 
 
@@ -292,8 +297,6 @@ extractHoleFitsFromResponse st prompt rsp hole h = do
 
   let holeFits = map (RawHoleFit . text . T.unpack . prSource) deduped
   return holeFits
-
-
 
 
 

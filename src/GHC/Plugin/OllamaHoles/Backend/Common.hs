@@ -7,5 +7,9 @@ import Data.Aeson (Value)
 -- | Backend to use.
 data Backend = Backend
     { listModels :: IO (Maybe [Text])
-    , generateFits :: Text -> Text -> Maybe Value -> IO (Either String Text)
+    , generateFits
+        :: Text        -- prompt
+        -> Text        -- model name
+        -> Maybe Value -- options
+        -> IO (Either String Text)
     }

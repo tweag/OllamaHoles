@@ -18,15 +18,11 @@ import GHC.Plugin.OllamaHoles.Config.Preferences
   )
 import GHC.Plugin.OllamaHoles.Config.Types
   ( FanoutProf(..)
-  , GeminiConfig(..)
   , ModelName(..)
-  , OllamaConfig(..)
-  , OpenAIConfig(..)
   , Profile(..)
   , ProfileKind(..)
   , ProfileName(..)
   , Service(..)
-  , ServiceConfig(..)
   , ServiceName(..)
   , ServiceProf(..)
   )
@@ -37,6 +33,7 @@ import GHC.Plugin.OllamaHoles.Template
 import GHC.Plugin.OllamaHoles.Trigger
   ( TriggerPolicy(..)
   )
+import GHC.Plugin.OllamaHoles.Backend
 
 tests :: TestTree
 tests =

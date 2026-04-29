@@ -10,6 +10,7 @@ import GHC.Tc.Errors.Hole.FitTypes (TypedHole)
 import GHC.Plugin.OllamaHoles.Backend (BackendSlug(..), renderBackendSlug)
 import GHC.Plugin.OllamaHoles.Options (OptError(), Token(..))
 import GHC.Plugin.OllamaHoles.Template (TemplateError())
+import GHC.Plugin.OllamaHoles.Config (ConfigError(..))
 
 data PluginError
   = OptionParseError OptError
@@ -23,6 +24,7 @@ data PluginError
   | ResponseFailed Text
   | HoleMissingTriggerName
   | HoleNameDoesNotMatchPolicy Text
+  | SomeConfigError ConfigError
 
 isSilentError :: PluginError -> Bool
 isSilentError = \case

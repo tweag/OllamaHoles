@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module GHC.Plugin.OllamaHoles.Config where
 
 import Control.Monad (foldM)
@@ -7,18 +9,42 @@ import qualified Data.List.NonEmpty as NE
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Text (Text)
+import qualified Data.Text.IO as T
 import GHC.Generics (Generic)
+import System.Directory (doesFileExist)
 
+import GHC.Plugin.OllamaHoles.Backend (BackendSlug())
 import GHC.Plugin.OllamaHoles.Config.Types
 import GHC.Plugin.OllamaHoles.Config.Preferences
 import GHC.Plugin.OllamaHoles.Trigger (TriggerPolicy(..))
 import GHC.Plugin.OllamaHoles.Config.Trigger
+import GHC.Plugin.OllamaHoles.Template (Template())
 
 
 
 data Config = Config
   { cfgServices :: Map ServiceName Service
   , cfgProfiles :: Map ProfileName Profile
+  , cfgDefault  :: DefaultConfig
+  } deriving (Eq, Show, Generic)
+
+setDefault :: DefaultConfig -> Config -> Config
+setDefault def cfg = cfg { cfgDefault = def }
+
+data ConfigPathSpec
+  = ConfigDefault
+  | ConfigExplicit FilePath
+  | ConfigDisabled
+  deriving (Eq, Show, Generic)
+
+data DefaultConfig = DefaultConfig
+  { defModelName     :: Text
+  , defBackendName   :: BackendSlug
+  , defNumExpr       :: Int
+  , defIncludeDocs   :: Bool
+  , defModelOptions  :: Maybe Value
+  , defTriggerPolicy :: TriggerPolicy
+  , defTemplate      :: Template
   } deriving (Eq, Show, Generic)
 
 
@@ -120,6 +146,27 @@ resolveFanoutMember profMap svcMap stack parent child =
 
 
 
+-- Loading
+----------
+
+loadConfig
+  :: DefaultConfig -> ConfigPathSpec -> IO (Either ConfigError (Maybe Config))
+loadConfig defConfig = \case
+  ConfigDisabled -> pure $ Right Nothing
+  ConfigDefault -> error "default config"
+  ConfigExplicit path -> do
+    exists <- doesFileExist path
+    if exists
+      then do
+        contents <- T.readFile path
+        case parsePreferencesToml contents of
+          TomlParseFailure errs -> pure $ Left $ ConfigParseErrors errs
+          TomlParseSuccess warn result -> pure $ fmap Just $
+            fmap (setDefault defConfig) $ resolveConfig result
+      else pure $ Left $ ConfigFileNotFound path
+
+
+
 -- Errors
 ---------
 
@@ -130,4 +177,6 @@ data ConfigError
   | UnknownProfileReference ProfileName ProfileName
   | CyclicProfileReference [ProfileName]
   | AmbiguousProfileTriggers TriggerConflict
+  | ConfigFileNotFound FilePath
+  | ConfigParseErrors [Text]
   deriving (Eq, Show)

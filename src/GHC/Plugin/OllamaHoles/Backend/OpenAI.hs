@@ -1,9 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 -- | The OpenAI backend
-module GHC.Plugin.OllamaHoles.Backend.OpenAI (openAIBackend, openAICompatibleBackend) where
+module GHC.Plugin.OllamaHoles.Backend.OpenAI
+  ( OpenAIConfig(..)
+  , openAICompatibleBackend
+  , openAIBackend
+  ) where
 
+import GHC.Generics (Generic)
 import Network.HTTP.Req
 import System.Environment (lookupEnv)
 
@@ -19,14 +25,28 @@ import Data.Maybe (fromMaybe)
 import Text.URI (mkURI)
 
 
+
+data OpenAIConfig = OpenAIConfig
+  { svcOpenAIBaseUrl :: Text
+  , svcOpenAIKeyName :: Text
+  } deriving (Eq, Show, Generic)
+
 -- | The OpenAI backend
 openAIBackend :: Backend
-openAIBackend = openAICompatibleBackend "api.openai.com" "OPENAI_API_KEY"
+openAIBackend = openAICompatibleBackend openAIBackendConfig
+
+openAIBackendConfig :: OpenAIConfig
+openAIBackendConfig = OpenAIConfig
+  { svcOpenAIBaseUrl = "api.openai.com"
+  , svcOpenAIKeyName = "OPENAI_API_KEY"
+  }
 
 -- | Any OpenAI compatible backend
-openAICompatibleBackend :: Text -> Text -> Backend
-openAICompatibleBackend base_url key_name = Backend {..}
+openAICompatibleBackend :: OpenAIConfig -> Backend
+openAICompatibleBackend config = Backend {..}
   where
+    base_url = svcOpenAIBaseUrl config
+    key_name = svcOpenAIKeyName config
     apiEndpoint = do uri <- mkURI base_url
                      case useHttpsURI uri of
                       Just (url, opts) -> return (url /: "v1", opts)

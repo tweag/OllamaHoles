@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module GHC.Plugin.OllamaHoles.Backend
   ( module GHC.Plugin.OllamaHoles.Backend.Common
@@ -9,8 +10,10 @@ module GHC.Plugin.OllamaHoles.Backend
   , BackendSlug(..)
   , parseBackendSlug
   , renderBackendSlug
+  , ServiceConfig(..)
   ) where
 
+import GHC.Generics (Generic)
 import Data.Text (Text)
 
 import GHC.Plugin.OllamaHoles.Backend.Common
@@ -36,3 +39,17 @@ renderBackendSlug = \case
   Gemini -> "gemini"
   Ollama -> "ollama"
   OpenAI -> "openai"
+
+
+
+data ServiceConfig
+  = SvcOllama OllamaConfig
+  | SvcOpenAI OpenAIConfig
+  | SvcGemini GeminiConfig
+  deriving (Eq, Show, Generic)
+
+configureBackend :: ServiceConfig -> Backend
+configureBackend = \case
+  SvcOllama cfg -> ollamaBackend cfg
+  SvcOpenAI cfg -> openAICompatibleBackend cfg
+  SvcGemini cfg -> geminiBackend cfg

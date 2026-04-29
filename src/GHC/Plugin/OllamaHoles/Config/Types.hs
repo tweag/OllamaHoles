@@ -24,13 +24,12 @@ import Toml.Semantics.Types qualified as Toml
 import GHC.Plugin.OllamaHoles.Template
   (TemplateSource(..), parseTemplateName)
 import GHC.Plugin.OllamaHoles.Trigger
+import GHC.Plugin.OllamaHoles.Backend
+  (OpenAIConfig(..), GeminiConfig(..), OllamaConfig(..), ServiceConfig(..))
 
 
 
 newtype ProfileName = ProfileName Text
-  deriving (Eq, Ord, Show)
-
-newtype ServiceName = ServiceName Text
   deriving (Eq, Ord, Show)
 
 newtype ModelName = ModelName Text
@@ -38,9 +37,6 @@ newtype ModelName = ModelName Text
 
 instance IsString ProfileName where
   fromString = ProfileName . fromString
-
-instance IsString ServiceName where
-  fromString = ServiceName . fromString
 
 instance IsString ModelName where
   fromString = ModelName . fromString
@@ -59,6 +55,12 @@ instance FromValue ModelName where
 -- Services
 -----------
 
+newtype ServiceName = ServiceName Text
+  deriving (Eq, Ord, Show)
+
+instance IsString ServiceName where
+  fromString = ServiceName . fromString
+
 -- | A @Service@ accepts prompts and returns responses.
 -- It has a name and a configuration specifying how to
 -- communicate with it.
@@ -66,27 +68,6 @@ data Service = Service
   { svcName   :: ServiceName
   , svcConfig :: ServiceConfig
   } deriving (Eq, Show, Generic)
-
-data ServiceConfig
-  = SvcOllama OllamaConfig
-  | SvcOpenAI OpenAIConfig
-  | SvcGemini GeminiConfig
-  deriving (Eq, Show, Generic)
-
-data OllamaConfig = OllamaConfig
-  { svcOllamaHost :: Maybe Text
-  } deriving (Eq, Show, Generic)
-
-data OpenAIConfig = OpenAIConfig
-  { svcOpenAIBaseUrl :: Text
-  , svcOpenAIKeyName :: Text
-  } deriving (Eq, Show, Generic)
-
-data GeminiConfig = GeminiConfig
-  { svcGeminiKeyName :: Text
-  } deriving (Eq, Show, Generic)
-
-
 
 instance FromValue Service where
   fromValue = parseTableFromValue $ do
@@ -101,7 +82,8 @@ instance FromValue Service where
 parseServiceConfig :: Text -> ParseTable l ServiceConfig
 parseServiceConfig = \case
   "ollama" ->
-    SvcOllama <$> (OllamaConfig <$> optKey "host")
+    SvcOllama <$> (OllamaConfig
+      <$> optKey "host")
 
   "openai" ->
     SvcOpenAI <$> (OpenAIConfig
