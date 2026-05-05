@@ -316,7 +316,7 @@ templateParserTests =
     , testCase "template-name= sets name and clears path" $ do
         (flags, unknowns) <- expectParseOk ["template-name=qwen"]
         template_path flags @?= Nothing
-        template_name flags @?= Just "qwen"
+        template_name flags @?= Just (unsafeCreateRawTemplateName "qwen")
         unknowns @?= []
 
     , testCase "template-dir= sets search dir" $ do
@@ -339,7 +339,7 @@ templateParserTests =
           , "template=/tmp/a.txt"
           ]
         template_path flags @?= Nothing
-        template_name flags @?= Just "qwen"
+        template_name flags @?= Just (unsafeCreateRawTemplateName "qwen")
         unknowns @?= []
 
     , testCase "leftmost template-dir wins" $ do
@@ -356,7 +356,7 @@ templateParserTests =
           , "template-name=qwen"
           ]
         template_search_dir flags @?= Just "/tmp/templates"
-        template_name flags @?= Just "qwen"
+        template_name flags @?= Just (unsafeCreateRawTemplateName "qwen")
         template_path flags @?= Nothing
         unknowns @?= []
 
@@ -377,7 +377,7 @@ templateParserTests =
           , "template=/tmp/prompt.txt"
           , "template-dir=/tmp/two"
           ]
-        template_name flags @?= Just "alpha"
+        template_name flags @?= Just (unsafeCreateRawTemplateName "alpha")
         template_path flags @?= Nothing
         template_search_dir flags @?= Just "/tmp/one"
         unknowns @?= []
@@ -430,7 +430,7 @@ mkTemplateSpecTests =
     , testCase "path beats name in mkTemplateSpec if both are present" $ do
         let flags = mempty
               { template_path = Just "/tmp/prompt.txt"
-              , template_name = Just "qwen"
+              , template_name = Just (unsafeCreateRawTemplateName "qwen")
               , template_search_dir = Just "/tmp/templates"
               }
         mkTemplateSpec flags

@@ -173,4 +173,5 @@ data ConfigError
   | AmbiguousProfileTriggers TriggerConflict
   | ConfigFileNotFound FilePath
   | ConfigParseErrors TomlParseError
+  | ConfigBuildErrors ConfigBuildError
   deriving (Eq, Show)

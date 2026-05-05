@@ -142,6 +142,7 @@ library
       GHC.Plugin.OllamaHoles.Data.Profile.Validate
       GHC.Plugin.OllamaHoles.Data.Config
       GHC.Plugin.OllamaHoles.Data.Config.Types
+      GHC.Plugin.OllamaHoles.Data.Config.Build
       GHC.Plugin.OllamaHoles.Data.Config.Submit
       GHC.Plugin.OllamaHoles.Data.Config.Route
       GHC.Plugin.OllamaHoles.Data.Trigger
@@ -189,6 +190,7 @@ library ollama-holes-lib
     , GHC.Plugin.OllamaHoles.Data.Profile.Validate
     , GHC.Plugin.OllamaHoles.Data.Config
     , GHC.Plugin.OllamaHoles.Data.Config.Types
+    , GHC.Plugin.OllamaHoles.Data.Config.Build
     , GHC.Plugin.OllamaHoles.Data.Config.Submit
     , GHC.Plugin.OllamaHoles.Data.Config.Route
     , GHC.Plugin.OllamaHoles.Data.Trigger

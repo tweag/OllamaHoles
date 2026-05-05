@@ -20,6 +20,7 @@ import GHC.Plugin.OllamaHoles.Data.Trigger.Parse (parseTriggerPolicy)
 
 import GHC.Plugin.OllamaHoles.Data.Flags.Types
 import GHC.Plugin.OllamaHoles.Data.Flags.Error (FlagError(..))
+import GHC.Plugin.OllamaHoles.Template (TemplateName, parseTemplateName)
 
 
 
@@ -127,16 +128,18 @@ interpretFlag flag = case flag of
       , template_name = Nothing }
 
   SetTemplateName name -> requireNonEmpty "template-name" name $
-    makeOk $ \fs -> fs
-      { template_name = Just name
-      , template_path = Nothing }
+    case parseTemplateName name of
+      Left err -> Left (InvalidTemplateNameFlag err name)
+      Right ok -> makeOk $ \fs -> fs
+        { template_name = Just ok
+        , template_path = Nothing }
 
   SetTemplateDir dir -> requireNonEmpty "template-dir" dir $
     makeOk $ \fs -> fs { template_search_dir = Just $ T.unpack dir }
 
   SetNumExpr txt -> requireNonEmpty "n" txt $
     case readMaybe (T.unpack txt) of
-      Just n -> makeOk $ \fs -> fs { num_expr = n }
+      Just n -> makeOk $ \fs -> fs { num_expr = Just n }
       Nothing -> Left (InvalidInt "n" txt)
 
   SetModelOptions txt -> requireNonEmpty "model-options" txt $

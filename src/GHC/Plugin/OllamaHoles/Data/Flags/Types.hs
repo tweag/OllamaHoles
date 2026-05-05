@@ -16,6 +16,7 @@ import GHC.Plugin.OllamaHoles.Backend (BackendSlug(..))
 import GHC.Plugin.OllamaHoles.Logger (LogMode(..))
 import GHC.Plugin.OllamaHoles.Data.Trigger.Types
 import GHC.Plugin.OllamaHoles.Data.Trigger.Error
+import GHC.Plugin.OllamaHoles.Template
 
 
 
@@ -33,7 +34,7 @@ data Flags = Flags
     , openai_key_name     :: Maybe Text
     , model_options       :: Maybe Value
     , template_path       :: Maybe FilePath
-    , template_name       :: Maybe Text
+    , template_name       :: Maybe TemplateName
     , template_search_dir :: Maybe FilePath
     , log_mode            :: Maybe LogMode
     , log_dir             :: Maybe FilePath

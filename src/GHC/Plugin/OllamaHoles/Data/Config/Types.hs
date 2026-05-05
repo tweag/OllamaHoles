@@ -10,7 +10,7 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 
 import GHC.Plugin.OllamaHoles.Data.Trigger.Types (TriggerPolicy)
-import GHC.Plugin.OllamaHoles.Template (Template)
+import GHC.Plugin.OllamaHoles.Template (TemplateSpec)
 
 import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Data.Profile
@@ -18,9 +18,15 @@ import GHC.Plugin.OllamaHoles.Data.Profile
 
 
 data Config
-  = ConfigSimple ServiceProf
+  = ConfigSimple SimpleConfig
   | ConfigFancy FancyConfig
   deriving (Eq, Show, Generic)
+
+data SimpleConfig = SimpleConfig
+  { simpleTrigger :: TriggerPolicy
+  , simpleService :: Service
+  , simpleProfile :: ServiceProf
+  } deriving (Eq, Show, Generic)
 
 data FancyConfig = FancyConfig
   { cfgServices :: Map ServiceName Service
@@ -30,7 +36,7 @@ data FancyConfig = FancyConfig
 
 -- From command line arguments
 data ExtraConfig
-  = ConfigOverlay ServiceProf
+  = ConfigOverlay SimpleConfig
   | ConfigOverride OverrideConfig
   deriving (Eq, Show, Generic)
 
@@ -39,6 +45,5 @@ data OverrideConfig = OverrideConfig
   , overrideNumExpr       :: Maybe Int
   , overrideIncludeDocs   :: Maybe Bool
   , overrideModelOptions  :: Maybe Value
-  , overrideTriggerPolicy :: Maybe TriggerPolicy
-  , overrideTemplate      :: Maybe Template
+  , overrideTemplate      :: Maybe TemplateSpec
   } deriving (Eq, Show, Generic)

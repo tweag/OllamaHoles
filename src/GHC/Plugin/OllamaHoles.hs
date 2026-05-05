@@ -10,7 +10,7 @@ module GHC.Plugin.OllamaHoles where
 
 import Control.Applicative
 import Control.Monad (unless, when, forM_, (>=>))
-import Control.Monad.Except (ExceptT, runExceptT, MonadError(..), liftEither)
+import Control.Monad.Except (ExceptT, runExceptT, MonadError(..), liftEither, modifyError)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Data.Aeson (Value)
@@ -61,6 +61,7 @@ import GHC.Plugin.OllamaHoles.Trigger
 import GHC.Plugin.OllamaHoles.Error
 import GHC.Plugin.OllamaHoles.Flags
 import GHC.Plugin.OllamaHoles.Config
+import GHC.Plugin.OllamaHoles.Data.Config.Build
 import GHC.Plugin.OllamaHoles.Data.Config.Types
 import GHC.Plugin.OllamaHoles.Data.Service.Types
 import GHC.Plugin.OllamaHoles.Data.Profile.Types
@@ -102,7 +103,7 @@ data PluginState = PluginState
   , templateSpec   :: TemplateSpec
   , parsedTemplate :: Template
   , commandOptions :: Flags
-  , configuration  :: Maybe Config
+  , configuration  :: Config
   }
 
 setCandidates :: [HoleFitCandidate] -> PluginState -> PluginState
@@ -131,7 +132,7 @@ tryPluginInitLLM opts = do
   spec <- liftEitherIO TemplateSpecError $ pure $ mkTemplateSpec flags
   logger <- liftIO $ Log.initLogger (log_mode flags) (log_dir flags)
   template <- liftEitherIO TemplateParseError $ loadTemplate spec
-  config <- liftEitherIO SomeConfigError $ setupConfig flags
+  config <- modifyError (SomeConfigError . ConfigBuildErrors) $ buildConfig flags
   pure $ PluginState
     { candidates     = []
     , writeLogEvent  = logger
@@ -179,8 +180,9 @@ tryFitPluginLLM ref typedHole fits = do
   withTypedHole typedHole $ \hole -> do
     let holeName = holeTriggerName hole
     case configuration st of
-      Just cfg -> undefined st cfg typedHole hole holeName fits
-      Nothing  -> undefined st typedHole hole fits
+      ConfigSimple simple -> tryFitPluginLLMSimple st simple typedHole fits
+      ConfigFancy fancy -> error "fancyconfig"
+
 
 tryFitPluginLLMRouted
   :: PluginState
@@ -203,15 +205,15 @@ tryFitPluginLLMRouted st cfg typedHole hole fits = do
   lift $ extractHoleFitsFromProfileResponses
     st responses typedHole hole
 
-tryFitPluginLLMLegacy
-  :: TcRef (Either PluginError PluginState)
+tryFitPluginLLMSimple
+  :: PluginState
+  -> SimpleConfig
   -> TypedHole
   -> [HoleFit] -- Known hole fits from GHC
   -> ExceptT PluginError TcM [HoleFit]
-tryFitPluginLLMLegacy ref typedHole fits = do
-  st <- readTcRef ref >>= liftEither
+tryFitPluginLLMSimple st config typedHole fits = do
   withTypedHole typedHole $ \hole -> do
-    let tpol = maybe undefined id $ trigger_policy $ commandOptions st
+    let tpol = simpleTrigger config
         holeName = holeTriggerName hole
 
     -- Does this hole match the trigger?
@@ -241,7 +243,7 @@ checkModel st = do
   case available_models of
     Nothing -> throwError NoModelsAvailable
     Just models -> unless (model_name flags `elem` (fmap Just models)) $
-      throwError $ ModelNotFound (maybe "" id $ model_name flags) models (maybe undefined id $ backend_name flags)
+      throwError $ ModelNotFound (maybe "" id $ model_name flags) models (maybe (error "wups") id $ backend_name flags)
 
 -- | Build a prompt for the LLM from context.
 prepareHoleFitPrompt
@@ -256,8 +258,8 @@ prepareHoleFitPrompt st hole fits = do
     then getDocs (candidates st) else return ""
   liftEitherIO TemplateSubError $ pure $
     expandTemplateWith (parsedTemplate st) $ mkTemplateEnv
-      [ ("backend" , renderBackendSlug $ maybe undefined id $ backend_name flags)
-      , ("model"   , maybe undefined id $ model_name flags)
+      [ ("backend" , renderBackendSlug $ maybe (error "backend") id $ backend_name flags)
+      , ("model"   , maybe (error "model") id $ model_name flags)
       , ("numexpr" , T.pack (show $ num_expr flags))
       , ("docs"    , T.pack docs)
       , ("context" , maybe "" encodePromptContext $
@@ -344,12 +346,12 @@ submitRequest st prompt = do
     Right rsp -> pure rsp
     Left err -> throwError $ ResponseFailed $ T.pack err
 
-extractHoleFitsFromProfileResponses = undefined
-cfgDefaultFromState = undefined
-renderService = undefined
-loadProfileTemplate = undefined
-submitPromptForProfile = undefined
-mapProfileSubmitError = undefined
+extractHoleFitsFromProfileResponses = error "foo1"
+cfgDefaultFromState = error "foo6"
+renderService = error "foo5"
+loadProfileTemplate = error "foo4"
+submitPromptForProfile = error "foo3"
+mapProfileSubmitError = error "foo2"
 
 extractHoleFitsFromResponse
   :: PluginState -> Log.Prompt -> Log.Response
@@ -567,8 +569,6 @@ printRenderedError x = case x of
     pure (Left err)
 
 
-setupConfig :: Flags -> IO (Either ConfigError (Maybe Config))
-setupConfig flags = undefined
 
 defaultModelName :: Text
 defaultModelName = "qwen3:latest"
