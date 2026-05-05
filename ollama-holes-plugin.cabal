@@ -125,13 +125,33 @@ library
       GHC.Plugin.OllamaHoles.Candidate.Compat
       GHC.Plugin.OllamaHoles.Candidate.Rewrite
       GHC.Plugin.OllamaHoles.Config
-      GHC.Plugin.OllamaHoles.Config.Preferences
-      GHC.Plugin.OllamaHoles.Config.Types
-      GHC.Plugin.OllamaHoles.Config.Trigger
+      GHC.Plugin.OllamaHoles.Data.Flags
+      GHC.Plugin.OllamaHoles.Data.Flags.Error
+      GHC.Plugin.OllamaHoles.Data.Flags.Parse
+      GHC.Plugin.OllamaHoles.Data.Flags.Types
+      GHC.Plugin.OllamaHoles.Data.Prefs
+      GHC.Plugin.OllamaHoles.Data.Prefs.Types
+      GHC.Plugin.OllamaHoles.Data.Prefs.Parse
+      GHC.Plugin.OllamaHoles.Data.Service
+      GHC.Plugin.OllamaHoles.Data.Service.Types
+      GHC.Plugin.OllamaHoles.Data.Service.Parse
+      GHC.Plugin.OllamaHoles.Data.Profile
+      GHC.Plugin.OllamaHoles.Data.Profile.Types
+      GHC.Plugin.OllamaHoles.Data.Profile.Error
+      GHC.Plugin.OllamaHoles.Data.Profile.Parse
+      GHC.Plugin.OllamaHoles.Data.Profile.Validate
+      GHC.Plugin.OllamaHoles.Data.Config
+      GHC.Plugin.OllamaHoles.Data.Config.Types
+      GHC.Plugin.OllamaHoles.Data.Config.Submit
+      GHC.Plugin.OllamaHoles.Data.Config.Route
+      GHC.Plugin.OllamaHoles.Data.Trigger
+      GHC.Plugin.OllamaHoles.Data.Trigger.Types
+      GHC.Plugin.OllamaHoles.Data.Trigger.Error
+      GHC.Plugin.OllamaHoles.Data.Trigger.Parse
+      GHC.Plugin.OllamaHoles.Data.Trigger.Match
       GHC.Plugin.OllamaHoles.Error
       GHC.Plugin.OllamaHoles.Flags
       GHC.Plugin.OllamaHoles.Logger
-      GHC.Plugin.OllamaHoles.Options
       GHC.Plugin.OllamaHoles.Prompt
       GHC.Plugin.OllamaHoles.Template
       GHC.Plugin.OllamaHoles.Trigger
@@ -152,13 +172,33 @@ library ollama-holes-lib
     , GHC.Plugin.OllamaHoles.Candidate.Compat
     , GHC.Plugin.OllamaHoles.Candidate.Rewrite
     , GHC.Plugin.OllamaHoles.Config
-    , GHC.Plugin.OllamaHoles.Config.Preferences
-    , GHC.Plugin.OllamaHoles.Config.Types
-    , GHC.Plugin.OllamaHoles.Config.Trigger
+    , GHC.Plugin.OllamaHoles.Data.Flags
+    , GHC.Plugin.OllamaHoles.Data.Flags.Error
+    , GHC.Plugin.OllamaHoles.Data.Flags.Parse
+    , GHC.Plugin.OllamaHoles.Data.Flags.Types
+    , GHC.Plugin.OllamaHoles.Data.Prefs
+    , GHC.Plugin.OllamaHoles.Data.Prefs.Types
+    , GHC.Plugin.OllamaHoles.Data.Prefs.Parse
+    , GHC.Plugin.OllamaHoles.Data.Service
+    , GHC.Plugin.OllamaHoles.Data.Service.Types
+    , GHC.Plugin.OllamaHoles.Data.Service.Parse
+    , GHC.Plugin.OllamaHoles.Data.Profile
+    , GHC.Plugin.OllamaHoles.Data.Profile.Types
+    , GHC.Plugin.OllamaHoles.Data.Profile.Error
+    , GHC.Plugin.OllamaHoles.Data.Profile.Parse
+    , GHC.Plugin.OllamaHoles.Data.Profile.Validate
+    , GHC.Plugin.OllamaHoles.Data.Config
+    , GHC.Plugin.OllamaHoles.Data.Config.Types
+    , GHC.Plugin.OllamaHoles.Data.Config.Submit
+    , GHC.Plugin.OllamaHoles.Data.Config.Route
+    , GHC.Plugin.OllamaHoles.Data.Trigger
+    , GHC.Plugin.OllamaHoles.Data.Trigger.Types
+    , GHC.Plugin.OllamaHoles.Data.Trigger.Error
+    , GHC.Plugin.OllamaHoles.Data.Trigger.Parse
+    , GHC.Plugin.OllamaHoles.Data.Trigger.Match
     , GHC.Plugin.OllamaHoles.Error
     , GHC.Plugin.OllamaHoles.Flags
     , GHC.Plugin.OllamaHoles.Logger
-    , GHC.Plugin.OllamaHoles.Options
     , GHC.Plugin.OllamaHoles.Prompt
     , GHC.Plugin.OllamaHoles.Template
     , GHC.Plugin.OllamaHoles.Trigger

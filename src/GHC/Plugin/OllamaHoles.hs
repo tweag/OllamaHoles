@@ -8,10 +8,12 @@
 -- | The Ollama plugin for GHC
 module GHC.Plugin.OllamaHoles where
 
+import Control.Applicative
 import Control.Monad (unless, when, forM_, (>=>))
 import Control.Monad.Except (ExceptT, runExceptT, MonadError(..), liftEither)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
+import Data.Aeson (Value)
 import Data.Char (isSpace)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -50,7 +52,7 @@ import GHC.Tc.Solver qualified as GHC (simplifyTop, simplifyInfer, captureTopCon
 import GHC.Tc.Solver.Monad qualified as GHC (zonkTcType, runTcSEarlyAbort)
 
 import GHC.Plugin.OllamaHoles.Backend
-import GHC.Plugin.OllamaHoles.Options
+import GHC.Plugin.OllamaHoles.Data.Flags
 import GHC.Plugin.OllamaHoles.Prompt
 import GHC.Plugin.OllamaHoles.Logger qualified as Log
 import GHC.Plugin.OllamaHoles.Candidate
@@ -59,6 +61,11 @@ import GHC.Plugin.OllamaHoles.Trigger
 import GHC.Plugin.OllamaHoles.Error
 import GHC.Plugin.OllamaHoles.Flags
 import GHC.Plugin.OllamaHoles.Config
+import GHC.Plugin.OllamaHoles.Data.Config.Types
+import GHC.Plugin.OllamaHoles.Data.Service.Types
+import GHC.Plugin.OllamaHoles.Data.Profile.Types
+import GHC.Plugin.OllamaHoles.Data.Trigger.Match
+import GHC.Plugin.OllamaHoles.Data.Config.Route
 
 
 
@@ -117,15 +124,14 @@ hfPluginInitLLM =
 tryPluginInitLLM
   :: [CommandLineOption] -> ExceptT PluginError IO PluginState
 tryPluginInitLLM opts = do
-  flags <- case parseCommandLineOptions defaultFlags opts of
+  flags <- case parseFlags opts of
     Right (fs, []) -> pure fs
     Right (_, unk) -> throwError $ UnknownOptionError unk
     Left err       -> throwError $ OptionParseError err
   spec <- liftEitherIO TemplateSpecError $ pure $ mkTemplateSpec flags
   logger <- liftIO $ Log.initLogger (log_mode flags) (log_dir flags)
   template <- liftEitherIO TemplateParseError $ loadTemplate spec
-  config <- liftEitherIO SomeConfigError $
-    loadConfig (mkDefaultConfig template flags) $ config_path flags
+  config <- liftEitherIO SomeConfigError $ setupConfig flags
   pure $ PluginState
     { candidates     = []
     , writeLogEvent  = logger
@@ -140,6 +146,13 @@ tryPluginInitLLM opts = do
 -- Fit Holes
 ------------
 
+-- Overall strategy: Try matching the current hole to a profile.
+-- If there is a match then submit this hole to the included services
+-- and validate and deduplicate suggested fits. If there is no match,
+-- or if there is an error, return GHC's hole fits.
+
+-- This wrapper launches the hole fit process
+-- and catches any errors.
 fitPluginLLM
   :: TcRef (Either PluginError PluginState)
   -> TypedHole
@@ -154,17 +167,51 @@ fitPluginLLM ref hole fits = do
         T.putStrLn $ pluginName <> ": " <> renderPluginError err
       pure fits
 
+-- Launch a hole fit attempt depending on 
 tryFitPluginLLM
   :: TcRef (Either PluginError PluginState)
   -> TypedHole
-  -> [HoleFit] -- Known hole fits from GHC
+  -> [HoleFit]
   -> ExceptT PluginError TcM [HoleFit]
 tryFitPluginLLM ref typedHole fits = do
   st <- readTcRef ref >>= liftEither
   debugMsg st $ "running with flags\n" <> T.pack (show $ commandOptions st)
-
   withTypedHole typedHole $ \hole -> do
-    let tpol = trigger_policy $ commandOptions st
+    let holeName = holeTriggerName hole
+    case configuration st of
+      Just cfg -> undefined st cfg typedHole hole holeName fits
+      Nothing  -> undefined st typedHole hole fits
+
+tryFitPluginLLMRouted
+  :: PluginState
+  -> Config
+  -> TypedHole
+  -> Hole
+  -> [HoleFit]
+  -> ExceptT PluginError TcM [HoleFit]
+tryFitPluginLLMRouted st cfg typedHole hole fits = do
+  let holeName = holeTriggerName hole
+  profileName <- case cfg of
+    ConfigFancy fancy -> case routeProfileForHole fancy holeName of
+      Left err -> throwError (ProfileRouteFailed err)
+      Right Nothing -> throwError (HoleNameDoesNotMatchPolicy holeName)
+      Right (Just ok) -> pure $ profName $ routedProfile ok
+  debugMsg st $ "Hole matched profile " <> unProfileName profileName
+  ctx <- buildPromptContext st typedHole fits
+  responses <- mapProfileSubmitError $ submitPromptForProfile
+    cfg (renderPromptForServiceProfile st) ctx profileName
+  lift $ extractHoleFitsFromProfileResponses
+    st responses typedHole hole
+
+tryFitPluginLLMLegacy
+  :: TcRef (Either PluginError PluginState)
+  -> TypedHole
+  -> [HoleFit] -- Known hole fits from GHC
+  -> ExceptT PluginError TcM [HoleFit]
+tryFitPluginLLMLegacy ref typedHole fits = do
+  st <- readTcRef ref >>= liftEither
+  withTypedHole typedHole $ \hole -> do
+    let tpol = maybe undefined id $ trigger_policy $ commandOptions st
         holeName = holeTriggerName hole
 
     -- Does this hole match the trigger?
@@ -193,8 +240,8 @@ checkModel st = do
   available_models <- liftIO $ listModels backend
   case available_models of
     Nothing -> throwError NoModelsAvailable
-    Just models -> unless (model_name flags `elem` models) $
-      throwError $ ModelNotFound (model_name flags) models (backend_name flags)
+    Just models -> unless (model_name flags `elem` (fmap Just models)) $
+      throwError $ ModelNotFound (maybe "" id $ model_name flags) models (maybe undefined id $ backend_name flags)
 
 -- | Build a prompt for the LLM from context.
 prepareHoleFitPrompt
@@ -205,17 +252,78 @@ prepareHoleFitPrompt st hole fits = do
   let flags = commandOptions st
   gbl_env <- lift getGblEnv
   dflags <- lift getDynFlags
-  docs <- lift $ if include_docs flags
+  docs <- lift $ if maybe True id $ include_docs flags
     then getDocs (candidates st) else return ""
   liftEitherIO TemplateSubError $ pure $
     expandTemplateWith (parsedTemplate st) $ mkTemplateEnv
-      [ ("backend" , renderBackendSlug $ backend_name flags)
-      , ("model"   , model_name flags)
+      [ ("backend" , renderBackendSlug $ maybe undefined id $ backend_name flags)
+      , ("model"   , maybe undefined id $ model_name flags)
       , ("numexpr" , T.pack (show $ num_expr flags))
       , ("docs"    , T.pack docs)
       , ("context" , maybe "" encodePromptContext $
                       getPromptContext hole fits gbl_env (candidates st) dflags)
       ]
+
+buildPromptContext
+  :: PluginState
+  -> TypedHole
+  -> [HoleFit]
+  -> ExceptT PluginError TcM PromptContext
+buildPromptContext st hole fits = do
+  gblEnv <- lift getGblEnv
+  dflags <- lift getDynFlags
+  case getPromptContext hole fits gblEnv (candidates st) dflags of
+    Just ctx -> pure ctx
+    Nothing -> throwError (TypedHoleNotFound hole)
+
+renderPromptForServiceProfile
+  :: PluginState
+  -> Service
+  -> ServiceProf
+  -> PromptContext
+  -> ExceptT PluginError TcM Text
+renderPromptForServiceProfile st service serviceProf ctx = do
+  template <-
+    loadProfileTemplate st serviceProf
+
+  docs <-
+    lift $
+      if effectiveIncludeDocs st serviceProf
+        then getDocs (candidates st)
+        else pure ""
+
+  liftEitherIO TemplateSubError $
+    pure $
+      expandTemplateWith template $
+        mkTemplateEnv
+          [ ("backend", renderService service)
+          , ("model", unModelName (profModel serviceProf))
+          , ("numexpr", T.pack (show (effectiveNumExpr st serviceProf)))
+          , ("docs", T.pack docs)
+          , ("context", encodePromptContext ctx)
+          ]
+
+effectiveNumExpr :: PluginState -> ServiceProf -> Int
+effectiveNumExpr st serviceProf =
+  maybe
+    (defNumExpr (cfgDefaultFromState st))
+    id
+    (profNumExpr serviceProf)
+
+
+effectiveIncludeDocs :: PluginState -> ServiceProf -> Bool
+effectiveIncludeDocs st serviceProf =
+  maybe
+    (defIncludeDocs (cfgDefaultFromState st))
+    id
+    (profIncludeDocs serviceProf)
+
+
+effectiveModelOptions :: PluginState -> ServiceProf -> Maybe Value
+effectiveModelOptions st serviceProf =
+  profModelOptions serviceProf
+
+
 
 withTypedHole
   :: TypedHole -> (Hole -> ExceptT PluginError TcM a)
@@ -231,17 +339,24 @@ submitRequest st prompt = do
   let flags = commandOptions st
   let backend = getBackend flags
   res <- liftIO $ generateFits
-    backend prompt (model_name flags) (model_options flags)
+    backend prompt (maybe "" id $ model_name flags) (maybe Nothing Just $ model_options flags)
   case res of
     Right rsp -> pure rsp
     Left err -> throwError $ ResponseFailed $ T.pack err
+
+extractHoleFitsFromProfileResponses = undefined
+cfgDefaultFromState = undefined
+renderService = undefined
+loadProfileTemplate = undefined
+submitPromptForProfile = undefined
+mapProfileSubmitError = undefined
 
 extractHoleFitsFromResponse
   :: PluginState -> Log.Prompt -> Log.Response
   -> TypedHole -> Hole -> TcM [HoleFit]
 extractHoleFitsFromResponse st prompt rsp hole h = do
   let logger = writeLogEvent st
-  let debugMode = debug (commandOptions st)
+  let debugMode = maybe True id $ debug (commandOptions st)
   dflags <- getDynFlags
 
   -- Get the raw list of candidates
@@ -437,7 +552,7 @@ getDocs cs = do
 --------
 
 debugMsg :: (MonadIO m) => PluginState -> Text -> m ()
-debugMsg st txt = liftIO $ when (debug $ commandOptions st) $
+debugMsg st txt = liftIO $ when (maybe True id $ debug $ commandOptions st) $
   T.putStrLn $ pluginName <> ": " <> txt
 
 liftEitherIO :: (MonadIO m) => (e1 -> e2) -> IO (Either e1 a) -> ExceptT e2 m a
@@ -450,3 +565,34 @@ printRenderedError x = case x of
   Left err -> do
     liftIO $ T.putStrLn $ renderPluginError err
     pure (Left err)
+
+
+setupConfig :: Flags -> IO (Either ConfigError (Maybe Config))
+setupConfig flags = undefined
+
+defaultModelName :: Text
+defaultModelName = "qwen3:latest"
+
+defaultBackendName :: BackendSlug
+defaultBackendName = Ollama
+
+defaultNumExpr :: Int
+defaultNumExpr = 5
+
+defaultDebug :: Bool
+defaultDebug = True
+
+defaultIncludeDocs :: Bool
+defaultIncludeDocs = True
+
+defaultConfigPath :: ConfigPathSpec
+defaultConfigPath = ConfigDefault
+
+defaultOpenAIBaseUrl :: Text
+defaultOpenAIBaseUrl = "https://api.openai.com"
+
+defaultOpenAIKeyName :: Text
+defaultOpenAIKeyName = "OPENAI_API_KEY"
+
+defaultTemplateSearchDir :: Text
+defaultTemplateSearchDir = "."

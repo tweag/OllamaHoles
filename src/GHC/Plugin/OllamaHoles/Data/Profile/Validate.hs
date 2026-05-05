@@ -1,31 +1,15 @@
-{-# LANGUAGE OverloadedStrings #-}
-
-module GHC.Plugin.OllamaHoles.Config.Trigger
-  ( TriggerConflict(..)
-  , validateProfileTriggers
+module GHC.Plugin.OllamaHoles.Data.Profile.Validate
+  ( validateProfileTriggers
   ) where
 
 import Data.List (tails)
 import Data.Text (Text)
-import qualified Data.Text as T
+import Data.Text qualified as T
 
-import GHC.Plugin.OllamaHoles.Config.Types
-  ( Profile(..)
-  , ProfileName(..)
-  , ServiceProf(..)
-  )
+import GHC.Plugin.OllamaHoles.Data.Profile.Types
+import GHC.Plugin.OllamaHoles.Data.Profile.Error
+import GHC.Plugin.OllamaHoles.Data.Trigger.Types
 
-import GHC.Plugin.OllamaHoles.Trigger
-  ( TriggerPolicy(..)
-  )
-
-
-data TriggerConflict
-  = DuplicateTriggerPrefix ProfileName ProfileName Text
-  | TriggerPrefixOverlap ProfileName Text ProfileName Text
-  | MultipleTriggerAll ProfileName ProfileName
-  | TriggerAllOverlaps ProfileName ProfileName TriggerPolicy
-  deriving (Eq, Show)
 
 
 validateProfileTriggers :: [Profile] -> Either TriggerConflict ()
@@ -42,12 +26,7 @@ validateProfileTriggers profiles =
       ]
 
 
-isActiveTrigger :: TriggerPolicy -> Bool
-isActiveTrigger trigger =
-  case trigger of
-    TriggerNone -> False
-    TriggerAll -> True
-    TriggerPrefix _ -> True
+
 
 
 firstConflict :: [(ProfileName, TriggerPolicy)] -> Maybe TriggerConflict

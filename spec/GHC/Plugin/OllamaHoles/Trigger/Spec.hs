@@ -11,16 +11,11 @@ import Test.Tasty.QuickCheck ((===))
 import Test.Tasty.QuickCheck qualified as QC
 
 import GHC.Plugin.OllamaHoles.Trigger
-  ( TriggerPolicy(..)
-  , TriggerPolicyError(..)
-  , TriggerMatch(..)
-  , defaultTriggerPolicy
-  , parseTriggerPolicy
-  , renderTriggerPolicy
-  , shouldTriggerHole
-  , matchTriggerPolicy
-  , mkTriggeredHoleName
-  )
+import GHC.Plugin.OllamaHoles.Data.Profile.Types
+import GHC.Plugin.OllamaHoles.Data.Trigger.Types
+import GHC.Plugin.OllamaHoles.Data.Trigger.Error
+import GHC.Plugin.OllamaHoles.Data.Trigger.Parse
+import GHC.Plugin.OllamaHoles.Data.Trigger.Match
 
 tests :: TestTree
 tests =

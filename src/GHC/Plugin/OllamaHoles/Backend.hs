@@ -10,7 +10,8 @@ module GHC.Plugin.OllamaHoles.Backend
   , BackendSlug(..)
   , parseBackendSlug
   , renderBackendSlug
-  , ServiceConfig(..)
+  , BackendConfig(..)
+  , configureBackend
   ) where
 
 import GHC.Generics (Generic)
@@ -42,13 +43,13 @@ renderBackendSlug = \case
 
 
 
-data ServiceConfig
+data BackendConfig
   = SvcOllama OllamaConfig
   | SvcOpenAI OpenAIConfig
   | SvcGemini GeminiConfig
   deriving (Eq, Show, Generic)
 
-configureBackend :: ServiceConfig -> Backend
+configureBackend :: BackendConfig -> Backend
 configureBackend = \case
   SvcOllama cfg -> ollamaBackend cfg
   SvcOpenAI cfg -> openAICompatibleBackend cfg

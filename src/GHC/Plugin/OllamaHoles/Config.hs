@@ -14,28 +14,22 @@ import GHC.Generics (Generic)
 import System.Directory (doesFileExist)
 
 import GHC.Plugin.OllamaHoles.Backend (BackendSlug())
-import GHC.Plugin.OllamaHoles.Config.Types
-import GHC.Plugin.OllamaHoles.Config.Preferences
-import GHC.Plugin.OllamaHoles.Trigger (TriggerPolicy(..))
-import GHC.Plugin.OllamaHoles.Config.Trigger
+import GHC.Plugin.OllamaHoles.Data.Config
+import GHC.Plugin.OllamaHoles.Data.Prefs
+import GHC.Plugin.OllamaHoles.Data.Trigger.Types (TriggerPolicy(..))
+import GHC.Plugin.OllamaHoles.Data.Trigger
 import GHC.Plugin.OllamaHoles.Template (Template())
 
+import GHC.Plugin.OllamaHoles.Data.Service.Types
+import GHC.Plugin.OllamaHoles.Data.Profile.Types
+import GHC.Plugin.OllamaHoles.Data.Profile.Error
+import GHC.Plugin.OllamaHoles.Data.Profile.Validate
+import GHC.Plugin.OllamaHoles.Data.Flags.Types
+import GHC.Plugin.OllamaHoles.Data.Prefs.Types
+import GHC.Plugin.OllamaHoles.Data.Prefs.Parse
 
 
-data Config = Config
-  { cfgServices :: Map ServiceName Service
-  , cfgProfiles :: Map ProfileName Profile
-  , cfgDefault  :: DefaultConfig
-  } deriving (Eq, Show, Generic)
 
-setDefault :: DefaultConfig -> Config -> Config
-setDefault def cfg = cfg { cfgDefault = def }
-
-data ConfigPathSpec
-  = ConfigDefault
-  | ConfigExplicit FilePath
-  | ConfigDisabled
-  deriving (Eq, Show, Generic)
 
 data DefaultConfig = DefaultConfig
   { defModelName     :: Text
@@ -65,9 +59,10 @@ resolveConfig prefs = do
     Left err -> Left $ AmbiguousProfileTriggers err
     Right () -> pure ()
 
-  pure Config
+  pure $ ConfigFancy $ FancyConfig
     { cfgServices = svcMap
     , cfgProfiles = profMap
+    , cfgExtras   = Nothing
     }
 
 buildServiceMap
@@ -160,9 +155,8 @@ loadConfig defConfig = \case
       then do
         contents <- T.readFile path
         case parsePreferencesToml contents of
-          TomlParseFailure errs -> pure $ Left $ ConfigParseErrors errs
-          TomlParseSuccess warn result -> pure $ fmap Just $
-            fmap (setDefault defConfig) $ resolveConfig result
+          Left err -> pure $ Left $ ConfigParseErrors err
+          Right result -> pure $ fmap Just $ resolveConfig result
       else pure $ Left $ ConfigFileNotFound path
 
 
@@ -178,5 +172,5 @@ data ConfigError
   | CyclicProfileReference [ProfileName]
   | AmbiguousProfileTriggers TriggerConflict
   | ConfigFileNotFound FilePath
-  | ConfigParseErrors [Text]
+  | ConfigParseErrors TomlParseError
   deriving (Eq, Show)

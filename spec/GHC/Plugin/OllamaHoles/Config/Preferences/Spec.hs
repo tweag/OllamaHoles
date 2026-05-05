@@ -11,26 +11,28 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck qualified as QC
 
-import GHC.Plugin.OllamaHoles.Config.Preferences
+import GHC.Plugin.OllamaHoles.Data.Prefs
   ( Preferences(..)
   , parsePreferencesToml
-  , TomlParseResult(..)
+  , TomlParseError(..)
   )
-import GHC.Plugin.OllamaHoles.Config.Types
+import GHC.Plugin.OllamaHoles.Data.Profile
   ( FanoutProf(..)
   , ModelName(..)
   , Profile(..)
   , ProfileKind(..)
   , ProfileName(..)
-  , Service(..)
-  , ServiceName(..)
   , ServiceProf(..)
+  )
+import GHC.Plugin.OllamaHoles.Data.Service
+  ( Service(..)
+  , ServiceName(..)
   )
 import GHC.Plugin.OllamaHoles.Template
   ( TemplateSource(..)
   , unsafeCreateRawTemplateName
   )
-import GHC.Plugin.OllamaHoles.Trigger
+import GHC.Plugin.OllamaHoles.Data.Trigger.Types
   ( TriggerPolicy(..)
   )
 import GHC.Plugin.OllamaHoles.Backend
@@ -51,16 +53,16 @@ tests =
 expectParseOk :: Text -> IO Preferences
 expectParseOk txt =
   case parsePreferencesToml txt of
-    TomlParseFailure err ->
+    Left err ->
       assertFailure ("unexpected parse failure: " <> show err) >> fail "unreachable"
-    TomlParseSuccess _ prefs ->
+    Right prefs ->
       pure prefs
 
 expectParseFail :: Text -> Assertion
 expectParseFail txt =
   case parsePreferencesToml txt of
-    TomlParseFailure _  -> pure ()
-    TomlParseSuccess _ x -> assertFailure ("expected parse failure, got: " <> show x)
+    Left _  -> pure ()
+    Right x -> assertFailure ("expected parse failure, got: " <> show x)
 
 singleService :: Preferences -> Service
 singleService prefs =
@@ -481,8 +483,8 @@ propertyTests =
                 , "template_file = \"" <> T.pack fp <> "\""
                 ]
           in case parsePreferencesToml doc of
-               TomlParseFailure _  -> QC.property True
-               TomlParseSuccess _ _ -> QC.counterexample "expected parse failure" False
+               Left _  -> QC.property True
+               Right _ -> QC.counterexample "expected parse failure" False
 
     , QC.testProperty "valid trigger policies inside service profiles decode" $
         QC.forAll genValidTriggerPolicyCase $ \(trigText, expectedTrigger) ->
@@ -499,7 +501,7 @@ propertyTests =
                     ]
             in
                 case parsePreferencesToml doc of
-                    TomlParseSuccess _ prefs -> case prefProfiles prefs of
+                    Right prefs -> case prefProfiles prefs of
                         [profile] ->
                             QC.counterexample ("decoded profile: " <> show profile) $
                             profTrigger profile QC.=== expectedTrigger
