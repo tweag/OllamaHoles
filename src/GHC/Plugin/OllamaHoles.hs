@@ -172,11 +172,12 @@ tryFitPluginLLM st typedHole fits = do
   debugMsg st $ "running with flags\n" <> T.pack (show $ commandOptions st)
   withTypedHole typedHole $ \hole -> do
     -- Find the services which match on this hole
-    services' <- case routeServiceCalls (configuration st) (holeTriggerName hole) of
+    let holeName = holeTriggerName hole
+    services' <- case routeServiceCalls (configuration st) holeName of
       Left err -> throwError $ RouteConfigPluginError err
       Right Nothing -> pure []
       Right (Just matches) -> pure matches
-    debugMsg st $ "Hole matched " <> T.pack (show $ length services') <> " service(s)"
+    debugMsg st $ "Hole " <> holeName <> " matched " <> T.pack (show $ length services') <> " service(s)"
 
     -- Filter for and warn about invalid model names
     services <- flip filterM services' $ \svc -> do

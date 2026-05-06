@@ -256,3 +256,12 @@ executable ollama-holes-demo
       base >= 4 && < 5
     , ollama-holes-plugin
     , ollama-holes-plugin:ollama-holes-lib
+
+executable ollama-holes-config-demo
+  main-is:          ConfigDemo.hs
+  hs-source-dirs:   demo-config
+  default-language: GHC2021
+  build-depends:
+      base
+    , ollama-holes-plugin
+    , ollama-holes-plugin:ollama-holes-lib
