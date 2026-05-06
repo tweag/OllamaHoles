@@ -6,14 +6,18 @@ module GHC.Plugin.OllamaHoles.Error where
 import Data.Text (Text)
 import Data.Text qualified as T
 import GHC.Tc.Errors.Hole.FitTypes (TypedHole)
+import Control.Monad.Except (withExceptT, ExceptT())
 
 import GHC.Plugin.OllamaHoles.Backend (BackendSlug(..), renderBackendSlug)
-import GHC.Plugin.OllamaHoles.Options (OptError(), Token(..))
+import GHC.Plugin.OllamaHoles.Data.Flags (FlagError(), FlagToken(..))
 import GHC.Plugin.OllamaHoles.Template (TemplateError())
+import GHC.Plugin.OllamaHoles.Data.Config.Error (ConfigError(..))
+import GHC.Plugin.OllamaHoles.Data.Profile.Error (ProfileSubmitError(..), ProfileRouteError(..))
+import GHC.Plugin.OllamaHoles.Data.ServiceCall.Error
 
 data PluginError
-  = OptionParseError OptError
-  | UnknownOptionError [Token]
+  = OptionParseError FlagError
+  | UnknownOptionError [FlagToken]
   | TemplateSpecError TemplateError
   | TemplateParseError TemplateError
   | TemplateSubError TemplateError
@@ -23,6 +27,14 @@ data PluginError
   | ResponseFailed Text
   | HoleMissingTriggerName
   | HoleNameDoesNotMatchPolicy Text
+  | SomeConfigError ConfigError
+  | ProfileRouteFailed ProfileRouteError
+  | ProfileSubmitFailed ProfileSubmitError
+  | RouteConfigPluginError RouteConfigError
+  | ServiceCallPluginError ServiceCallError
+
+liftPluginError :: (Functor m) => (e -> PluginError) -> ExceptT e m a -> ExceptT PluginError m a
+liftPluginError f = withExceptT f
 
 isSilentError :: PluginError -> Bool
 isSilentError = \case
@@ -78,8 +90,23 @@ renderPluginError = \case
 
   HoleNameDoesNotMatchPolicy holeName ->
     "skipping " <> holeName <> " because it does not match the configured trigger policy"
+
+  SomeConfigError err ->
+    "config error: " <> T.pack (show err)
+
+  ProfileRouteFailed msg ->
+    "profile routing failed: " <> T.pack (show msg)
+
+  ProfileSubmitFailed msg ->
+    "profile execution failed: " <> T.pack (show msg)
+
+  RouteConfigPluginError err ->
+    "route config error: " <> renderRouteConfigError err
+
+  ServiceCallPluginError err ->
+    "service call error: " <> renderServiceCallError err
   where
-    renderToken :: Token -> Text
+    renderToken :: FlagToken -> Text
     renderToken = \case
       BooleanToken key -> key
       ValueToken key val -> key <> "=" <> val

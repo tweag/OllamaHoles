@@ -1,0 +1,25 @@
+[[services]]
+name = "ollama"
+protocol = "ollama"
+
+[[profiles]]
+name = "default"
+type = "service"
+trigger = "prefix:llm"
+service = "ollama"
+model = "qwen3:latest"
+num_expr = 5
+
+[[profiles]]
+name = "alt"
+type = "service"
+trigger = "prefix:alt"
+service = "ollama"
+model = "qwen3:latest"
+num_expr = 3
+
+[[profiles]]
+name = "both"
+type = "fanout"
+trigger = "prefix:both"
+profiles = ["default", "alt"]

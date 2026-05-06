@@ -1,9 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 -- | The Gemini backend
-module GHC.Plugin.OllamaHoles.Backend.Gemini (geminiBackend) where
+module GHC.Plugin.OllamaHoles.Backend.Gemini
+  ( GeminiConfig(..)
+  , geminiBackend
+  ) where
 
+import GHC.Generics (Generic)
 import Network.HTTP.Req
 import System.Environment (lookupEnv)
 
@@ -15,13 +20,22 @@ import qualified Data.Text as T
 import GHC.Plugin.OllamaHoles.Backend.Common
 import Data.Maybe
 
+
+
+data GeminiConfig = GeminiConfig
+  { svcGeminiKeyName :: Text
+  } deriving (Eq, Show, Generic)
+
+
+
 -- | The Gemini backend
-geminiBackend :: Backend
-geminiBackend = Backend{..}
+geminiBackend :: GeminiConfig -> Backend
+geminiBackend config = Backend{..}
   where
+    gemini_api_key_name = T.unpack $ svcGeminiKeyName config
     apiEndpoint = https "generativelanguage.googleapis.com"  /: "v1beta"
     listModels = do
-        apiKey <- lookupEnv "GEMINI_API_KEY"
+        apiKey <- lookupEnv gemini_api_key_name
         case apiKey of
             Nothing -> return Nothing
             Just key -> do
