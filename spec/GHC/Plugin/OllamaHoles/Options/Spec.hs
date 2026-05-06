@@ -304,7 +304,7 @@ templateParserTests =
         (flags, unknowns) <- expectParseOk []
         template_path flags @?= Nothing
         template_name flags @?= Nothing
-        template_search_dir flags @?= Just "."
+        template_search_dir flags @?= Nothing
         unknowns @?= []
 
     , testCase "template= sets path and clears name" $ do
@@ -438,23 +438,14 @@ mkTemplateSpecTests =
                 { tsSearchDir = "/tmp/templates"
                 , tsSource = TemplateFile "/tmp/prompt.txt"
                 })
-
-    , testCase "invalid name is rejected" $ do
-        (flags, unknowns) <- expectParseOk
-          [ "template-dir=/tmp/templates"
-          , "template-name=../secrets"
-          ]
-        unknowns @?= []
-        mkTemplateSpec flags
-          @?= Left (InvalidTemplateName "../secrets")
     ]
 
 triggerParserTests :: TestTree
 triggerParserTests =
   testGroup "parseFlags trigger options"
-    [ testCase "default trigger policy is the module default" $ do
+    [ testCase "absent trigger policy is the module default" $ do
         (flags, unknowns) <- expectParseOk []
-        trigger_policy flags @?= Just defaultTriggerPolicy
+        trigger_policy flags @?= Nothing
         unknowns @?= []
 
     , testCase "trigger=all sets TriggerAll" $ do
@@ -502,4 +493,8 @@ triggerParserTests =
     , testCase "invalid trigger policy is structured error" $ do
         parseFlags ["trigger=prefix:_foo"]
           @?= Left (InvalidTriggerPolicy "prefix:_foo" (InvalidTriggerPrefix "_foo"))
+
+    , testCase "invalid name is rejected" $ do
+        parseFlags ["template-dir=/tmp/templates", "template-name=../secrets"]
+          @?= Left (InvalidTemplateNameFlag (InvalidTemplateName "../secrets") "../secrets")
     ]

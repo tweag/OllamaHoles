@@ -15,6 +15,7 @@ import qualified GHC.Plugin.OllamaHoles.Config.Spec as ConfigSpec
 import qualified GHC.Plugin.OllamaHoles.Config.Preferences.Spec as PrefSpec
 import qualified GHC.Plugin.OllamaHoles.Config.Trigger.Spec as ConfigTriggerSpec
 import qualified GHC.Plugin.OllamaHoles.Data.ServiceCall.Route.Spec as ServiceCallRouteSpec
+import qualified GHC.Plugin.OllamaHoles.Data.Config.Build.Spec as BuildSpec
 
 main :: IO ()
 main = defaultMain $
@@ -33,4 +34,5 @@ main = defaultMain $
         , PrefSpec.tests
         , ConfigTriggerSpec.tests
         , ServiceCallRouteSpec.tests
+        , BuildSpec.tests
         ]
