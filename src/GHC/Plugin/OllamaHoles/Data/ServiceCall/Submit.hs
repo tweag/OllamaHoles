@@ -40,6 +40,7 @@ renderPromptForServiceCall
 renderPromptForServiceCall req caller = do
   let template = requestTemplate req
   let docs = mempty
+  -- TODO: need to get the docs properly
 --  docs <- lift $
 --    if effectiveIncludeDocs (callProfile caller)
 --      then getDocs (candidates st)

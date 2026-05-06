@@ -180,6 +180,10 @@ tryFitPluginLLM st typedHole fits = do
     debugMsg st $ "Hole " <> holeName <> " matched " <> T.pack (show $ length services') <> " service(s)"
 
     -- Filter for and warn about invalid model names
+    -- TODO: move this check to ServiceCall.Submit; need to distinguish between failure modes.
+    --   * backend cannot list models
+    --   * model not found for some service
+    --   * no routed services remain after filtering
     services <- flip filterM services' $ \svc -> do
       available_models <- liftIO $ listModels $ configureBackend $ svcConfig $ callService svc
       case available_models of
@@ -224,31 +228,6 @@ buildPromptContext st hole fits = do
   case getPromptContext hole fits gblEnv (candidates st) dflags of
     Just ctx -> pure ctx
     Nothing -> throwError (TypedHoleNotFound hole)
-
-
-
--- | Build a prompt for the LLM from context.
-prepareHoleFitPrompt
-  :: PluginState -> TypedHole
-  -> [HoleFit] -- Known hole fits provided by GHC
-  -> ExceptT PluginError TcM Text
-prepareHoleFitPrompt st hole fits = do
-  let flags = commandOptions st
-  gbl_env <- lift getGblEnv
-  dflags <- lift getDynFlags
-  docs <- lift $ if maybe True id $ include_docs flags
-    then getDocs (candidates st) else return ""
-  liftEitherIO TemplateSubError $ pure $
-    expandTemplateWith (parsedTemplate st) $ mkTemplateEnv
-      [ ("backend" , renderBackendSlug $ maybe (error "backend") id $ backend_name flags)
-      , ("model"   , maybe (error "model") id $ model_name flags)
-      , ("numexpr" , T.pack (show $ num_expr flags))
-      , ("docs"    , T.pack docs)
-      , ("context" , maybe "" encodePromptContext $
-                      getPromptContext hole fits gbl_env (candidates st) dflags)
-      ]
-
-
 
 
 
