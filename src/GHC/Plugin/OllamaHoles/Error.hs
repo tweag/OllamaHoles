@@ -11,7 +11,7 @@ import Control.Monad.Except (withExceptT, ExceptT())
 import GHC.Plugin.OllamaHoles.Backend (BackendSlug(..), renderBackendSlug)
 import GHC.Plugin.OllamaHoles.Data.Flags (FlagError(), FlagToken(..))
 import GHC.Plugin.OllamaHoles.Template (TemplateError())
-import GHC.Plugin.OllamaHoles.Config (ConfigError(..))
+import GHC.Plugin.OllamaHoles.Data.Config.Error (ConfigError(..))
 import GHC.Plugin.OllamaHoles.Data.Profile.Error (ProfileSubmitError(..), ProfileRouteError(..))
 import GHC.Plugin.OllamaHoles.Data.ServiceCall.Error
 
@@ -99,6 +99,12 @@ renderPluginError = \case
 
   ProfileSubmitFailed msg ->
     "profile execution failed: " <> T.pack (show msg)
+
+  RouteConfigPluginError err ->
+    "route config error: " <> renderRouteConfigError err
+
+  ServiceCallPluginError err ->
+    "service call error: " <> renderServiceCallError err
   where
     renderToken :: FlagToken -> Text
     renderToken = \case

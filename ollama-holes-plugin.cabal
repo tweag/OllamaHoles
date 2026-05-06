@@ -124,7 +124,6 @@ library
       GHC.Plugin.OllamaHoles.Candidate
       GHC.Plugin.OllamaHoles.Candidate.Compat
       GHC.Plugin.OllamaHoles.Candidate.Rewrite
-      GHC.Plugin.OllamaHoles.Config
       GHC.Plugin.OllamaHoles.Data.Flags
       GHC.Plugin.OllamaHoles.Data.Flags.Error
       GHC.Plugin.OllamaHoles.Data.Flags.Parse
@@ -148,6 +147,7 @@ library
       GHC.Plugin.OllamaHoles.Data.ServiceCall.Submit
       GHC.Plugin.OllamaHoles.Data.Config
       GHC.Plugin.OllamaHoles.Data.Config.Types
+      GHC.Plugin.OllamaHoles.Data.Config.Error
       GHC.Plugin.OllamaHoles.Data.Config.Build
       GHC.Plugin.OllamaHoles.Data.Trigger
       GHC.Plugin.OllamaHoles.Data.Trigger.Types
@@ -176,7 +176,6 @@ library ollama-holes-lib
     , GHC.Plugin.OllamaHoles.Candidate
     , GHC.Plugin.OllamaHoles.Candidate.Compat
     , GHC.Plugin.OllamaHoles.Candidate.Rewrite
-    , GHC.Plugin.OllamaHoles.Config
     , GHC.Plugin.OllamaHoles.Data.Flags
     , GHC.Plugin.OllamaHoles.Data.Flags.Error
     , GHC.Plugin.OllamaHoles.Data.Flags.Parse
@@ -200,6 +199,7 @@ library ollama-holes-lib
     , GHC.Plugin.OllamaHoles.Data.ServiceCall.Submit
     , GHC.Plugin.OllamaHoles.Data.Config
     , GHC.Plugin.OllamaHoles.Data.Config.Types
+    , GHC.Plugin.OllamaHoles.Data.Config.Error
     , GHC.Plugin.OllamaHoles.Data.Config.Build
     , GHC.Plugin.OllamaHoles.Data.Trigger
     , GHC.Plugin.OllamaHoles.Data.Trigger.Types
@@ -234,6 +234,8 @@ test-suite ollama-holes-spec
     , GHC.Plugin.OllamaHoles.Trigger.Spec
     , GHC.Plugin.OllamaHoles.Config.Preferences.Spec
     , GHC.Plugin.OllamaHoles.Config.Spec
+    , GHC.Plugin.OllamaHoles.Config.Trigger.Spec
+    , GHC.Plugin.OllamaHoles.Data.ServiceCall.Route.Spec
   build-depends:
       base
     , ghc-paths

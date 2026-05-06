@@ -8,7 +8,6 @@
 -- | The Ollama plugin for GHC
 module GHC.Plugin.OllamaHoles where
 
-import Control.Applicative
 import Control.Monad (unless, when, forM_, (>=>), filterM)
 import Control.Monad.Except (ExceptT, runExceptT, MonadError(..), liftEither, modifyError, withExceptT)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -57,15 +56,11 @@ import GHC.Plugin.OllamaHoles.Prompt
 import GHC.Plugin.OllamaHoles.Logger qualified as Log
 import GHC.Plugin.OllamaHoles.Candidate
 import GHC.Plugin.OllamaHoles.Template
-import GHC.Plugin.OllamaHoles.Trigger
 import GHC.Plugin.OllamaHoles.Error
 import GHC.Plugin.OllamaHoles.Flags
-import GHC.Plugin.OllamaHoles.Config
-import GHC.Plugin.OllamaHoles.Data.Config.Build
-import GHC.Plugin.OllamaHoles.Data.Config.Types
+import GHC.Plugin.OllamaHoles.Data.Config
 import GHC.Plugin.OllamaHoles.Data.Service.Types
 import GHC.Plugin.OllamaHoles.Data.Profile.Types
-import GHC.Plugin.OllamaHoles.Data.Trigger.Match
 import GHC.Plugin.OllamaHoles.Data.ServiceCall
 
 
@@ -132,7 +127,7 @@ tryPluginInitLLM opts = do
   spec <- liftEitherIO TemplateSpecError $ pure $ mkTemplateSpec flags
   logger <- liftIO $ Log.initLogger (log_mode flags) (log_dir flags)
   template <- liftEitherIO TemplateParseError $ loadTemplate spec
-  config <- modifyError (SomeConfigError . ConfigBuildErrors) $ buildConfig flags
+  config <- modifyError SomeConfigError $ buildConfig flags
   pure $ PluginState
     { candidates     = []
     , writeLogEvent  = logger

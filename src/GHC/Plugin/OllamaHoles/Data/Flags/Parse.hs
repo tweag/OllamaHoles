@@ -13,7 +13,6 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import Text.Read (readMaybe)
 
-import GHC.Plugin.OllamaHoles.Config
 import GHC.Plugin.OllamaHoles.Logger (LogMode(..))
 import GHC.Plugin.OllamaHoles.Backend (parseBackendSlug)
 import GHC.Plugin.OllamaHoles.Data.Trigger.Parse (parseTriggerPolicy)

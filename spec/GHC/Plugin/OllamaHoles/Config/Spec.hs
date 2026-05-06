@@ -13,11 +13,11 @@ import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck qualified as QC
 
 import GHC.Plugin.OllamaHoles.Data.Config.Types
-import GHC.Plugin.OllamaHoles.Config
+import GHC.Plugin.OllamaHoles.Data.Config
   ( ConfigError(..)
   , buildProfileMap
   , buildServiceMap
-  , resolveConfig
+  , buildConfig
   )
 import GHC.Plugin.OllamaHoles.Data.Prefs
   ( Preferences(..)
@@ -114,7 +114,7 @@ buildProfileMapTests =
 
 resolveConfigTests :: TestTree
 resolveConfigTests =
-  testGroup "resolveConfig"
+  testGroup "buildConfig"
     [ {- testCase "resolves simple service-only configuration" $ do
         let prefs = Preferences
               { prefServices =
@@ -126,7 +126,7 @@ resolveConfigTests =
                   , mkRichServiceProfile "p2" "remote"
                   ]
               }
-        result <- pure (resolveConfig prefs)
+        result <- pure (buildConfig prefs)
         case result of
           Left err ->
             assertFailure ("unexpected error: " <> show err)
@@ -139,7 +139,7 @@ resolveConfigTests =
               { prefServices = [mkOllamaService "local"]
               , prefProfiles = [mkServiceProfile "p1" "missing"]
               }
-        resolveConfig prefs
+        buildConfig prefs
           @?= Left (UnknownServiceReference (profN "p1") (svcN "missing"))
 
     , testCase "rejects fanout profile with unknown profile reference" $ do
@@ -150,7 +150,7 @@ resolveConfigTests =
                   , mkFanoutProfile "pair" ("p1" :| ["missing"])
                   ]
               }
-        resolveConfig prefs
+        buildConfig prefs
           @?= Left (UnknownProfileReference (profN "pair") (profN "missing"))
 
     , testCase "rejects self-cycle in fanout profile" $ do
