@@ -133,9 +133,6 @@ simpleConfigFromFlags flags = SimpleConfig
 
 
 
-
-
-
 -- Fancy Config
 ---------------
 
@@ -318,10 +315,6 @@ applyOverrideConfig overrides sp =
         overrideIncludeDocs overrides <|> profIncludeDocs sp
     }
 
-data ServiceCall = ServiceCall
-  { callService :: Service
-  , callProfile :: ServiceProf
-  }
-  deriving (Eq, Show)
+
 
 -}

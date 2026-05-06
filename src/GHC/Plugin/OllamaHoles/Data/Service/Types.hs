@@ -8,8 +8,9 @@ import GHC.Plugin.OllamaHoles.Backend (BackendConfig)
 
 
 
-newtype ServiceName = ServiceName Text
-  deriving (Eq, Ord, Show)
+newtype ServiceName = ServiceName
+  { unServiceName :: Text
+  } deriving (Eq, Ord, Show)
 
 instance IsString ServiceName where
   fromString = ServiceName . fromString

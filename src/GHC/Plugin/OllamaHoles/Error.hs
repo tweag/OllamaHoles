@@ -13,6 +13,7 @@ import GHC.Plugin.OllamaHoles.Data.Flags (FlagError(), FlagToken(..))
 import GHC.Plugin.OllamaHoles.Template (TemplateError())
 import GHC.Plugin.OllamaHoles.Config (ConfigError(..))
 import GHC.Plugin.OllamaHoles.Data.Profile.Error (ProfileSubmitError(..), ProfileRouteError(..))
+import GHC.Plugin.OllamaHoles.Data.ServiceCall.Error
 
 data PluginError
   = OptionParseError FlagError
@@ -29,6 +30,8 @@ data PluginError
   | SomeConfigError ConfigError
   | ProfileRouteFailed ProfileRouteError
   | ProfileSubmitFailed ProfileSubmitError
+  | RouteConfigPluginError RouteConfigError
+  | ServiceCallPluginError ServiceCallError
 
 liftPluginError :: (Functor m) => (e -> PluginError) -> ExceptT e m a -> ExceptT PluginError m a
 liftPluginError f = withExceptT f

@@ -10,7 +10,7 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 
 import GHC.Plugin.OllamaHoles.Data.Trigger.Types (TriggerPolicy)
-import GHC.Plugin.OllamaHoles.Template (TemplateSpec)
+import GHC.Plugin.OllamaHoles.Template (TemplateSource)
 
 import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Data.Profile
@@ -41,9 +41,9 @@ data ExtraConfig
   deriving (Eq, Show, Generic)
 
 data OverrideConfig = OverrideConfig
-  { overrideModelName     :: Maybe Text
+  { overrideModelName     :: Maybe ModelName
   , overrideNumExpr       :: Maybe Int
   , overrideIncludeDocs   :: Maybe Bool
   , overrideModelOptions  :: Maybe Value
-  , overrideTemplate      :: Maybe TemplateSpec
+  , overrideTemplate      :: Maybe TemplateSource
   } deriving (Eq, Show, Generic)
