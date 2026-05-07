@@ -21,6 +21,7 @@ import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Data.Profile
 import GHC.Plugin.OllamaHoles.Data.Prefs
 
+import GHC.Plugin.OllamaHoles.Data.Service.Types.Gen
 import GHC.Plugin.OllamaHoles.Data.Prefs.Types.Gen
 
 
@@ -32,7 +33,7 @@ tests = testGroup "Prefs.Parse"
   ]
 
 tests_tomlPreferences_unit :: TestTree
-tests_tomlPreferences_unit = testGroup "tomlProfile unit"
+tests_tomlPreferences_unit = testGroup "tomlPreferences unit"
   [ testGroup "success" $
       tests_tomlPreferences_unit_success <&> \(name, input, expected) ->
         testCase name $ assertTomlParsesAs tomlPreferences input expected
@@ -43,16 +44,17 @@ tests_tomlPreferences_unit = testGroup "tomlProfile unit"
   ]
 
 tests_tomlPreferences_prop :: TestTree
-tests_tomlPreferences_prop = testGroup "tomlProfile prop"
+tests_tomlPreferences_prop = testGroup "tomlPreferences prop"
   [ QC.testProperty "openai and openai-compatible protocols decode the same way" $
-    \(QC.NonEmpty base) (QC.NonEmpty key) ->
+    QC.forAll genHostText $ \baseUrl ->
+    QC.forAll genEnvVarText $ \keyName ->
       let
         mkDoc protocol =
           "[[services]]\n\
           \name = 'svc'\n\
           \protocol = '" <> protocol <> "'\n\
-          \base_url = '" <> T.pack base <> "'\n\
-          \key_name = '" <> T.pack key <> "'\n\
+          \base_url = '" <> baseUrl <> "'\n\
+          \key_name = '" <> keyName <> "'\n\
           \\n\
           \profiles = []"
         p1 = parsePreferencesToml (mkDoc "openai")
@@ -60,7 +62,8 @@ tests_tomlPreferences_prop = testGroup "tomlProfile prop"
       in p1 QC.=== p2
 
   , QC.testProperty "template and template_file together are always rejected" $
-    \(QC.NonEmpty tmpl) (QC.NonEmpty fp) ->
+    QC.forAll genTemplateValueText $ \tmpl ->
+    QC.forAll genTemplateFilePathText $ \fp ->
       let
         doc =
           "services = []\n\
@@ -70,8 +73,8 @@ tests_tomlPreferences_prop = testGroup "tomlProfile prop"
           \type = 'service'\n\
           \service = 'svc'\n\
           \model = 'm'\n\
-          \template = '" <> T.pack tmpl <> "'\n\
-          \template_file = '" <> T.pack fp <> "'"
+          \template = '" <> tmpl <> "'\n\
+          \template_file = '" <> fp <> "'"
       in case parsePreferencesToml doc of
           Left _  -> QC.property True
           Right _ -> QC.counterexample "expected parse failure" False

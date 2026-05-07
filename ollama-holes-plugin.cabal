@@ -242,9 +242,11 @@ test-suite ollama-holes-spec
     , GHC.Plugin.OllamaHoles.Data.Profile.Spec
     , GHC.Plugin.OllamaHoles.Data.Profile.Types.Gen
     , GHC.Plugin.OllamaHoles.Data.Profile.Parse.Spec
+    , GHC.Plugin.OllamaHoles.Data.Profile.Validate.Spec
     , GHC.Plugin.OllamaHoles.Data.Prefs.Spec
     , GHC.Plugin.OllamaHoles.Data.Prefs.Types.Gen
     , GHC.Plugin.OllamaHoles.Data.Prefs.Parse.Spec
+    , Toml.TestHelper
   build-depends:
       base
     , ghc-paths
