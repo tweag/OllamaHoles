@@ -1,6 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module GHC.Plugin.OllamaHoles.Data.Prefs.Parse where
+module GHC.Plugin.OllamaHoles.Data.Prefs.Parse
+  ( parsePreferencesToml
+  , TomlParseError(..)
+  , tomlPreferences
+  ) where
 
 import Data.Text (Text)
 import Data.Text qualified as T
