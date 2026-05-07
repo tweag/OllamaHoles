@@ -14,6 +14,8 @@ import Test.Tasty.QuickCheck qualified as QC
 import Toml qualified as Toml
 import Toml.Schema qualified as Toml
 
+import Toml.TestHelper
+
 import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Backend
   (OpenAIConfig(..), GeminiConfig(..), OllamaConfig(..), BackendConfig(..))
@@ -56,11 +58,11 @@ tests_tomlService_unit :: TestTree
 tests_tomlService_unit = testGroup "tomlService (unit)"
   [ testGroup "success" $
       tests_tomlService_unit_success <&> \(name, txt, expect) ->
-        testCase name $ assertServiceParsesAs txt expect
+        testCase name $ assertTomlParsesAs tomlService txt expect
 
   , testGroup "failure" $
       tests_tomlService_unit_failure <&> \(name, txt) ->
-        testCase name $ assertServiceParseFails txt
+        testCase name $ assertTomlParseFails tomlService txt
   ]
 
 tests_tomlService_prop :: TestTree
@@ -227,41 +229,3 @@ tests_tomlService_unit_failure =
         \protocol = 'gemini'"
     )
   ]
-
-
-
--- Assertions
--------------
-
-assertServiceParsesAs :: Text -> Service -> Assertion
-assertServiceParsesAs input expected =
-  case parseTomlWith tomlService input of
-    Left err -> assertFailure $ show err
-    Right actual -> actual @?= expected
-
-assertServiceParseFails :: Text -> Assertion
-assertServiceParseFails input =
-  case parseTomlWith tomlService input of
-    Left err -> pure ()
-    Right ok -> assertFailure $ show ok
-
-parseTomlWith
-  :: (Toml.Value -> Toml.Matcher () a) -> Text -> Either TomlError a
-parseTomlWith parser input = case Toml.decode input of
-  Toml.Failure errs -> Left $ TomlParseError errs
-  Toml.Success warnings value
-    | not (null warnings) -> Left $ TomlWarning warnings
-    | otherwise -> case Toml.runMatcherIgnoreWarn (parser value) of
-        Left err -> Left (TomlMatchError err); Right x -> Right x
-
-data TomlError
-  = TomlParseError [String]
-  | TomlWarning [String]
-  | TomlMatchError [Toml.MatchMessage ()]
-  deriving (Eq, Show)
-
-propTomlParseSuccess
-  :: (Eq a, Show a) => (Toml.Value -> Toml.Matcher () a)
-  -> (Text, a) -> QC.Property
-propTomlParseSuccess toml (input, expect) =
-  (QC.===) (parseTomlWith toml input) (Right expect)

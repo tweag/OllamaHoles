@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module GHC.Plugin.OllamaHoles.Data.Service.Spec (tests) where
 
 import Test.Tasty (TestTree, testGroup)
