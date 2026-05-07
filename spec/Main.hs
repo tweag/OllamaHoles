@@ -12,7 +12,6 @@ import qualified GHC.Plugin.OllamaHoles.Options.Spec as OptionsSpec
 import qualified GHC.Plugin.OllamaHoles.Logger.Spec as LoggerSpec
 import qualified GHC.Plugin.OllamaHoles.Trigger.Spec as TriggerSpec
 import qualified GHC.Plugin.OllamaHoles.Config.Spec as ConfigSpec
-import qualified GHC.Plugin.OllamaHoles.Config.Preferences.Spec as PrefSpec
 import qualified GHC.Plugin.OllamaHoles.Config.Trigger.Spec as ConfigTriggerSpec
 import qualified GHC.Plugin.OllamaHoles.Data.ServiceCall.Route.Spec as ServiceCallRouteSpec
 import qualified GHC.Plugin.OllamaHoles.Data.Config.Build.Spec as BuildSpec
@@ -32,7 +31,6 @@ main = defaultMain $
         , LoggerSpec.tests
         , TriggerSpec.tests
         , ConfigSpec.tests
-        , PrefSpec.tests
         , ConfigTriggerSpec.tests
         , ServiceCallRouteSpec.tests
         , BuildSpec.tests

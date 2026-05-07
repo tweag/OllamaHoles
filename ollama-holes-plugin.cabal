@@ -232,10 +232,19 @@ test-suite ollama-holes-spec
     , GHC.Plugin.OllamaHoles.Template.Parse.Spec
     , GHC.Plugin.OllamaHoles.Template.Expand.Spec
     , GHC.Plugin.OllamaHoles.Trigger.Spec
-    , GHC.Plugin.OllamaHoles.Config.Preferences.Spec
     , GHC.Plugin.OllamaHoles.Config.Spec
     , GHC.Plugin.OllamaHoles.Config.Trigger.Spec
     , GHC.Plugin.OllamaHoles.Data.ServiceCall.Route.Spec
+    , GHC.Plugin.OllamaHoles.Data.Spec
+    , GHC.Plugin.OllamaHoles.Data.Service.Spec
+    , GHC.Plugin.OllamaHoles.Data.Service.Types.Gen
+    , GHC.Plugin.OllamaHoles.Data.Service.Parse.Spec
+    , GHC.Plugin.OllamaHoles.Data.Profile.Spec
+    , GHC.Plugin.OllamaHoles.Data.Profile.Types.Gen
+    , GHC.Plugin.OllamaHoles.Data.Profile.Parse.Spec
+    , GHC.Plugin.OllamaHoles.Data.Prefs.Spec
+    , GHC.Plugin.OllamaHoles.Data.Prefs.Types.Gen
+    , GHC.Plugin.OllamaHoles.Data.Prefs.Parse.Spec
   build-depends:
       base
     , ghc-paths

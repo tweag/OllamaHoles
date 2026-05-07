@@ -111,7 +111,8 @@ tests_tomlProfile_prop = testGroup "tomlProfile properties"
 
 
 
-tests_tomlProfile_unit_success :: [(String, Text, Profile)]
+tests_tomlProfile_unit_success
+  :: [(String, Text, Profile)]
 tests_tomlProfile_unit_success =
   [ ( "minimal service profile defaults trigger to none"
     , "name = 'local'\n\
