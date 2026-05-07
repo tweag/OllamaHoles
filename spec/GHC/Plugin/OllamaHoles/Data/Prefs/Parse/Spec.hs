@@ -57,8 +57,8 @@ tests_tomlPreferences_prop = testGroup "tomlPreferences prop"
           \key_name = '" <> keyName <> "'\n\
           \\n\
           \profiles = []"
-        p1 = parsePreferencesToml (mkDoc "openai")
-        p2 = parsePreferencesToml (mkDoc "openai-compatible")
+        p1 = parseTomlWith tomlPreferences (mkDoc "openai")
+        p2 = parseTomlWith tomlPreferences (mkDoc "openai-compatible")
       in p1 QC.=== p2
 
   , QC.testProperty "template and template_file together are always rejected" $
@@ -75,7 +75,7 @@ tests_tomlPreferences_prop = testGroup "tomlPreferences prop"
           \model = 'm'\n\
           \template = '" <> tmpl <> "'\n\
           \template_file = '" <> fp <> "'"
-      in case parsePreferencesToml doc of
+      in case parseTomlWith tomlPreferences doc of
           Left _  -> QC.property True
           Right _ -> QC.counterexample "expected parse failure" False
 
@@ -92,7 +92,7 @@ tests_tomlPreferences_prop = testGroup "tomlPreferences prop"
           \model = 'm'\n\
           \trigger = '" <> trigText <> "'"
       in
-        case parsePreferencesToml doc of
+        case parseTomlWith tomlPreferences doc of
           Right prefs -> case prefProfiles prefs of
             [profile] -> QC.counterexample
               ("decoded profile: " <> show profile) $
