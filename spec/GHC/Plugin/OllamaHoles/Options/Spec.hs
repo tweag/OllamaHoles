@@ -7,7 +7,7 @@ import GHC.Plugin.OllamaHoles.Flags
   ( mkTemplateSpec
   )
 import GHC.Plugin.OllamaHoles.Data.Flags
-  (Flags(..), parseFlags, FlagError(..), FlagToken(..))
+  (Flags(..), parseFlags, FlagToken(..))
 import GHC.Plugin.OllamaHoles.Template
   ( TemplateSpec(..)
   , TemplateSource(..)

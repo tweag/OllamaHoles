@@ -3,16 +3,21 @@ module GHC.Plugin.OllamaHoles.Data.Flags.Parse.Spec (tests) where
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Functor ((<&>))
+import Data.Text qualified as T
 import GHC.Driver.Plugins (CommandLineOption(..))
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertFailure, testCase, (@?=))
+import Test.Tasty.QuickCheck qualified as QC
 
 import GHC.Plugin.OllamaHoles.Backend
 import GHC.Plugin.OllamaHoles.Logger (LogMode(..))
 import GHC.Plugin.OllamaHoles.Data.Trigger (TriggerPolicy(..))
 import GHC.Plugin.OllamaHoles.Data.Flags
   (Flags(..), FlagToken(..), ConfigPathSpec(..), parseFlags)
-import GHC.Plugin.OllamaHoles.Template (unsafeCreateRawTemplateName)
+import GHC.Plugin.OllamaHoles.Template
+  (unsafeCreateRawTemplateName, parseTemplateName)
+
+import GHC.Plugin.OllamaHoles.Data.Flags.Types.Gen
 
 
 
@@ -41,7 +46,12 @@ test_parseFlags_unit = testGroup "parseFlags (unit)"
 
 test_parseFlags_prop :: TestTree
 test_parseFlags_prop = testGroup "parseFlags (prop)"
-  []
+  [ tests_parseFlags_prop_singletons
+  , tests_parseFlags_prop_precedence
+  , tests_parseFlags_prop_unknowns
+  , tests_parseFlags_prop_templates
+  , tests_parseFlags_prop_order
+  ]
 
 
 
@@ -565,10 +575,309 @@ tests_parseFlags_unit_failure =
   -----------------
 
   , ( "invalid n returns an error",             ["n=not-an-int"] )
-  , ( "invalid backend is a an error",          ["backend=weird"] )
-  , ( "invalid log mode is a an error",         ["log=weird"] )
+  , ( "invalid backend is an error",          ["backend=weird"] )
+  , ( "invalid log mode is an error",         ["log=weird"] )
   , ( "invalid model-options returns an error", ["model-options={not json}"] )
   , ( "invalid template name is rejected",      ["template-name=../secrets"] )
   , ( "invalid trigger policy is rejected",     ["trigger=prefix:"] )
   , ( "invalid trigger prefix is rejected",     ["trigger=prefix:abc-"] )
+  ]
+
+
+
+tests_parseFlags_prop_singletons :: TestTree
+tests_parseFlags_prop_singletons = testGroup "single option parsing"
+  [ QC.testProperty "generated model= values set model_name" $
+    QC.forAll genModelNameText $ \modelName ->
+      parseFlags ["model=" <> T.unpack modelName]
+        QC.=== Right
+          ( mempty { model_name = Just modelName }
+          , []
+          )
+
+  , QC.testProperty "generated backend= values set backend_name" $
+    QC.forAll genBackendSlugText $ \(raw, backend) ->
+      parseFlags ["backend=" <> T.unpack raw]
+        QC.=== Right
+          ( mempty { backend_name = Just backend }
+          , []
+          )
+
+  , QC.testProperty "generated n= values set num_expr" $
+    QC.forAll genPositiveNumExpr $ \n ->
+      parseFlags ["n=" <> (show n)]
+        QC.=== Right
+          ( mempty { num_expr = Just n }
+          , []
+          )
+
+  , QC.testProperty "generated log= values set log_mode" $
+    QC.forAll genLogModeText $ \(raw, mode) ->
+      parseFlags ["log=" <> T.unpack raw]
+        QC.=== Right
+          ( mempty { log_mode = Just mode }
+          , []
+          )
+
+  , QC.testProperty "generated trigger= values set trigger_policy" $
+    QC.forAll genTriggerPolicyText $ \(raw, policy) ->
+      parseFlags ["trigger=" <> T.unpack raw]
+        QC.=== Right
+          ( mempty { trigger_policy = Just policy }
+          , []
+          )
+
+  , QC.testProperty "generated config= values set config_path" $
+    QC.forAll genConfigPathSpecText $ \(raw, spec) ->
+      parseFlags ["config=" <> T.unpack raw]
+        QC.=== Right
+          ( mempty { config_path = Just spec }
+          , []
+          )
+  ]
+
+
+
+tests_parseFlags_prop_precedence :: TestTree
+tests_parseFlags_prop_precedence = testGroup "precedence"
+  [ QC.testProperty "leftmost model= wins" $
+    QC.forAll genModelNameText $ \first ->
+    QC.forAll genModelNameText $ \second ->
+      parseFlags ["model=" <> T.unpack first, "model=" <> T.unpack second]
+        QC.=== Right
+          ( mempty { model_name = Just first }
+          , []
+          )
+
+  , QC.testProperty "leftmost backend= wins" $
+    QC.forAll genBackendSlugText $ \(firstRaw, firstBackend) ->
+    QC.forAll genBackendSlugText $ \(secondRaw, _) ->
+      parseFlags ["backend=" <> T.unpack firstRaw, "backend=" <> T.unpack secondRaw]
+        QC.=== Right
+          ( mempty { backend_name = Just firstBackend }
+          , []
+          )
+
+  , QC.testProperty "leftmost n= wins" $
+    QC.forAll genPositiveNumExpr $ \first ->
+    QC.forAll genPositiveNumExpr $ \second ->
+      parseFlags ["n=" <> (show first), "n=" <> (show second)]
+        QC.=== Right
+          ( mempty { num_expr = Just first }
+          , []
+          )
+
+  , QC.testProperty "leftmost log= wins" $
+    QC.forAll genLogModeText $ \(firstRaw, firstMode) ->
+    QC.forAll genLogModeText $ \(secondRaw, _) ->
+      parseFlags ["log=" <> T.unpack firstRaw, "log=" <> T.unpack secondRaw]
+        QC.=== Right
+          ( mempty { log_mode = Just firstMode }
+          , []
+          )
+
+  , QC.testProperty "leftmost trigger= wins" $
+    QC.forAll genTriggerPolicyText $ \(firstRaw, firstPolicy) ->
+    QC.forAll genTriggerPolicyText $ \(secondRaw, _) ->
+      parseFlags ["trigger=" <> T.unpack firstRaw, "trigger=" <> T.unpack secondRaw]
+        QC.=== Right
+          ( mempty { trigger_policy = Just firstPolicy }
+          , []
+          )
+
+  , QC.testProperty "leftmost config= wins" $
+    QC.forAll genConfigPathSpecText $ \(firstRaw, firstSpec) ->
+    QC.forAll genConfigPathSpecText $ \(secondRaw, _) ->
+      parseFlags ["config=" <> T.unpack firstRaw, "config=" <> T.unpack secondRaw]
+        QC.=== Right
+          ( mempty { config_path = Just firstSpec }
+          , []
+          )
+  ]
+
+
+
+tests_parseFlags_prop_unknowns :: TestTree
+tests_parseFlags_prop_unknowns = testGroup "unknown options"
+  [ QC.testProperty "unknown boolean flags are accumulated" $
+    QC.forAll genUnknownBooleanFlag $ \flag ->
+      parseFlags [T.unpack flag]
+        QC.=== Right
+          ( mempty
+          , [BooleanToken flag]
+          )
+
+  , QC.testProperty "unknown value flags are accumulated" $
+    QC.forAll genUnknownValueFlag $ \(key, value) ->
+      parseFlags [T.unpack key <> "=" <> T.unpack value]
+        QC.=== Right
+          ( mempty
+          , [ValueToken key value]
+          )
+
+  , QC.testProperty "unknown flags do not block recognized flags" $
+    QC.forAll genUnknownBooleanFlag $ \unknown ->
+    QC.forAll genModelNameText $ \modelName ->
+      parseFlags [T.unpack unknown, "model=" <> T.unpack modelName, "debug"]
+        QC.=== Right
+          ( mempty
+              { model_name = Just modelName
+              , debug = Just True
+              }
+          , [BooleanToken unknown]
+          )
+  ]
+
+
+
+tests_parseFlags_prop_templates :: TestTree
+tests_parseFlags_prop_templates = testGroup "template interactions"
+  [ QC.testProperty "template= sets path and leaves name unset" $
+    QC.forAll genTemplatePathText $ \path ->
+      parseFlags ["template=" <> T.unpack path]
+        QC.=== Right
+          ( mempty
+              { template_path = Just $ T.unpack path
+              , template_name = Nothing
+              }
+          , []
+          )
+
+  , QC.testProperty "template-name= sets name and leaves path unset" $
+    QC.forAll genTemplateNameTextAndValue $ \(rawName, templateName) ->
+      (parseFlags ["template-name=" <> T.unpack rawName])
+        QC.=== Right
+          ( mempty
+            { template_path = Nothing
+            , template_name = Just templateName
+            }
+          , []
+          )
+
+  , QC.testProperty "template-dir combines with template= path" $
+    QC.forAll genTemplateSearchDirText $ \dir ->
+    QC.forAll genTemplatePathText $ \path ->
+      parseFlags ["template-dir=" <> T.unpack dir, "template=" <> T.unpack path]
+        QC.=== Right
+          ( mempty
+              { template_search_dir = Just $ T.unpack dir
+              , template_path = Just $ T.unpack path
+              , template_name = Nothing
+              }
+          , []
+          )
+
+  , QC.testProperty "template-dir combines with template-name=" $
+    QC.forAll genTemplateSearchDirText $ \dir ->
+    QC.forAll genTemplateNameText $ \rawName ->
+      case parseTemplateName rawName of
+        Left err ->
+          QC.counterexample ("bad generator produced invalid template name: " <> show err) False
+
+        Right parsedName ->
+          parseFlags ["template-dir=" <> T.unpack dir, "template-name=" <> T.unpack rawName]
+            QC.=== Right
+              ( mempty
+                  { template_search_dir = Just $ T.unpack dir
+                  , template_path = Nothing
+                  , template_name = Just parsedName
+                  }
+              , []
+              )
+
+  , QC.testProperty "leftmost template selector wins: path before name" $
+    QC.forAll genTemplatePathText $ \path ->
+    QC.forAll genTemplateNameText $ \rawName ->
+      parseFlags ["template=" <> T.unpack path, "template-name=" <> T.unpack rawName]
+        QC.=== Right
+          ( mempty
+              { template_path = Just $ T.unpack path
+              , template_name = Nothing
+              }
+          , []
+          )
+
+  , QC.testProperty "leftmost template selector wins: name before path" $
+    QC.forAll genTemplateNameText $ \rawName ->
+    QC.forAll genTemplatePathText $ \path ->
+      case parseTemplateName rawName of
+        Left err ->
+          QC.counterexample ("bad generator produced invalid template name: " <> show err) False
+
+        Right parsedName ->
+          parseFlags ["template-name=" <> T.unpack rawName, "template=" <> T.unpack path]
+            QC.=== Right
+              ( mempty
+                  { template_path = Nothing
+                  , template_name = Just parsedName
+                  }
+              , []
+              )
+
+  , QC.testProperty "leftmost template-dir wins independently of template selector" $
+    QC.forAll genTemplateSearchDirText $ \dir1 ->
+    QC.forAll genTemplateSearchDirText $ \dir2 ->
+    QC.forAll genTemplatePathText $ \path ->
+      parseFlags
+          [ "template-dir=" <> T.unpack dir1
+          , "template=" <> T.unpack path
+          , "template-dir=" <> T.unpack dir2
+          ]
+        QC.=== Right
+          ( mempty
+              { template_search_dir = Just $ T.unpack dir1
+              , template_path = Just $ T.unpack path
+              , template_name = Nothing
+              }
+          , []
+          )
+  ]
+
+
+
+tests_parseFlags_prop_order :: TestTree
+tests_parseFlags_prop_order = testGroup "order and interleaving"
+  [ QC.testProperty "distinct recognized flags commute" $
+    QC.forAll genModelNameText $ \modelName ->
+    QC.forAll genBackendSlugText $ \(backendRaw, backend) ->
+      parseFlags ["model=" <> T.unpack modelName, "backend=" <> T.unpack backendRaw]
+        QC.=== parseFlags ["backend=" <> T.unpack backendRaw, "model=" <> T.unpack modelName]
+        QC..&&.
+      parseFlags ["model=" <> T.unpack modelName, "backend=" <> T.unpack backendRaw]
+        QC.=== Right
+          ( mempty
+              { model_name = Just modelName
+              , backend_name = Just backend
+              }
+          , []
+          )
+
+  , QC.testProperty "interleaving unrelated flags does not affect leftmost model" $
+    QC.forAll genModelNameText $ \first ->
+    QC.forAll genModelNameText $ \second ->
+    QC.forAll genBackendSlugText $ \(backendRaw, backend) ->
+    QC.forAll genTriggerPolicyText $ \(triggerRaw, trigger) ->
+      parseFlags
+        [ "model=" <> T.unpack first
+        , "backend=" <> T.unpack backendRaw
+        , "trigger=" <> T.unpack triggerRaw
+        , "model=" <> T.unpack second
+        , "debug"
+        ]
+        QC.=== Right
+          ( mempty
+              { model_name = Just first
+              , backend_name = Just backend
+              , trigger_policy = Just trigger
+              , debug = Just True
+              }
+          , []
+          )
+
+  , QC.testProperty "same-field repeated options are generally order-dependent" $
+    QC.forAll genModelNameText $ \first ->
+    QC.forAll genModelNameText $ \second ->
+      first /= second QC.==>
+        parseFlags ["model=" <> T.unpack first, "model=" <> T.unpack second]
+          QC.=/= parseFlags [ "model=" <> T.unpack second, "model=" <> T.unpack first]
   ]
