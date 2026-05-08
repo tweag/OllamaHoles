@@ -109,7 +109,9 @@ data FlagUpdate
     | SetBackend Text
     | SetNumExpr Text
     | EnableDebug
+    | DisableDebug
     | EnableDocs
+    | DisableDocs
     | SetOpenAIBaseUrl Text
     | SetOpenAIKeyName Text
     | SetModelOptions Text
