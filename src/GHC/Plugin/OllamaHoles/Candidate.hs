@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
-
 module GHC.Plugin.OllamaHoles.Candidate where
 
 import Control.Monad (when)

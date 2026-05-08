@@ -1,7 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
-
 module GHC.Plugin.OllamaHoles.Data.Config.Types where
 
 import Data.Aeson (Value)

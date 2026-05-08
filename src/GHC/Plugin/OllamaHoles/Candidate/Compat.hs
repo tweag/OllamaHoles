@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE LambdaCase #-}
 
 module GHC.Plugin.OllamaHoles.Candidate.Compat
     ( viewExpr

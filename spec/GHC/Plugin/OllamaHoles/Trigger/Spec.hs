@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module GHC.Plugin.OllamaHoles.Trigger.Spec (tests) where
 
 import Data.Maybe (isJust, isNothing)

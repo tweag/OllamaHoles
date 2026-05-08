@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module GHC.Plugin.OllamaHoles.Template.Parse.Spec (tests) where
 
 import Data.Char (isAlpha, isAscii)

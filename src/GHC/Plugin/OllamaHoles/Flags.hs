@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module GHC.Plugin.OllamaHoles.Flags where
 
 import GHC.Plugin.OllamaHoles.Backend

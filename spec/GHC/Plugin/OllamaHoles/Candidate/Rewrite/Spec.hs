@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
-
 module GHC.Plugin.OllamaHoles.Candidate.Rewrite.Spec (tests) where
 
 import Data.Text (Text)

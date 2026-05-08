@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
-
 module GHC.Plugin.OllamaHoles.Data.Flags.Types
   ( Flags(..)
   , FlagToken(..)

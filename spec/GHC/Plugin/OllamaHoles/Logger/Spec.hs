@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module GHC.Plugin.OllamaHoles.Logger.Spec (tests) where
 
 import Control.Monad (forM)

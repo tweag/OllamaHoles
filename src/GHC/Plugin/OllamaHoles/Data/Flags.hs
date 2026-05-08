@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module GHC.Plugin.OllamaHoles.Data.Flags
   ( module GHC.Plugin.OllamaHoles.Data.Flags.Types
   , module GHC.Plugin.OllamaHoles.Data.Flags.Error

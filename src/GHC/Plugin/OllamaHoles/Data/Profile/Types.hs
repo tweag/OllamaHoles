@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
-
 module GHC.Plugin.OllamaHoles.Data.Profile.Types where
 
 import Data.Aeson (Value)
