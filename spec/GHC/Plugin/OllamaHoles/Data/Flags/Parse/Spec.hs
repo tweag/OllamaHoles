@@ -575,12 +575,14 @@ tests_parseFlags_unit_failure =
   -----------------
 
   , ( "invalid n returns an error",             ["n=not-an-int"] )
-  , ( "invalid backend is an error",          ["backend=weird"] )
-  , ( "invalid log mode is an error",         ["log=weird"] )
+  , ( "invalid backend is an error",            ["backend=weird"] )
+  , ( "invalid log mode is an error",           ["log=weird"] )
   , ( "invalid model-options returns an error", ["model-options={not json}"] )
   , ( "invalid template name is rejected",      ["template-name=../secrets"] )
   , ( "invalid trigger policy is rejected",     ["trigger=prefix:"] )
   , ( "invalid trigger prefix is rejected",     ["trigger=prefix:abc-"] )
+  , ( "trigger prefix rejects hyphen",          ["trigger=prefix:foo-bar"] )
+  , ( "trigger prefix rejects trailing hyphen", ["trigger=prefix:foobar-"] )
   ]
 
 
