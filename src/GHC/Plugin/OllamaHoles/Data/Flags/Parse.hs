@@ -57,7 +57,9 @@ parseFlag :: FlagToken -> Either FlagError FlagUpdate
 parseFlag token = case token of
   BooleanToken key -> case key of
     "debug"           -> Right EnableDebug
+    "nodebug"         -> Right DisableDebug
     "include-docs"    -> Right EnableDocs
+    "no-include-docs" -> Right DisableDocs
     "model"           -> Left (MissingValue "model")
     "backend"         -> Left (MissingValue "backend")
     "n"               -> Left (MissingValue "n")
@@ -88,7 +90,9 @@ parseFlag token = case token of
     "trigger"         -> Right (SetTriggerPolicy val)
     "config"          -> Right (SetConfigPath val)
     "debug"           -> Left (UnexpectedValue "debug" val)
+    "nodebug"         -> Left (UnexpectedValue "nodebug" val)
     "include-docs"    -> Left (UnexpectedValue "include-docs" val)
+    "no-include-docs" -> Left (UnexpectedValue "no-include-docs" val)
     _                 -> Right (NoOp token)
 
 
@@ -110,8 +114,10 @@ interpretFlag flag = case flag of
       Nothing   -> Left (InvalidBackend name)
 
   EnableDebug -> makeOk $ \fs -> fs { debug = Just True }
+  DisableDebug -> makeOk $ \fs -> fs { debug = Just False }
 
   EnableDocs -> makeOk $ \fs -> fs { include_docs = Just True }
+  DisableDocs -> makeOk $ \fs -> fs { include_docs = Just False }
 
   SetOpenAIBaseUrl url -> requireNonEmpty "openai_base_url" url $
     makeOk $ \fs -> fs { openai_base_url = Just url }
@@ -161,7 +167,12 @@ interpretFlag flag = case flag of
         Left err -> Left (InvalidTriggerPolicy txt err)
 
   SetConfigPath txt -> requireNonEmpty "config" txt $
-    makeOk $ \fs -> fs { config_path = Just $ ConfigExplicit $ T.unpack txt }
+    makeOk $ \fs -> fs
+      { config_path = Just $ case T.unpack txt of
+        "none"    -> ConfigDisabled
+        "default" -> ConfigDefault
+        path      -> ConfigExplicit path
+      }
 
   where
     makeOk :: (Applicative f) => (a -> a) -> f (Endo a, [b])

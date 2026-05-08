@@ -240,6 +240,9 @@ test-suite ollama-holes-spec
     , GHC.Plugin.OllamaHoles.Config.Trigger.Spec
     , GHC.Plugin.OllamaHoles.Data.ServiceCall.Route.Spec
     , GHC.Plugin.OllamaHoles.Data.Spec
+    , GHC.Plugin.OllamaHoles.Data.Flags.Spec
+    , GHC.Plugin.OllamaHoles.Data.Flags.Types.Gen
+    , GHC.Plugin.OllamaHoles.Data.Flags.Parse.Spec
     , GHC.Plugin.OllamaHoles.Data.Service.Spec
     , GHC.Plugin.OllamaHoles.Data.Service.Types.Gen
     , GHC.Plugin.OllamaHoles.Data.Service.Parse.Spec
