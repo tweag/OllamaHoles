@@ -4,6 +4,8 @@ module GHC.Plugin.OllamaHoles.Data.Trigger.Types
   , renderTriggerPolicy
   , isActiveTrigger
   , TriggerMatch(..)
+  , MatchedPrefix(..)
+  , MatchedSuffix(..)
   , HoleName
   ) where
 
@@ -53,9 +55,22 @@ isActiveTrigger trigger = case trigger of
 --
 -- Keeping the empty suffix as @""@ preserves a bijection:
 --   > mkTriggeredHoleName "foo" suffix == originalHoleName
-data TriggerMatch = TriggerMatch
-  { tmHoleName :: HoleName
-  , tmSuffix   :: Maybe Text
+--data TriggerMatch = TriggerMatch
+--  { tmHoleName :: HoleName
+--  , tmSuffix   :: Maybe Text
+--  } deriving (Eq, Show)
+
+data TriggerMatch
+  = TriggerMatchAll HoleName
+  | TriggerMatchPrefix HoleName MatchedPrefix MatchedSuffix
+  deriving (Eq, Show)
+
+newtype MatchedPrefix = MatchedPrefix
+  { unMatchedPrefix :: Text
+  } deriving (Eq, Show)
+
+newtype MatchedSuffix = MatchedSuffix
+  { unMatchedSuffix :: Text
   } deriving (Eq, Show)
 
 type HoleName = Text
