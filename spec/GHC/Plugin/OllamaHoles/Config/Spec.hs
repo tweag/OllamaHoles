@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module GHC.Plugin.OllamaHoles.Config.Spec (tests) where
 
 import Data.Aeson qualified as Aeson

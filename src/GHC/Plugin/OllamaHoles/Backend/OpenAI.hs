@@ -1,6 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 -- | The OpenAI backend
 module GHC.Plugin.OllamaHoles.Backend.OpenAI

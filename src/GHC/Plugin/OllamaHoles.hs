@@ -1,9 +1,6 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE LambdaCase #-}
 
 -- | The Ollama plugin for GHC
 module GHC.Plugin.OllamaHoles where
@@ -239,6 +236,7 @@ effectiveModelOptions st serviceProf =
 
 
 
+-- TODO: need to log individual responses properly
 extractHoleFitsFromPromptResponses
   :: PluginState -> [PromptResponse] -> TypedHole -> Hole -> TcM [HoleFit]
 extractHoleFitsFromPromptResponses st resps th hole =

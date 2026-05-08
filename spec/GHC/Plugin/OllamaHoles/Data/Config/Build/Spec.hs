@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
-
 module GHC.Plugin.OllamaHoles.Data.Config.Build.Spec
   ( tests
   ) where

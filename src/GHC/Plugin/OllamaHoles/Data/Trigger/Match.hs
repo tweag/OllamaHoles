@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module GHC.Plugin.OllamaHoles.Data.Trigger.Match
   ( shouldTriggerHole
   , matchTriggerPolicy

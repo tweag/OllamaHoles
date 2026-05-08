@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module GHC.Plugin.OllamaHoles.Template.Expand.Spec (tests) where
 
 import Data.Text qualified as T

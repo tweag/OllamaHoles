@@ -1,7 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE DeriveGeneric #-}
-
 module GHC.Plugin.OllamaHoles.Backend
   ( module GHC.Plugin.OllamaHoles.Backend.Common
   , module GHC.Plugin.OllamaHoles.Backend.Gemini

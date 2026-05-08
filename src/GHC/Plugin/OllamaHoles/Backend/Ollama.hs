@@ -1,6 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 -- | The locally hosted ollama backend
 module GHC.Plugin.OllamaHoles.Backend.Ollama

@@ -1,6 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module GHC.Plugin.OllamaHoles.Data.Profile.Parse
   ( tomlProfile

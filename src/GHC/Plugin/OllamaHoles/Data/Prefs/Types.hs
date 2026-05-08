@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
-
 module GHC.Plugin.OllamaHoles.Data.Prefs.Types where
 
 import GHC.Generics (Generic)

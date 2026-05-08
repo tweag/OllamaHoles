@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module GHC.Plugin.OllamaHoles.Data.Service.Types.Gen
   ( genServiceNameText
   , genHostText

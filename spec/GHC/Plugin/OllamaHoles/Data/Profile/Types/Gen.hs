@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module GHC.Plugin.OllamaHoles.Data.Profile.Types.Gen
   ( genProfileNameText
   , genProfileName

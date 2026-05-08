@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module GHC.Plugin.OllamaHoles.Data.Profile.Validate.Spec (tests) where
 
 import Data.Functor ((<&>))

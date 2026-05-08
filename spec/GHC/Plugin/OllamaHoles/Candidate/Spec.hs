@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module GHC.Plugin.OllamaHoles.Candidate.Spec (tests) where
 
 import Data.List qualified as L
