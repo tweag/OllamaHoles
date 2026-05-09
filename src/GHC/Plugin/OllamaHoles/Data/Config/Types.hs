@@ -2,7 +2,6 @@ module GHC.Plugin.OllamaHoles.Data.Config.Types where
 
 import Data.Aeson (Value)
 import Data.Map (Map)
-import Data.Text (Text)
 import GHC.Generics (Generic)
 
 import GHC.Plugin.OllamaHoles.Data.Trigger.Types (TriggerPolicy)

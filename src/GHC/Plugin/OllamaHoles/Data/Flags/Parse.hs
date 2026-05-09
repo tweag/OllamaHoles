@@ -17,7 +17,7 @@ import GHC.Plugin.OllamaHoles.Data.Trigger.Parse (parseTriggerPolicy)
 
 import GHC.Plugin.OllamaHoles.Data.Flags.Types
 import GHC.Plugin.OllamaHoles.Data.Flags.Error (FlagError(..))
-import GHC.Plugin.OllamaHoles.Template (TemplateName, parseTemplateName)
+import GHC.Plugin.OllamaHoles.Template (parseTemplateName)
 
 
 

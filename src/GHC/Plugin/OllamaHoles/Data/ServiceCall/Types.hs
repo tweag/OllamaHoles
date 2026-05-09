@@ -4,7 +4,6 @@ import Data.Text (Text)
 
 import GHC.Plugin.OllamaHoles.Prompt
 import GHC.Plugin.OllamaHoles.Template
-import GHC.Plugin.OllamaHoles.Candidate
 import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Data.Profile
 

@@ -22,7 +22,6 @@ data PluginError
   | ModelNotFound Text [Text] BackendSlug
   | TypedHoleNotFound TypedHole
   | ResponseFailed Text
-  | HoleMissingTriggerName
   | HoleNameDoesNotMatchPolicy Text
   | SomeConfigError ConfigError
   | ProfileRouteFailed ProfileRouteError

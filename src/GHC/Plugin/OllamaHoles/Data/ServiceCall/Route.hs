@@ -11,7 +11,6 @@ import GHC.Plugin.OllamaHoles.Data.Profile
 import GHC.Plugin.OllamaHoles.Data.Trigger
 import GHC.Plugin.OllamaHoles.Data.Config
 
-import GHC.Plugin.OllamaHoles.Template
 import GHC.Plugin.OllamaHoles.Data.ServiceCall.Types
 import GHC.Plugin.OllamaHoles.Data.ServiceCall.Error
 
@@ -61,7 +60,7 @@ routeFancyProfiles fancy holeName =
   case matchingProfiles of
     []   -> Right Nothing
     [ok] -> Just <$> serviceCallsForProfile fancy ok
-    many -> Left $ RouteAmbiguousProfiles holeName (map profName many)
+    more -> Left $ RouteAmbiguousProfiles holeName (map profName more)
   where
     matchingProfiles = filter
       (\profile -> shouldTriggerHole (profTrigger profile) holeName)

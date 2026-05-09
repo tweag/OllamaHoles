@@ -1,6 +1,5 @@
 module GHC.Plugin.OllamaHoles.Flags where
 
-import GHC.Plugin.OllamaHoles.Backend
 import GHC.Plugin.OllamaHoles.Data.Flags
 import GHC.Plugin.OllamaHoles.Template
 
@@ -15,11 +14,3 @@ mkTemplateSpec flags = do
         (Just fp, _) -> Right $ mkSpec $ TemplateFile fp
         (_, Just nm) -> Right $ mkSpec $ NamedTemplate nm
         _            -> Right $ mkSpec $ DefaultTemplate
-
--- | Determine which backend to use
-getBackend :: Flags -> Backend
-getBackend flags = case backend_name flags of
-    Nothing     -> ollamaBackend $ OllamaConfig Nothing
-    Just Gemini -> geminiBackend $ GeminiConfig "GEMINI_API_KEY"
-    Just Ollama -> ollamaBackend $ OllamaConfig Nothing
-    Just OpenAI -> openAICompatibleBackend $ OpenAIConfig (maybe "https://api.openai.com" id $ openai_base_url flags) (maybe "OPENAI_API_KEY" id $ openai_key_name flags)
