@@ -5,7 +5,6 @@ module GHC.Plugin.OllamaHoles.Data.Prefs.Parse
   ) where
 
 import Data.Text (Text)
-import Data.Text qualified as T
 import Toml qualified as Toml
 import Toml.Schema qualified as Toml
 import Toml.Syntax.Position qualified as Toml

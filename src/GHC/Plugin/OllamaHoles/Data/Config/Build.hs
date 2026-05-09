@@ -4,12 +4,11 @@ module GHC.Plugin.OllamaHoles.Data.Config.Build
   , buildProfileMap
   ) where
 
-import Control.Exception (IOException, try)
+import Control.Exception (try)
 import Control.Monad (foldM)
 import Control.Monad.Except (ExceptT(..), MonadError(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.List.NonEmpty (NonEmpty(..))
-import Data.Aeson (Value)
 import Data.Map (Map)
 import Data.Map qualified as M
 import Data.Maybe (fromMaybe, isJust)
@@ -26,7 +25,7 @@ import GHC.Plugin.OllamaHoles.Data.Service.Types
 import GHC.Plugin.OllamaHoles.Data.Trigger.Types
 import GHC.Plugin.OllamaHoles.Data.Prefs.Parse
 import GHC.Plugin.OllamaHoles.Data.Prefs.Types
-import GHC.Plugin.OllamaHoles.Template (TemplateSource(..), parseTemplateName)
+import GHC.Plugin.OllamaHoles.Template (TemplateSource(..))
 
 import GHC.Plugin.OllamaHoles.Data.Config.Error
 
