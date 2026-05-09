@@ -40,26 +40,19 @@ isActiveTrigger trigger = case trigger of
 
 -- | Result of matching a hole name against a trigger policy.
 --
--- For prefix triggers, @tmSuffix@ is the portion of the hole name after
--- the triggering prefix, and may be the empty string.
+-- Examples:
 --
--- Example:
+--   * policy = @TriggerAll@
+--   * hole   = @"_foobar"@
+--   * match  = @TriggerMatchAll "_foobar"@
 --
 --   * policy = @TriggerPrefix "foo"@
 --   * hole   = @"_foo"@
---   * match  = @TriggerMatch "_foo" ""@
+--   * match  = @TriggerMatchPrefix "_foo" "foo" ""@
 --
 --   * policy = @TriggerPrefix "foo"@
 --   * hole   = @"_foo1"@
---   * match  = @TriggerMatch "_foo1" "1"@
---
--- Keeping the empty suffix as @""@ preserves a bijection:
---   > mkTriggeredHoleName "foo" suffix == originalHoleName
---data TriggerMatch = TriggerMatch
---  { tmHoleName :: HoleName
---  , tmSuffix   :: Maybe Text
---  } deriving (Eq, Show)
-
+--   * match  = @TriggerMatchPrefix "_foo1" "foo" "1"@
 data TriggerMatch
   = TriggerMatchAll HoleName
   | TriggerMatchPrefix HoleName MatchedPrefix MatchedSuffix

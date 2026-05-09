@@ -163,7 +163,6 @@ library
       GHC.Plugin.OllamaHoles.Logger
       GHC.Plugin.OllamaHoles.Prompt
       GHC.Plugin.OllamaHoles.Template
-      GHC.Plugin.OllamaHoles.Trigger
 
 
 
@@ -215,7 +214,6 @@ library ollama-holes-lib
     , GHC.Plugin.OllamaHoles.Logger
     , GHC.Plugin.OllamaHoles.Prompt
     , GHC.Plugin.OllamaHoles.Template
-    , GHC.Plugin.OllamaHoles.Trigger
 
 
 
