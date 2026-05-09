@@ -15,7 +15,8 @@ import GHC.Plugin.OllamaHoles.Data.Profile.Types.Gen
 import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Data.Service.Types.Gen
 import GHC.Plugin.OllamaHoles.Data.Trigger.Types
-import GHC.Plugin.OllamaHoles.Template
+import GHC.Plugin.OllamaHoles.Data.Template
+import GHC.Plugin.OllamaHoles.Data.Template.Types.Internal
 
 import Toml.TestHelper
 

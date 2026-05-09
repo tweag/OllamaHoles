@@ -22,7 +22,7 @@ import GHC.Plugin.OllamaHoles.Data.ServiceCall.Error
 import GHC.Plugin.OllamaHoles.Data.ServiceCall.Route
 import GHC.Plugin.OllamaHoles.Data.ServiceCall.Types
 import GHC.Plugin.OllamaHoles.Data.Trigger
-import GHC.Plugin.OllamaHoles.Template
+import GHC.Plugin.OllamaHoles.Data.Template
 
 
 tests :: TestTree

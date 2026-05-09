@@ -52,13 +52,13 @@ import GHC.Plugin.OllamaHoles.Data.Flags
 import GHC.Plugin.OllamaHoles.Prompt
 import GHC.Plugin.OllamaHoles.Logger qualified as Log
 import GHC.Plugin.OllamaHoles.Candidate
-import GHC.Plugin.OllamaHoles.Template
 import GHC.Plugin.OllamaHoles.Error
 import GHC.Plugin.OllamaHoles.Flags
 import GHC.Plugin.OllamaHoles.Data.Config
 import GHC.Plugin.OllamaHoles.Data.Service.Types
 import GHC.Plugin.OllamaHoles.Data.Profile.Types
 import GHC.Plugin.OllamaHoles.Data.ServiceCall
+import GHC.Plugin.OllamaHoles.Data.Template
 
 
 

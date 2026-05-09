@@ -3,7 +3,7 @@ module GHC.Plugin.OllamaHoles.Data.ServiceCall.Types where
 import Data.Text (Text)
 
 import GHC.Plugin.OllamaHoles.Prompt
-import GHC.Plugin.OllamaHoles.Template
+import GHC.Plugin.OllamaHoles.Data.Template
 import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Data.Profile
 

@@ -8,12 +8,8 @@ import GHC.Plugin.OllamaHoles.Flags
   )
 import GHC.Plugin.OllamaHoles.Data.Flags
   (Flags(..), parseFlags, FlagToken(..))
-import GHC.Plugin.OllamaHoles.Template
-  ( TemplateSpec(..)
-  , TemplateSource(..)
-  , unsafeCreateRawTemplateName
-  )
-
+import GHC.Plugin.OllamaHoles.Data.Template
+import GHC.Plugin.OllamaHoles.Data.Template.Types.Internal
 
 
 tests :: TestTree

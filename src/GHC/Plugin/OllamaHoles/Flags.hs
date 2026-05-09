@@ -1,7 +1,7 @@
 module GHC.Plugin.OllamaHoles.Flags where
 
 import GHC.Plugin.OllamaHoles.Data.Flags
-import GHC.Plugin.OllamaHoles.Template
+import GHC.Plugin.OllamaHoles.Data.Template
 
 -- | Helper function to interpret a @TemplateSpec@ from the flags.
 mkTemplateSpec :: Flags -> Either TemplateError TemplateSpec

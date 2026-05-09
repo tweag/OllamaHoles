@@ -35,7 +35,7 @@ import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Data.Trigger.Types
   ( TriggerPolicy(..)
   )
-import GHC.Plugin.OllamaHoles.Template
+import GHC.Plugin.OllamaHoles.Data.Template
   ( TemplateSource(..)
   )
 import GHC.Plugin.OllamaHoles.Backend

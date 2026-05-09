@@ -6,14 +6,11 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck qualified as QC
 
-import GHC.Plugin.OllamaHoles.Template
-  ( Template(..)
-  , TemplateExpr(..)
-  , Placeholder(..)
-  , TemplateError(..)
-  , TemplateParseError(..)
-  , parseTemplate
-  )
+import GHC.Plugin.OllamaHoles.Data.Template.Types
+import GHC.Plugin.OllamaHoles.Data.Template.Error
+import GHC.Plugin.OllamaHoles.Data.Template.Parse
+
+
 
 tests :: TestTree
 tests =

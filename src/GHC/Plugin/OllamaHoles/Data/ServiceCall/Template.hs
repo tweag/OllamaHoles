@@ -5,7 +5,7 @@ module GHC.Plugin.OllamaHoles.Data.ServiceCall.Template
 import Control.Monad.IO.Class
 import Control.Monad.Except
 
-import GHC.Plugin.OllamaHoles.Template
+import GHC.Plugin.OllamaHoles.Data.Template
 import GHC.Plugin.OllamaHoles.Data.Profile
 
 import GHC.Plugin.OllamaHoles.Data.ServiceCall.Types
