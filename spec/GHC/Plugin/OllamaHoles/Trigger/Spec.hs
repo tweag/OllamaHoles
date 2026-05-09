@@ -8,7 +8,6 @@ import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck ((===))
 import Test.Tasty.QuickCheck qualified as QC
 
-import GHC.Plugin.OllamaHoles.Trigger
 import GHC.Plugin.OllamaHoles.Data.Profile.Types
 import GHC.Plugin.OllamaHoles.Data.Trigger.Types
 import GHC.Plugin.OllamaHoles.Data.Trigger.Error
@@ -31,7 +30,6 @@ unitTests =
   testGroup "unit"
     [ parsingTests
     , matchingTests
-    , namingTests
     , defaultTests
     ]
 
@@ -92,7 +90,7 @@ matchingTests =
   testGroup "matching"
     [ testCase "TriggerAll always matches" $
         matchTriggerPolicy TriggerAll "_anything"
-          @?= Just (TriggerMatch "_anything" Nothing)
+          @?= Just (TriggerMatchAll "_anything")
 
     , testCase "TriggerNone never matches" $
         matchTriggerPolicy TriggerNone "_anything"
@@ -100,23 +98,28 @@ matchingTests =
 
     , testCase "prefix match succeeds on exact prefix hole" $
         matchTriggerPolicy (TriggerPrefix "foo") "_foo"
-          @?= Just (TriggerMatch "_foo" (Just ""))
+          @?= Just (TriggerMatchPrefix "_foo"
+                (MatchedPrefix "foo") (MatchedSuffix ""))
 
     , testCase "prefix match succeeds with numeric suffix" $
         matchTriggerPolicy (TriggerPrefix "foo") "_foo1"
-          @?= Just (TriggerMatch "_foo1" (Just "1"))
+          @?= Just (TriggerMatchPrefix "_foo1"
+                (MatchedPrefix "foo") (MatchedSuffix "1"))
 
     , testCase "prefix match succeeds with alphabetic suffix" $
         matchTriggerPolicy (TriggerPrefix "foo") "_foodefault"
-          @?= Just (TriggerMatch "_foodefault" (Just "default"))
+          @?= Just (TriggerMatchPrefix "_foodefault"
+                (MatchedPrefix "foo") (MatchedSuffix "default"))
 
     , testCase "prefix match succeeds with underscore in suffix" $
         matchTriggerPolicy (TriggerPrefix "foo") "_foo_bar"
-          @?= Just (TriggerMatch "_foo_bar" (Just "_bar"))
+          @?= Just (TriggerMatchPrefix "_foo_bar"
+                (MatchedPrefix "foo") (MatchedSuffix "_bar"))
 
     , testCase "prefix match succeeds with apostrophe in suffix" $
         matchTriggerPolicy (TriggerPrefix "foo") "_foo'"
-          @?= Just (TriggerMatch "_foo'" (Just "'"))
+          @?= Just (TriggerMatchPrefix "_foo'"
+                 (MatchedPrefix "foo") (MatchedSuffix "'"))
 
     , testCase "prefix match rejects missing leading underscore" $
         matchTriggerPolicy (TriggerPrefix "foo") "foo"
@@ -139,26 +142,6 @@ matchingTests =
 
     , testCase "shouldTriggerHole agrees with matchTriggerPolicy on miss" $
         shouldTriggerHole (TriggerPrefix "foo") "_bar123" @?= False
-    ]
-
-namingTests :: TestTree
-namingTests =
-  testGroup "naming"
-    [ testCase "mkTriggeredHoleName reconstructs exact prefix hole" $
-        mkTriggeredHoleName "foo" "" @?= "_foo"
-
-    , testCase "mkTriggeredHoleName reconstructs suffixed hole" $
-        mkTriggeredHoleName "foo" "1" @?= "_foo1"
-
-    , testCase "empty suffix and default suffix remain distinct" $
-        mkTriggeredHoleName "foo" ""
-          /= mkTriggeredHoleName "foo" "default"
-          @? "expected distinct reconstructed names"
-
-    , testCase "empty suffix and numeric suffix remain distinct" $
-        mkTriggeredHoleName "foo" ""
-          /= mkTriggeredHoleName "foo" "1"
-          @? "expected distinct reconstructed names"
     ]
 
 defaultTests :: TestTree
@@ -193,24 +176,13 @@ propertyTests =
         QC.forAll genHoleName $ \nm ->
           shouldTriggerHole pol nm === isJust (matchTriggerPolicy pol nm)
 
-    , QC.testProperty "prefix matching is bijective with mkTriggeredHoleName" $
-        QC.forAll genValidPrefix $ \pfx ->
-        QC.forAll genValidSuffix $ \sfx ->
-          matchTriggerPolicy (TriggerPrefix pfx) (mkTriggeredHoleName pfx sfx)
-            === Just (TriggerMatch (mkTriggeredHoleName pfx sfx) (Just sfx))
-
-    , QC.testProperty "mkTriggeredHoleName distinguishes distinct suffixes" $
-        QC.forAll genValidPrefix $ \pfx ->
-        QC.forAll genDistinctSuffixPair $ \(s1, s2) ->
-          mkTriggeredHoleName pfx s1 /= mkTriggeredHoleName pfx s2
-
     , QC.testProperty "TriggerNone never matches any generated hole name" $
         QC.forAll genHoleName $ \nm ->
           isNothing (matchTriggerPolicy TriggerNone nm)
 
     , QC.testProperty "TriggerAll always matches any generated hole name" $
         QC.forAll genHoleName $ \nm ->
-          matchTriggerPolicy TriggerAll nm === Just (TriggerMatch nm Nothing)
+          matchTriggerPolicy TriggerAll nm === Just (TriggerMatchAll nm)
 
     , QC.testProperty "valid prefix policies parse successfully" $
         QC.forAll genValidPrefix $ \pfx ->
@@ -219,7 +191,7 @@ propertyTests =
     , QC.testProperty "constructed triggered names always trigger for same prefix" $
         QC.forAll genValidPrefix $ \pfx ->
         QC.forAll genValidSuffix $ \sfx ->
-          shouldTriggerHole (TriggerPrefix pfx) (mkTriggeredHoleName pfx sfx)
+          shouldTriggerHole (TriggerPrefix pfx) ("_" <> pfx <> sfx)
     ]
 
 
@@ -254,7 +226,7 @@ genHoleName :: QC.Gen Text
 genHoleName =
   QC.oneof
     [ pure "_"
-    , mkTriggeredHoleName <$> genValidPrefix <*> genValidSuffix
+    , ("_" <>) <$> ((<>) <$> genValidPrefix <*> genValidSuffix)
     , T.pack <$> QC.listOf1 QC.arbitraryASCIIChar
     ]
 

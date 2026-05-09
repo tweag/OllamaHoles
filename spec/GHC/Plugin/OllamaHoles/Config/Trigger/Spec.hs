@@ -8,7 +8,6 @@ import Test.Tasty.HUnit
 import GHC.Plugin.OllamaHoles.Data.Trigger.Types
 import GHC.Plugin.OllamaHoles.Data.Trigger
 import GHC.Plugin.OllamaHoles.Data.Config.Types
-import GHC.Plugin.OllamaHoles.Trigger
 
 import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Data.Profile

@@ -21,10 +21,7 @@ shouldTriggerHole pol holeName =
 matchTriggerPolicy :: TriggerPolicy -> Text -> Maybe TriggerMatch
 matchTriggerPolicy pol holeName = case pol of
     TriggerNone -> Nothing
-    TriggerAll -> Just TriggerMatch
-        { tmHoleName = holeName
-        , tmSuffix   = Nothing
-        }
+    TriggerAll -> Just $ TriggerMatchAll holeName
     TriggerPrefix pfx -> matchPrefixTrigger pfx holeName
 
 matchPrefixTrigger :: Text -> Text -> Maybe TriggerMatch
@@ -32,11 +29,8 @@ matchPrefixTrigger pfx holeName
     | T.null pfx = Nothing
     | otherwise = case T.stripPrefix ("_" <> pfx) holeName of
         Just suffix
-            | isValidTriggerSuffix suffix ->
-                Just TriggerMatch
-                    { tmHoleName = holeName
-                    , tmSuffix   = Just suffix
-                    }
+            | isValidTriggerSuffix suffix -> Just $
+                TriggerMatchPrefix holeName (MatchedPrefix pfx) (MatchedSuffix suffix)
         _ -> Nothing
   where
     isValidTriggerSuffix = T.all isIdentifierContinue
