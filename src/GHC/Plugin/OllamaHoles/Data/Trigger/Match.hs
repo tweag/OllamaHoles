@@ -4,6 +4,7 @@ module GHC.Plugin.OllamaHoles.Data.Trigger.Match
   ) where
 
 import Data.Char (isAlphaNum)
+import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Text qualified as T
 
@@ -13,10 +14,7 @@ import GHC.Plugin.OllamaHoles.Data.Trigger.Types
 
 
 shouldTriggerHole :: TriggerPolicy -> Text -> Bool
-shouldTriggerHole pol holeName =
-    case matchTriggerPolicy pol holeName of
-        Nothing -> False
-        Just _  -> True
+shouldTriggerHole pol = isJust . matchTriggerPolicy pol
 
 matchTriggerPolicy :: TriggerPolicy -> Text -> Maybe TriggerMatch
 matchTriggerPolicy pol holeName = case pol of
