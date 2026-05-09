@@ -13,7 +13,8 @@ import Test.Tasty.QuickCheck qualified as QC
 import Toml.TestHelper
 
 import GHC.Plugin.OllamaHoles.Backend
-import GHC.Plugin.OllamaHoles.Template
+import GHC.Plugin.OllamaHoles.Data.Template
+import GHC.Plugin.OllamaHoles.Data.Template.Types.Internal
 import GHC.Plugin.OllamaHoles.Data.Trigger
 import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Data.Profile
@@ -360,7 +361,7 @@ tests_tomlPreferences_unit_success =
         [ Profile
           { profName = ProfileName "pair"
           , profTrigger = TriggerNone
-          , profKind = ProfFanout $FanoutProf
+          , profKind = ProfFanout $ FanoutProf
             { profProfiles =
                 ProfileName "local" :| [ProfileName "remote"]
             }

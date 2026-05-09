@@ -25,7 +25,7 @@ import GHC.Plugin.OllamaHoles.Data.Service.Types
 import GHC.Plugin.OllamaHoles.Data.Trigger.Types
 import GHC.Plugin.OllamaHoles.Data.Prefs.Parse
 import GHC.Plugin.OllamaHoles.Data.Prefs.Types
-import GHC.Plugin.OllamaHoles.Template (TemplateSource(..))
+import GHC.Plugin.OllamaHoles.Data.Template (TemplateSource(..))
 
 import GHC.Plugin.OllamaHoles.Data.Config.Error
 

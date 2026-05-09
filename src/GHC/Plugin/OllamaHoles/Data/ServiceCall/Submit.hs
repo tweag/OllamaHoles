@@ -10,7 +10,7 @@ import GHC.Tc.Types (TcM)
 
 import GHC.Plugin.OllamaHoles.Prompt
 import GHC.Plugin.OllamaHoles.Backend
-import GHC.Plugin.OllamaHoles.Template
+import GHC.Plugin.OllamaHoles.Data.Template
 import GHC.Plugin.OllamaHoles.Data.Profile
 import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Data.ServiceCall.Types
@@ -45,7 +45,7 @@ renderPromptForServiceCall req caller = do
 --      else pure ""
   let effectiveNumExpr = const 10
 
-  let result = expandTemplateWith template $ mkTemplateEnv
+  let result = expandTemplate template $ mkTemplateEnv
         [ ("backend", unServiceName (svcName (callService caller)))
         , ("model", unModelName (profModel (callProfile caller)))
         , ("numexpr", T.pack (show (effectiveNumExpr (callProfile caller))))

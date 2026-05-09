@@ -5,7 +5,7 @@ import Data.Map (Map)
 import GHC.Generics (Generic)
 
 import GHC.Plugin.OllamaHoles.Data.Trigger.Types (TriggerPolicy)
-import GHC.Plugin.OllamaHoles.Template (TemplateSource)
+import GHC.Plugin.OllamaHoles.Data.Template (TemplateSource)
 
 import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Data.Profile

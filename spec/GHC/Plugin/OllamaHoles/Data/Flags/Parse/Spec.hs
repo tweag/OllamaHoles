@@ -14,8 +14,8 @@ import GHC.Plugin.OllamaHoles.Logger (LogMode(..))
 import GHC.Plugin.OllamaHoles.Data.Trigger (TriggerPolicy(..))
 import GHC.Plugin.OllamaHoles.Data.Flags
   (Flags(..), FlagToken(..), ConfigPathSpec(..), parseFlags)
-import GHC.Plugin.OllamaHoles.Template
-  (unsafeCreateRawTemplateName, parseTemplateName)
+import GHC.Plugin.OllamaHoles.Data.Template (parseTemplateName)
+import GHC.Plugin.OllamaHoles.Data.Template.Types.Internal (unsafeCreateRawTemplateName)
 
 import GHC.Plugin.OllamaHoles.Data.Flags.Types.Gen
 

@@ -37,10 +37,8 @@ import GHC.Plugin.OllamaHoles.Data.Flags.Types
 import GHC.Plugin.OllamaHoles.Data.Profile
 import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Data.Trigger
-import GHC.Plugin.OllamaHoles.Template
-  ( TemplateSource(..)
-  , parseTemplateName
-  )
+import GHC.Plugin.OllamaHoles.Data.Template
+
 
 
 tests :: TestTree

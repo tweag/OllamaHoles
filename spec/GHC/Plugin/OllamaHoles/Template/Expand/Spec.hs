@@ -4,7 +4,7 @@ import Data.Text qualified as T
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import GHC.Plugin.OllamaHoles.Template
+import GHC.Plugin.OllamaHoles.Data.Template
   ( Template(..)
   , TemplateExpr(..)
   , Placeholder(..)
@@ -30,13 +30,13 @@ basicExpansionTests =
     [ testCase "chunks-only template expands unchanged" $ do
         let env  = mkTemplateEnv []
             tmpl = Template [TemplateChunk "hello world"]
-        expandTemplate env tmpl
+        expandTemplate tmpl env
           @?= Right "hello world"
 
     , testCase "single placeholder expands" $ do
         let env  = mkTemplateEnv [("name", "Nathan")]
             tmpl = Template [TemplateChunk "hello ", TemplateVar "name", TemplateChunk "!"]
-        expandTemplate env tmpl
+        expandTemplate tmpl env
           @?= Right "hello Nathan!"
 
     , testCase "adjacent placeholders expand in order" $ do
@@ -50,7 +50,7 @@ basicExpansionTests =
                 [ TemplateVar "x"
                 , TemplateVar "y"
                 ]
-        expandTemplate env tmpl
+        expandTemplate tmpl env
           @?= Right "AB"
 
     , testCase "mixed chunks and placeholders expand correctly" $ do
@@ -66,7 +66,7 @@ basicExpansionTests =
                 , TemplateVar "name"
                 , TemplateChunk "!"
                 ]
-        expandTemplate env tmpl
+        expandTemplate tmpl env
           @?= Right "hello, world!"
 
     , testCase "unused environment entries are ignored" $ do
@@ -80,7 +80,7 @@ basicExpansionTests =
                 [ TemplateChunk "value="
                 , TemplateVar "used"
                 ]
-        expandTemplate env tmpl
+        expandTemplate tmpl env
           @?= Right "value=ok"
     ]
 
@@ -90,7 +90,7 @@ failureExpansionTests =
     [ testCase "unknown placeholder is reported" $ do
         let env  = mkTemplateEnv [("context", "ctx")]
             tmpl = Template [TemplateChunk "x=", TemplateVar "missing"]
-        expandTemplate env tmpl
+        expandTemplate tmpl env
           @?= Left (UnknownPlaceholders ["missing"])
 
     , testCase "repeated unknown placeholders are reported in occurrence order" $ do
@@ -101,7 +101,7 @@ failureExpansionTests =
                 , TemplateChunk "-"
                 , TemplateVar "missing"
                 ]
-        expandTemplate env tmpl
+        expandTemplate tmpl env
           @?= Left (UnknownPlaceholders ["missing", "missing"])
 
     , testCase "mixed known and unknown placeholders reports only unknown ones" $ do
@@ -116,7 +116,7 @@ failureExpansionTests =
                 , TemplateChunk "-"
                 , TemplateVar "second"
                 ]
-        expandTemplate env tmpl
+        expandTemplate tmpl env
           @?= Left (UnknownPlaceholders ["first", "second"])
     ]
 
@@ -138,7 +138,7 @@ defaultTemplateTests =
                 , ("numexpr", "5")
                 ]
 
-        rendered <- case expandTemplate env tmpl of
+        rendered <- case expandTemplate tmpl env of
           Left err ->
             assertFailure ("unexpected expansion failure: " <> show err) >> fail "unreachable"
           Right txt ->
@@ -168,6 +168,6 @@ defaultTemplateTests =
 
         let env = mkTemplateEnv []
 
-        expandTemplate env tmpl
+        expandTemplate tmpl env
           @?= Left (UnknownPlaceholders ["docs", "context", "numexpr"])
     ]

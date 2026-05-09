@@ -6,7 +6,7 @@ import Data.Text qualified as T
 import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Data.Profile
 import GHC.Plugin.OllamaHoles.Data.Trigger
-import GHC.Plugin.OllamaHoles.Template
+import GHC.Plugin.OllamaHoles.Data.Template
 
 
 

@@ -14,7 +14,7 @@ import Data.Text qualified as T
 import Data.Vector qualified as Vector
 import Toml.Schema qualified as Toml
 
-import GHC.Plugin.OllamaHoles.Template (TemplateSource(..), parseTemplateName)
+import GHC.Plugin.OllamaHoles.Data.Template (TemplateSource(..), parseTemplateName)
 import GHC.Plugin.OllamaHoles.Data.Trigger.Types (TriggerPolicy(..))
 import GHC.Plugin.OllamaHoles.Data.Trigger.Parse (parseTriggerPolicy)
 import GHC.Plugin.OllamaHoles.Data.Service (tomlServiceName)

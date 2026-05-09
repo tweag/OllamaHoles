@@ -7,7 +7,7 @@ import Control.Monad.Except (withExceptT, ExceptT())
 
 import GHC.Plugin.OllamaHoles.Backend (BackendSlug(..), renderBackendSlug)
 import GHC.Plugin.OllamaHoles.Data.Flags (FlagError(), FlagToken(..))
-import GHC.Plugin.OllamaHoles.Template (TemplateError())
+import GHC.Plugin.OllamaHoles.Data.Template (TemplateError())
 import GHC.Plugin.OllamaHoles.Data.Config.Error (ConfigError(..))
 import GHC.Plugin.OllamaHoles.Data.Profile.Error (ProfileSubmitError(..), ProfileRouteError(..))
 import GHC.Plugin.OllamaHoles.Data.ServiceCall.Error

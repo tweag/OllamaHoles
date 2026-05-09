@@ -6,11 +6,10 @@ import Data.String (IsString(..))
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
-import GHC.Plugin.OllamaHoles.Template (TemplateSource)
 import GHC.Plugin.OllamaHoles.Data.Trigger.Types
 import GHC.Plugin.OllamaHoles.Data.Trigger.Error
 import GHC.Plugin.OllamaHoles.Data.Service (Service, ServiceName)
-import GHC.Plugin.OllamaHoles.Template
+import GHC.Plugin.OllamaHoles.Data.Template
 
 
 

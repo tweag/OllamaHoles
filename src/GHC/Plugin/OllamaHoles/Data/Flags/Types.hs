@@ -13,7 +13,7 @@ import GHC.Generics (Generic)
 import GHC.Plugin.OllamaHoles.Backend (BackendSlug(..))
 import GHC.Plugin.OllamaHoles.Logger (LogMode(..))
 import GHC.Plugin.OllamaHoles.Data.Trigger.Types
-import GHC.Plugin.OllamaHoles.Template
+import GHC.Plugin.OllamaHoles.Data.Template
 
 
 

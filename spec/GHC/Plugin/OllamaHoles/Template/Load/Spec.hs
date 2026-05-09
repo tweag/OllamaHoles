@@ -7,18 +7,12 @@ import System.IO.Temp (withSystemTempDirectory)
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import GHC.Plugin.OllamaHoles.Template
-  ( Template(..)
-  , TemplateSpec(..)
-  , TemplateSource(..)
-  , TemplateError(..)
-  , TemplateExpr(..)
-  , Placeholder(..)
-  , TemplateParseError(..)
-  , loadTemplate
-  , parseTemplate
-  , unsafeCreateRawTemplateName
-  )
+import GHC.Plugin.OllamaHoles.Data.Template.Types
+import GHC.Plugin.OllamaHoles.Data.Template.Types.Internal
+import GHC.Plugin.OllamaHoles.Data.Template.Error
+import GHC.Plugin.OllamaHoles.Data.Template.Parse
+import GHC.Plugin.OllamaHoles.Data.Template.Load
+
 
 tests :: TestTree
 tests =
