@@ -29,9 +29,9 @@ data TemplateExpr
   | TemplateVar Placeholder
   deriving (Eq, Show)
 
-newtype Placeholder
-  = Placeholder Text
-  deriving (Eq, Ord)
+newtype Placeholder = Placeholder
+  { unPlaceholder :: Text
+  } deriving (Eq, Ord)
 
 instance IsString Placeholder where
   fromString = Placeholder . fromString
