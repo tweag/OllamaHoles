@@ -82,7 +82,7 @@ jobs:
     strategy:
       matrix:
         ghc: ['9.12']
-        model: ['qwen3:4b']
+        model: ['qwen3:latest']
     name: Test with GHC ${{ matrix.ghc }} and ${{ matrix.model }}
     steps:
     - uses: actions/checkout@v4
