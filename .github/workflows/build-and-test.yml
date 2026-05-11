@@ -137,7 +137,8 @@ jobs:
     - name: Build Test project
       run: |
         set -o pipefail
-        cabal build Test \
+        cabal build exe:ollama-holes-demo \
+          --ghc-option "-fforce-recomp" \
           --ghc-option "-fplugin-opt=GHC.Plugin.OllamaHoles:model=${{ matrix.model }}" \
           2>&1 | tee demo-build.log
         grep "Valid hole fits" demo-build.log
