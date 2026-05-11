@@ -257,6 +257,7 @@ test-suite ollama-holes-spec
     , GHC.Plugin.OllamaHoles.Data.Template.Types.Gen
     , GHC.Plugin.OllamaHoles.Data.Template.Parse.Spec
     , GHC.Plugin.OllamaHoles.Data.Template.Load.Spec
+    , GHC.Plugin.OllamaHoles.Data.Template.Expand.Spec
     , GHC.Plugin.OllamaHoles.Data.Service.Spec
     , GHC.Plugin.OllamaHoles.Data.Service.Types.Gen
     , GHC.Plugin.OllamaHoles.Data.Service.Parse.Spec
