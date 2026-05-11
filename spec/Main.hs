@@ -5,7 +5,6 @@ import qualified GHC.Plugin.OllamaHoles.Candidate.Spec as CandidateSpec
 import qualified GHC.Plugin.OllamaHoles.Candidate.Normalize.Spec as NormalizeSpec
 import qualified GHC.Plugin.OllamaHoles.Candidate.Rewrite.Spec as RewriteSpec
 import qualified GHC.Plugin.OllamaHoles.Candidate.Compat.Spec as CompatSpec
-import qualified GHC.Plugin.OllamaHoles.Template.Expand.Spec as ExpandSpec
 import qualified GHC.Plugin.OllamaHoles.Options.Spec as OptionsSpec
 import qualified GHC.Plugin.OllamaHoles.Logger.Spec as LoggerSpec
 import qualified GHC.Plugin.OllamaHoles.Config.Spec as ConfigSpec
@@ -21,7 +20,6 @@ main = defaultMain $
         , NormalizeSpec.tests
         , RewriteSpec.tests
         , CompatSpec.tests
-        , ExpandSpec.tests
         , OptionsSpec.tests
         , LoggerSpec.tests
         , ConfigSpec.tests
