@@ -2,14 +2,18 @@ module GHC.Plugin.OllamaHoles.Data.Template.Load.Spec (tests) where
 
 import Data.Functor ((<&>))
 import Data.Text (Text)
+import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, assertFailure, (@?=))
+import Test.Tasty.QuickCheck qualified as QC
+import System.Directory (doesFileExist)
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
 
 import GHC.Plugin.OllamaHoles.Data.Template
 import GHC.Plugin.OllamaHoles.Data.Template.Types.Internal
+import GHC.Plugin.OllamaHoles.Data.Template.Types.Gen
 
 
 
@@ -50,7 +54,54 @@ tests_loadTemplate_unit = testGroup "loadTemplate (unit)"
 
 tests_loadTemplate_prop :: TestTree
 tests_loadTemplate_prop = testGroup "loadTemplate (prop)"
-  [
+  [ QC.testProperty "DefaultTemplate loads as parseTemplate defaultTemplateText" $
+      QC.ioProperty $ do
+        result <- loadTemplate (TemplateSpec "" DefaultTemplate)
+        pure $ result QC.=== parseTemplate defaultTemplateText
+
+  , QC.testProperty "TemplateFile loads exactly as parseTemplate file contents" $
+      QC.forAll genTemplateText $ \raw ->
+        QC.ioProperty $
+          withSystemTempDirectory "ollama-holes-template-load-spec" $ \dir -> do
+            let fp = dir </> "prompt.txt"
+            T.writeFile fp raw
+            result <- loadTemplate (TemplateSpec dir (TemplateFile fp))
+            pure $ result QC.=== parseTemplate raw
+
+  , QC.testProperty "TemplateFile missing reports the requested file path" $
+      QC.forAll genSafeFileNameText $ \fileName ->
+        QC.ioProperty $
+          withSystemTempDirectory "ollama-holes-template-load-spec" $ \dir -> do
+            let fp = dir </> T.unpack fileName <> ".txt"
+            result <- loadTemplate (TemplateSpec dir (TemplateFile fp))
+            pure $ result QC.=== Left (TemplateFileNotFound fp)
+
+  , QC.testProperty "NamedTemplate loads <name>.txt exactly as parseTemplate file contents" $
+      QC.forAll genTemplateNameText $ \name ->
+      QC.forAll genTemplateText $ \raw ->
+        QC.ioProperty $
+          withSystemTempDirectory "ollama-holes-template-load-spec" $ \dir -> do
+            let fp = dir </> T.unpack name <> ".txt"
+            T.writeFile fp raw
+            result <- loadTemplate $
+              TemplateSpec dir $ NamedTemplate $ unsafeCreateRawTemplateName name
+            pure $ result QC.=== parseTemplate raw
+
+  , QC.testProperty "NamedTemplate unknown safe name reports search dir and name" $
+      QC.forAll genTemplateNameText $ \name ->
+        QC.ioProperty $
+          withSystemTempDirectory "ollama-holes-template-load-spec" $ \dir -> do
+            result <- loadTemplate $
+              TemplateSpec dir $ NamedTemplate $ unsafeCreateRawTemplateName name
+            pure $ result QC.=== Left (UnknownTemplateName dir name)
+
+  , QC.testProperty "NamedTemplate invalid names are rejected before lookup" $
+      QC.forAll genInvalidTemplateNameText $ \name ->
+        QC.ioProperty $
+          withSystemTempDirectory "ollama-holes-template-load-spec" $ \dir -> do
+            result <- loadTemplate $
+              TemplateSpec dir $ NamedTemplate $ unsafeCreateRawTemplateName name
+            pure $ result QC.=== Left (InvalidTemplateName name)
   ]
 
 
