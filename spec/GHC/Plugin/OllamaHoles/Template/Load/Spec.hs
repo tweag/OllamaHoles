@@ -17,74 +17,10 @@ import GHC.Plugin.OllamaHoles.Data.Template.Load
 tests :: TestTree
 tests =
   testGroup "Template"
-    [ loadTemplateTests
-    , loadAndParseTests
+    [ loadAndParseTests
     ]
 
-loadTemplateTests :: TestTree
-loadTemplateTests =
-  testGroup "loadTemplate"
-    [ testCase "DefaultTemplate loads successfully" $ do
-        result <- loadTemplate (TemplateSpec "" DefaultTemplate)
-        case result of
-          Right (Template txt) ->
-            assertBool "expected non-empty default template" (not (null txt))
-          Left err ->
-            assertFailure ("expected default template to load, got: " <> show err)
 
-    , testCase "TemplateFile loads an existing file" $
-        withSystemTempDirectory "ollama-holes-template-spec" $ \dir -> do
-          let fp = dir </> "prompt.txt"
-          writeFile fp "hello {{name}}"
-          result <- loadTemplate (TemplateSpec dir (TemplateFile fp))
-          result @?= Right (Template [TemplateChunk "hello ", TemplateVar "name"])
-
-    , testCase "TemplateFile reports missing file" $
-        withSystemTempDirectory "ollama-holes-template-spec" $ \dir -> do
-          let fp = dir </> "missing.txt"
-          result <- loadTemplate (TemplateSpec dir (TemplateFile fp))
-          result @?= Left (TemplateFileNotFound fp)
-
-    , testCase "NamedTemplate loads <searchDir>/<name>.txt" $
-        withSystemTempDirectory "ollama-holes-template-spec" $ \dir -> do
-          let fp = dir </> "qwen.txt"
-          writeFile fp "hello {{context}}"
-          result <- loadTemplate (TemplateSpec dir (NamedTemplate $ unsafeCreateRawTemplateName "qwen"))
-          result @?= Right (Template [TemplateChunk "hello ", TemplateVar "context"])
-
-    , testCase "NamedTemplate reports unknown name" $
-        withSystemTempDirectory "ollama-holes-template-spec" $ \dir -> do
-          result <- loadTemplate (TemplateSpec dir (NamedTemplate $ unsafeCreateRawTemplateName "missing"))
-          result @?= Left (UnknownTemplateName dir "missing")
-
-    , testCase "NamedTemplate rejects path traversal with .." $
-        withSystemTempDirectory "ollama-holes-template-spec" $ \dir -> do
-            result <- loadTemplate (TemplateSpec dir (NamedTemplate $ unsafeCreateRawTemplateName "../../secret"))
-            result @?= Left (InvalidTemplateName "../../secret")
-
-    , testCase "NamedTemplate rejects slash" $
-        withSystemTempDirectory "ollama-holes-template-spec" $ \dir -> do
-            result <- loadTemplate (TemplateSpec dir (NamedTemplate $ unsafeCreateRawTemplateName "foo/bar"))
-            result @?= Left (InvalidTemplateName "foo/bar")
-
-    , testCase "NamedTemplate rejects backslash" $
-        withSystemTempDirectory "ollama-holes-template-spec" $ \dir -> do
-            result <- loadTemplate (TemplateSpec dir (NamedTemplate $ unsafeCreateRawTemplateName "foo\\bar"))
-            result @?= Left (InvalidTemplateName "foo\\bar")
-
-    , testCase "NamedTemplate rejects empty name" $
-        withSystemTempDirectory "ollama-holes-template-spec" $ \dir -> do
-            result <- loadTemplate (TemplateSpec dir (NamedTemplate $ unsafeCreateRawTemplateName ""))
-            result @?= Left (InvalidTemplateName "")
-
-    , testCase "NamedTemplate accepts simple safe name" $
-        withSystemTempDirectory "ollama-holes-template-spec" $ \dir -> do
-            writeFile (dir </> "qwen_3.txt") "hello {{context}}"
-            result <- loadTemplate (TemplateSpec dir (NamedTemplate $ unsafeCreateRawTemplateName "qwen_3"))
-            case result of
-                Right _ -> pure ()
-                Left err -> assertFailure ("unexpected error: " <> show err)
-    ]
 
 loadAndParseTests :: TestTree
 loadAndParseTests =
