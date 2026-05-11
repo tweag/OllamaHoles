@@ -112,7 +112,7 @@ jobs:
       run: cabal update
 
     - name: Build Haskell project
-      run: cabal build
+      run: cabal build lib:ollama-holes-lib lib:ollama-holes-plugin
 
     - name: Build Documentation
       run: cabal haddock
