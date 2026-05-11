@@ -7,7 +7,6 @@ import Data.Text.IO qualified as T
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, assertFailure, (@?=))
 import Test.Tasty.QuickCheck qualified as QC
-import System.Directory (doesFileExist)
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
 
@@ -152,6 +151,18 @@ tests_loadTemplate_unit_success =
     , \dir -> TemplateSpec dir
         $ NamedTemplate $ unsafeCreateRawTemplateName "prompt"
     , Template [TemplateChunk "hello ", TemplateVar "context"]
+    )
+
+  , ( "loaded file parses into expected chunks and vars"
+    , Just "A {{foo}} B {{bar}}."
+    , \dir -> TemplateSpec dir (TemplateFile $ dir </> "prompt.txt")
+    , Template
+        [ TemplateChunk "A "
+        , TemplateVar "foo"
+        , TemplateChunk " B "
+        , TemplateVar "bar"
+        , TemplateChunk "."
+        ]
     )
   ]
 

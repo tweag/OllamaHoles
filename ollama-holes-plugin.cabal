@@ -242,7 +242,6 @@ test-suite ollama-holes-spec
     , GHC.Plugin.OllamaHoles.Candidate.WithRenamedExpr
     , GHC.Plugin.OllamaHoles.Logger.Spec
     , GHC.Plugin.OllamaHoles.Options.Spec
-    , GHC.Plugin.OllamaHoles.Template.Load.Spec
     , GHC.Plugin.OllamaHoles.Template.Expand.Spec
     , GHC.Plugin.OllamaHoles.Config.Spec
     , GHC.Plugin.OllamaHoles.Config.Trigger.Spec
