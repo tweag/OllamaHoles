@@ -131,9 +131,13 @@ jobs:
     - name: Install Ollama
       run: curl -fsSL https://ollama.com/install.sh | sh
 
-    - name: Fetch  ${{ matrix.model }}
+    - name: Fetch ${{ matrix.model }}
       run: ollama pull ${{ matrix.model }}
 
-    - name: Build Test project 
-      run: 
-        cabal build Test --ghc-option "-fplugin-opt=GHC.Plugin.OllamaHoles:model=${{ matrix.model }}" 2>&1 | grep "Valid hole fits"
+    - name: Build Test project
+      run: |
+        set -o pipefail
+        cabal build Test \
+          --ghc-option "-fplugin-opt=GHC.Plugin.OllamaHoles:model=${{ matrix.model }}" \
+          2>&1 | tee demo-build.log
+        grep "Valid hole fits" demo-build.log
