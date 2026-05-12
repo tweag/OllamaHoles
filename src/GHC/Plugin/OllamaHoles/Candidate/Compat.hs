@@ -91,8 +91,13 @@ viewExpr dflags e@(L _ e0) = case e0 of
     SectionR _ op y ->
         VSectionR op y
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
     HsPar _ x ->
         VWrapper x
+#else
+    HsPar _ _ x _ ->
+        VWrapper x
+#endif
 
     ExprWithTySig _ x _ ->
         VWrapper x
@@ -135,5 +140,9 @@ viewMatchPats Match{m_pats} =
 viewVarPatName :: GHC.LPat GhcRn -> Maybe Name
 viewVarPatName (L _ pat) = case pat of
     VarPat _ (L _ nm) -> Just nm
+#if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
     ParPat _ p        -> viewVarPatName p
+#else
+    ParPat _ _ p _    -> viewVarPatName p
+#endif
     _                 -> Nothing
