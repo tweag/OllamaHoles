@@ -24,6 +24,7 @@ jobs:
     permissions:
       contents: read
     strategy:
+      fail-fast: false
       matrix:
         ghc: ['9.6', '9.8', '9.10', '9.12']
     name: GHC ${{ matrix.ghc }}

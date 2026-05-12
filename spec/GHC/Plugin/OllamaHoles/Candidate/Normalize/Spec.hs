@@ -173,7 +173,7 @@ withRenamedExpr exts rhs k =
             dflags0 <- getSessionDynFlags
             _ <- setSessionDynFlags dflags0
 
-#if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
             target <- guessTarget fp Nothing Nothing
 #else
             target <- guessTarget fp Nothing
