@@ -5,6 +5,7 @@ module GHC.Plugin.OllamaHoles.Candidate.Compat
     , viewTopSimpleLam
     , ExprView(..)
     , showExprView
+    , getRenamedGroup
     ) where
 
 
@@ -146,3 +147,12 @@ viewVarPatName (L _ pat) = case pat of
     ParPat _ _ p _    -> viewVarPatName p
 #endif
     _                 -> Nothing
+
+
+
+getRenamedGroup :: RenamedSource -> GHC.HsGroup GhcRn
+#if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
+getRenamedGroup (group, _, _, _, _) = group
+#else
+getRenamedGroup (group, _, _, _) = group
+#endif

@@ -112,7 +112,7 @@ mkModuleSource exts rhs = unlines $
         ]
 
 mkTarget :: FilePath -> Ghc GHC.Target
-#if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
 mkTarget fp = guessTarget fp Nothing Nothing
 #else
 mkTarget fp = guessTarget fp Nothing

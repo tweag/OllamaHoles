@@ -239,10 +239,15 @@ mkModuleSource exts rhs =
             ]
 
 findExprBinding :: RenamedSource -> Maybe (LHsExpr GhcRn)
-findExprBinding (group, _, _, _, _) =
-    listToMaybe
+findExprBinding renamed =
+    let group = getRenamedGroup renamed
+    in listToMaybe
         [ body
-        | L _ GHC.FunBind{fun_id = L _ nm, fun_matches = mg} <- listify isFunBind group
+        | L _
+            GHC.FunBind
+                { GHC.fun_id = L _ nm
+                , GHC.fun_matches = mg
+                } <- listify isFunBind group
         , occNameString (occName nm) == "expr"
         , Just body <- [matchGroupBody mg]
         ]
