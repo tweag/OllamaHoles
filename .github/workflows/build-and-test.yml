@@ -25,8 +25,7 @@ jobs:
       contents: read
     strategy:
       matrix:
-        ghc: ['9.8', '9.10', '9.12']
-        # ghc: ['9.6']
+        ghc: ['9.6', '9.8', '9.10', '9.12']
     name: GHC ${{ matrix.ghc }}
     steps:
     - uses: actions/checkout@v4
