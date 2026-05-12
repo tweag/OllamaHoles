@@ -16,6 +16,11 @@ import GHC (GhcRn, LHsExpr, HsExpr(..), Pat(..), GRHSs(..), GRHS(..), Match(..))
 import GHC qualified as GHC
 import GHC.Plugins hiding ((<>))
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+--import GHC.Types.Name.Reader (unLocWithUserRdr)
+import qualified Data.List.NonEmpty as NE
+#endif
+
 
 
 -- | @ExprView@ is a local approximation of haskell syntax.
@@ -53,11 +58,19 @@ showExprView = \case
 
 viewExpr :: DynFlags -> LHsExpr GhcRn -> ExprView
 viewExpr dflags e@(L _ e0) = case e0 of
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+    HsVar _ occ ->
+        VVar (unLocWithUserRdr occ)
+#else
     HsVar _ (L _ nm) ->
         VVar nm
+#endif
 
+#if !MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
     HsUnboundVar _ uv ->
         VUnbound (T.pack (showSDoc dflags (ppr uv)))
+#endif
 
     HsOverLit _ ol ->
         VLit (T.pack (showSDoc dflags (ppr ol)))
@@ -126,8 +139,17 @@ viewSimpleMatchGroup
 viewSimpleMatchGroup GHC.MG{GHC.mg_alts = L _ [L _ match@Match{m_grhss}]} = do
   ns <- traverse viewVarPatName (viewMatchPats match)
   case m_grhss of
-    GRHSs { grhssGRHSs = [L _ (GRHS _ [] body)] } -> Just (ns, body)
-    _                                             -> Nothing
+    GRHSs { grhssGRHSs = grhssGRHSs0 } ->
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+      case NE.toList grhssGRHSs0 of
+        [L _ (GRHS _ [] body)] -> Just (ns, body)
+        _ -> Nothing
+#else
+      case grhssGRHSs0 of
+        [L _ (GRHS _ [] body)] -> Just (ns, body)
+        _ -> Nothing
+#endif
 viewSimpleMatchGroup _ = Nothing
 
 viewMatchPats :: Match GhcRn (LHsExpr GhcRn) -> [GHC.LPat GhcRn]

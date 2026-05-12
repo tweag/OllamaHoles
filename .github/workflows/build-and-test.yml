@@ -16,11 +16,11 @@ on:
   workflow_dispatch:
 
 
+
 jobs:
 
   build:
     runs-on: ${{ matrix.os }}
-
     permissions:
       contents: read
     strategy:
@@ -28,7 +28,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         ghc: ['9.6', '9.8', '9.10', '9.12']
-    name: GHC ${{ matrix.ghc }}
+    name: GHC ${{ matrix.ghc }} on ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
 
@@ -75,6 +75,53 @@ jobs:
           ~/.cabal/bin
           dist-newstyle
         key: ${{ steps.cabal-cache.outputs.cache-primary-key }}
+
+
+
+  ghc914-experimental:
+    name: ubuntu-latest / GHC 9.14 experimental
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: haskell-actions/setup@v2
+        with:
+          ghc-version: '9.14'
+          cabal-version: latest
+      - run: cabal update
+
+      - name: Build libraries with relaxed dependency bounds
+        run: |
+          cabal build lib:ollama-holes-lib lib:ollama-holes-plugin \
+            --allow-newer=req:template-haskell \
+            --allow-newer=modern-uri:template-haskell \
+            --allow-newer=text-iso8601:time \
+            --allow-newer=serialise:base \
+            --allow-newer=serialise:time \
+            --allow-newer=serialise:containers \
+            --allow-newer=serialise:bytestring \
+            --allow-newer=these:base \
+            --allow-newer=cborg:base \
+            --allow-newer=cborg:containers \
+            --allow-newer=cborg:bytestring
+
+      - name: Run spec tests with relaxed dependency bounds
+        run: |
+          cabal test ollama-holes-spec --test-options='--hide-successes' \
+            --allow-newer=req:template-haskell \
+            --allow-newer=modern-uri:template-haskell \
+            --allow-newer=text-iso8601:time \
+            --allow-newer=serialise:base \
+            --allow-newer=serialise:time \
+            --allow-newer=serialise:containers \
+            --allow-newer=serialise:bytestring \
+            --allow-newer=these:base \
+            --allow-newer=cborg:base \
+            --allow-newer=cborg:containers \
+            --allow-newer=cborg:bytestring
+
+
+
   test:
     runs-on: ubuntu-latest
 

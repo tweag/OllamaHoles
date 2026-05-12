@@ -1,6 +1,7 @@
+{-# LANGUAGE CPP #-}
+
 module GHC.Plugin.OllamaHoles.Candidate where
 
-import Control.Monad (when)
 import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -13,7 +14,6 @@ import GHC.Parser.Lexer qualified as GHC
 import GHC.Parser.PostProcess qualified as GHC (runPV, unECP)
 import GHC.Plugins hiding ((<>), NameEnv)
 import GHC.Rename.Expr qualified as GHC (rnLExpr)
-import GHC.Tc.Gen.App qualified as GHC (tcInferSigma)
 import GHC.Tc.Errors.Hole qualified as GHC (tcCheckHoleFit, withoutUnification)
 import qualified GHC.Tc.Solver as GHC
     (simplifyTop, simplifyInfer, captureTopConstraints, InferMode(..))
@@ -28,6 +28,12 @@ import GHC.Types.SrcLoc qualified as GHC (mkRealSrcLoc)
 
 import GHC.Plugin.OllamaHoles.Candidate.Compat
 import GHC.Plugin.OllamaHoles.Candidate.Rewrite
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+import GHC.Tc.Gen.Expr qualified as GHC (tcInferSigma)
+#else
+import GHC.Tc.Gen.App qualified as GHC (tcInferSigma)
+#endif
 
 
 

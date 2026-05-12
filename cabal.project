@@ -1,2 +1,15 @@
 packages: *.cabal
 tests: True
+
+allow-newer:
+    req:template-haskell
+  , modern-uri:template-haskell
+  , text-iso8601:time
+  , serialise:base
+  , serialise:time
+  , serialise:containers
+  , serialise:bytestring
+  , these:base
+  , cborg:base
+  , cborg:containers
+  , cborg:bytestring
