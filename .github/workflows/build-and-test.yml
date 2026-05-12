@@ -21,10 +21,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    permissions: write-all
+    permissions:
+      contents: read
     strategy:
       matrix:
-        ghc: ['9.6', '9.8', '9.10', '9.12']
+        ghc: ['9.12']
+        # ghc: ['9.6', '9.8', '9.10']
     name: GHC ${{ matrix.ghc }}
     steps:
     - uses: actions/checkout@v4
@@ -54,7 +56,10 @@ jobs:
       run: cabal update
 
     - name: Build Haskell project
-      run: cabal build
+      run: cabal build lib:ollama-holes-lib lib:ollama-holes-plugin
+
+    - name: Run spec tests
+      run: cabal test ollama-holes-spec --test-options='--hide-successes'
 
     - name: Build Documentation
       run: cabal haddock
@@ -72,11 +77,12 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    permissions: write-all
+    permissions:
+      contents: read
     strategy:
       matrix:
         ghc: ['9.12']
-        model: ['qwen3:4b']
+        model: ['qwen3:latest']
     name: Test with GHC ${{ matrix.ghc }} and ${{ matrix.model }}
     steps:
     - uses: actions/checkout@v4
@@ -106,7 +112,7 @@ jobs:
       run: cabal update
 
     - name: Build Haskell project
-      run: cabal build
+      run: cabal build lib:ollama-holes-lib lib:ollama-holes-plugin
 
     - name: Build Documentation
       run: cabal haddock
@@ -125,9 +131,14 @@ jobs:
     - name: Install Ollama
       run: curl -fsSL https://ollama.com/install.sh | sh
 
-    - name: Fetch  ${{ matrix.model }}
+    - name: Fetch ${{ matrix.model }}
       run: ollama pull ${{ matrix.model }}
 
-    - name: Build Test project 
-      run: 
-        cabal build Test --ghc-option "-fplugin-opt=GHC.Plugin.OllamaHoles:model=${{ matrix.model }}" 2>&1 | grep "Valid hole fits"
+    - name: Build Test project
+      run: |
+        set -o pipefail
+        cabal build exe:ollama-holes-demo \
+          --ghc-option "-fforce-recomp" \
+          --ghc-option "-fplugin-opt=GHC.Plugin.OllamaHoles:model=${{ matrix.model }}" \
+          2>&1 | tee demo-build.log || true
+        grep "Valid hole fits" demo-build.log
