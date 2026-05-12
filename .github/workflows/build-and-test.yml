@@ -24,8 +24,8 @@ jobs:
     permissions:
       contents: read
     strategy:
-      os: [ubuntu-latest, macos-latest]
       matrix:
+        os: [ubuntu-latest, macos-latest]
         ghc: ['9.8', '9.10', '9.12']
         # ghc: ['9.6']
     name: GHC ${{ matrix.ghc }}
