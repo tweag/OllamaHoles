@@ -153,7 +153,7 @@ fitPluginLLM
   -> TcM [HoleFit]
 fitPluginLLM ref hole fits = do
   result <- runExceptT $ do
-    st <- readTcRef ref >>= liftEither
+    st <- lift (readTcRef ref) >>= liftEither
     tryFitPluginLLM st hole fits
   case result of
     Right ok -> pure ok
