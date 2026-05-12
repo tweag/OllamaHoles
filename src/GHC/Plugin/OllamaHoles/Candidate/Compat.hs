@@ -150,7 +150,7 @@ viewVarPatName (L _ pat) = case pat of
 
 
 
-getRenamedGroup :: RenamedSource -> GHC.HsGroup GhcRn
+getRenamedGroup :: GHC.RenamedSource -> GHC.HsGroup GhcRn
 #if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
 getRenamedGroup (group, _, _, _, _) = group
 #else
