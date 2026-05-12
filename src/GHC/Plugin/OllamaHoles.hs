@@ -30,13 +30,18 @@ import GHC.Parser.Lexer qualified as GHC (ParseResult (..), getPsErrorMessages, 
 import GHC.Parser.PostProcess qualified as GHC (runPV, unECP)
 import GHC.Rename.Expr qualified as GHC (rnLExpr)
 import GHC.Tc.Errors.Hole qualified as GHC (tcCheckHoleFit, withoutUnification)
-import GHC.Tc.Gen.App qualified as GHC  (tcInferSigma)
 import GHC.Types.SrcLoc qualified as GHC (mkRealSrcLoc)
 
 #if __GLASGOW_HASKELL__ >= 912
 import GHC.Tc.Types.CtLoc (ctLocSpan)
 #else
 import GHC.Tc.Types.Constraint (ctLocSpan)
+#endif
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+import GHC.Tc.Gen.Expr qualified as GHC (tcInferSigma)
+#else
+import GHC.Tc.Gen.App qualified as GHC (tcInferSigma)
 #endif
 
 import GHC.HsToCore.Docs qualified as GHC
