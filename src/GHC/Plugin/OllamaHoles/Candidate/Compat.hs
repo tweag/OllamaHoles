@@ -73,7 +73,7 @@ viewExpr dflags e@(L _ e0) = case e0 of
     NegApp _ x _ ->
         VNeg x
 
-#if MIN_VERSION_GLASGOW_HASKELL(9,12,0,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
     HsLam _ _ mg ->
       case viewSimpleMatchGroup mg of
         Just (ns, body) -> VLam ns body
