@@ -17,7 +17,6 @@ import GHC qualified as GHC
 import GHC.Plugins hiding ((<>))
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
---import GHC.Types.Name.Reader (unLocWithUserRdr)
 import qualified Data.List.NonEmpty as NE
 #endif
 

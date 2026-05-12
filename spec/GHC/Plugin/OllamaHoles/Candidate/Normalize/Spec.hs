@@ -42,6 +42,8 @@ import GHC qualified as GHC
 import GHC.Plugins hiding ((<>))
 import qualified GHC.Paths as GHC.Paths
 
+import GHC.Plugin.OllamaHoles.Candidate.WithRenamedExpr (matchGroupBody, tmpModuleForSummary)
+
 import GHC.Plugin.OllamaHoles.Candidate
     ( CandidateRank(..)
     , PreparedCandidate(..)
@@ -187,7 +189,7 @@ withRenamedExpr exts rhs k =
                 GHC.Succeeded ->
                     pure ()
 
-            ms <- getModSummary (mkModuleName "Tmp")
+            ms <- getModSummary tmpModuleForSummary
             p  <- parseModule ms
             t  <- typecheckModule p
             dflags <- getSessionDynFlags
@@ -239,9 +241,3 @@ getRenamedGroup (group, _, _, _) = group
 isFunBind :: LHsBind GhcRn -> Bool
 isFunBind (L _ GHC.FunBind{}) = True
 isFunBind _                   = False
-
-matchGroupBody :: MatchGroup GhcRn (LHsExpr GhcRn) -> Maybe (LHsExpr GhcRn)
-matchGroupBody MG{mg_alts = L _ [L _ Match{m_grhss = GRHSs{grhssGRHSs = [L _ (GRHS _ [] body)]}}]} =
-    Just body
-matchGroupBody _ =
-    Nothing

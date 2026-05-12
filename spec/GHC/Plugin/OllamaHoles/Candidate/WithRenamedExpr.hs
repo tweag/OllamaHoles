@@ -5,6 +5,8 @@
 module GHC.Plugin.OllamaHoles.Candidate.WithRenamedExpr
   ( withRenamedExpr
   , withTwoRenamedExpr
+  , tmpModuleForSummary
+  , matchGroupBody
   ) where
 
 import Data.Generics (listify)
@@ -41,6 +43,22 @@ import GHC qualified as GHC
 import GHC.Plugins hiding ((<>))
 import qualified GHC.Paths as GHC.Paths
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+import GHC.Unit.Module (mkModule)
+import GHC.Unit.Types (mainUnit)
+import qualified Data.List.NonEmpty as NE
+#endif
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+tmpModuleForSummary :: Module
+tmpModuleForSummary =
+  mkModule mainUnit (mkModuleName "Tmp")
+#else
+tmpModuleForSummary :: ModuleName
+tmpModuleForSummary =
+  mkModuleName "Tmp"
+#endif
+
 -- | Unit test fixture to parse, rename, and typecheck a tiny
 -- temporary module containing @expr = <rhs>@, then hand the
 -- renamed RHS to the callback.
@@ -68,7 +86,7 @@ withRenamedExpr exts rhs k =
                 GHC.Succeeded ->
                     pure ()
 
-            ms <- getModSummary (mkModuleName "Tmp")
+            ms <- getModSummary tmpModuleForSummary
             p  <- parseModule ms
             t  <- typecheckModule p
             dflags <- getSessionDynFlags
@@ -144,10 +162,21 @@ isFunBind (L _ FunBind{}) = True
 isFunBind _               = False
 
 matchGroupBody :: MatchGroup GhcRn (LHsExpr GhcRn) -> Maybe (LHsExpr GhcRn)
-matchGroupBody
-  MG { mg_alts = L _ [ L _ Match
-        { m_grhss = GRHSs { grhssGRHSs = [L _ (GRHS _ [] body)]} }
-        ]
-    } = Just body
+matchGroupBody MG{mg_alts = L _ [L _ Match{m_grhss = GRHSs{grhssGRHSs}}]} =
+  case oneGRHS grhssGRHSs of
+    Just (L _ (GRHS _ [] body)) ->
+      Just body
+    _ ->
+      Nothing
 matchGroupBody _ =
   Nothing
+oneGRHS grhss =
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+  case NE.toList grhss of
+    [x] -> Just x
+    _   -> Nothing
+#else
+  case grhss of
+    [x] -> Just x
+    _   -> Nothing
+#endif

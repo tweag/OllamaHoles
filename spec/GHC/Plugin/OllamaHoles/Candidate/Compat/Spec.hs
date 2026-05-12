@@ -42,6 +42,7 @@ import GHC
 import GHC qualified as GHC
 import GHC.Plugins hiding ((<>))
 
+import GHC.Plugin.OllamaHoles.Candidate.WithRenamedExpr (matchGroupBody, tmpModuleForSummary)
 import GHC.Plugin.OllamaHoles.Candidate.Compat
 
 tests :: TestTree
@@ -211,7 +212,7 @@ withRenamedExpr exts rhs k =
                 GHC.Succeeded ->
                     pure ()
 
-            ms <- getModSummary (mkModuleName "Tmp")
+            ms <- getModSummary tmpModuleForSummary
             p  <- parseModule ms
             t  <- typecheckModule p
             dflags <- getSessionDynFlags
@@ -255,12 +256,6 @@ findExprBinding renamed =
 isFunBind :: LHsBind GhcRn -> Bool
 isFunBind (L _ GHC.FunBind{}) = True
 isFunBind _                   = False
-
-matchGroupBody :: MatchGroup GhcRn (LHsExpr GhcRn) -> Maybe (LHsExpr GhcRn)
-matchGroupBody MG{mg_alts = L _ [L _ Match{m_grhss = GRHSs{grhssGRHSs = [L _ (GRHS _ [] body)]}}]} =
-    Just body
-matchGroupBody _ =
-    Nothing
 
 showTopSimpleLamResult :: Maybe ([Name], LHsExpr GhcRn) -> String
 showTopSimpleLamResult = \case

@@ -19,11 +19,13 @@ import qualified GHC.Tc.Solver as GHC
     (simplifyTop, simplifyInfer, captureTopConstraints, InferMode(..))
 import qualified GHC.Tc.Solver.Monad as GHC (zonkTcType, runTcSEarlyAbort)
 import GHC.Tc.Types (TcM(..))
-import GHC.Tc.Types.Constraint (Hole(..))
+import GHC.Tc.Types.Constraint (Hole(..), WantedConstraints)
+import GHC.Types.Var qualified as GHC (EvVar)
+import GHC.Tc.Types.Evidence qualified as GHC (TcEvBinds)
 import qualified GHC.Tc.Utils.Monad as GHC
 import GHC.Tc.Utils.Monad (discardErrs, ifErrsM)
 import GHC.Tc.Utils.TcType (TcSigmaType)
-import qualified GHC.Tc.Utils.TcType as GHC (tyCoFVsOfType, mkPhiTy)
+import qualified GHC.Tc.Utils.TcType as GHC (tyCoFVsOfType, mkPhiTy, TcLevel, TcTauType, TcTyVar)
 import GHC.Types.SrcLoc qualified as GHC (mkRealSrcLoc)
 
 import GHC.Plugin.OllamaHoles.Candidate.Compat
@@ -35,6 +37,8 @@ import GHC.Tc.Gen.Expr qualified as GHC (tcInferSigma)
 import GHC.Tc.Gen.App qualified as GHC (tcInferSigma)
 #endif
 
+import GHC.Tc.Solver qualified as TcSolver (simplifyInfer)
+import GHC.Types.Basic qualified as Basic (TopLevelFlag(..))
 
 
 -- Contexts
@@ -162,15 +166,15 @@ checkCandidateFit CheckCtx{cxDebug, cxHole} RenamedCandidate{rcSource, rcRenamed
             ((doesFit, _), zonkedTy) <-
                 GHC.withoutUnification (GHC.tyCoFVsOfType (hole_ty h)) $ do
                     ((tcLvl, exprTy), wanteds) <-
-                        GHC.captureTopConstraints $
-                            GHC.pushTcLevelM $
-                            GHC.tcInferSigma False rcRenamed
+                      GHC.captureTopConstraints $
+                        GHC.pushTcLevelM $
+                        inferSigmaType rcRenamed
 
                     fresh <- GHC.newName (mkVarOcc "hf-fit")
 
                     ((qtvs, dicts, _, _), residual) <-
-                        GHC.captureConstraints $
-                            GHC.simplifyInfer tcLvl GHC.NoRestrictions [] [(fresh, exprTy)] wanteds
+                      GHC.captureConstraints $
+                        simplifyInferCompat tcLvl [(fresh, exprTy)] wanteds
 
                     let rTy = mkInfForAllTys qtvs $ GHC.mkPhiTy (map idType dicts) exprTy
                     _ <- GHC.simplifyTop residual
@@ -417,3 +421,40 @@ emptyCandidateLog = CandidateLog []
 addDecision :: StageTag -> Text -> CandidateLog -> CandidateLog
 addDecision cdStage cdMessage (CandidateLog xs) =
     CandidateLog (CandidateDecision{cdStage, cdMessage} : xs)
+
+
+
+inferSigmaType
+  :: LHsExpr GhcRn
+  -> TcM Type
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+inferSigmaType expr =
+  snd <$> GHC.tcInferSigma expr
+#else
+inferSigmaType expr =
+  GHC.tcInferSigma False expr
+#endif
+simplifyInferCompat
+  :: GHC.TcLevel
+  -> [(Name, GHC.TcTauType)]
+  -> WantedConstraints
+  -> TcM ([GHC.TcTyVar], [GHC.EvVar], GHC.TcEvBinds, Bool)
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+simplifyInferCompat tcLvl sigs wanteds =
+  TcSolver.simplifyInfer
+    Basic.NotTopLevel
+    tcLvl
+    GHC.NoRestrictions
+    []
+    sigs
+    wanteds
+#else
+simplifyInferCompat tcLvl sigs wanteds =
+  GHC.simplifyInfer
+    tcLvl
+    GHC.NoRestrictions
+    []
+    sigs
+    wanteds
+#endif
+
