@@ -73,7 +73,7 @@ viewExpr dflags e@(L _ e0) = case e0 of
     NegApp _ x _ ->
         VNeg x
 
-#if MIN_VERSION_GLASGOW_HASKELL(9,12,0,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
     HsLam _ _ mg ->
       case viewSimpleMatchGroup mg of
         Just (ns, body) -> VLam ns body
@@ -117,12 +117,20 @@ viewTopSimpleLam dflags e = case viewExpr dflags e of
 viewSimpleMatchGroup
     :: GHC.MatchGroup GhcRn (LHsExpr GhcRn)
     -> Maybe ([Name], LHsExpr GhcRn)
-viewSimpleMatchGroup GHC.MG{GHC.mg_alts = L _ [L _ Match{m_pats, m_grhss}]} = do
-    ns <- traverse viewVarPatName (unLoc m_pats)
-    case m_grhss of
-        GRHSs { grhssGRHSs = [L _ (GRHS _ [] body)] } -> Just (ns, body)
-        _                                             -> Nothing
+viewSimpleMatchGroup GHC.MG{GHC.mg_alts = L _ [L _ match@Match{m_grhss}]} = do
+  ns <- traverse viewVarPatName (viewMatchPats match)
+  case m_grhss of
+    GRHSs { grhssGRHSs = [L _ (GRHS _ [] body)] } -> Just (ns, body)
+    _                                             -> Nothing
 viewSimpleMatchGroup _ = Nothing
+
+viewMatchPats :: Match GhcRn (LHsExpr GhcRn) -> [GHC.LPat GhcRn]
+viewMatchPats Match{m_pats} =
+#if MIN_VERSION_GLASGOW_HASKELL(9,12,0,0)
+  unLoc m_pats
+#else
+  m_pats
+#endif
 
 viewVarPatName :: GHC.LPat GhcRn -> Maybe Name
 viewVarPatName (L _ pat) = case pat of

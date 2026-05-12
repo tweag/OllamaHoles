@@ -173,7 +173,7 @@ withRenamedExpr exts rhs k =
             dflags0 <- getSessionDynFlags
             _ <- setSessionDynFlags dflags0
 
-#if MIN_VERSION_GLASGOW_HASKELL(9,12,0,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
             target <- guessTarget fp Nothing Nothing
 #else
             target <- guessTarget fp Nothing
@@ -230,7 +230,7 @@ findExprBinding renamed =
         ]
 
 getRenamedGroup :: RenamedSource -> GHC.HsGroup GhcRn
-#if MIN_VERSION_GLASGOW_HASKELL(9,12,0,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
 getRenamedGroup (group, _, _, _, _) = group
 #else
 getRenamedGroup (group, _, _, _) = group
