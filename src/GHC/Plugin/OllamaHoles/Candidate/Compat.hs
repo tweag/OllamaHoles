@@ -122,14 +122,14 @@ viewSimpleMatchGroup GHC.MG{GHC.mg_alts = L _ [L _ match@Match{m_grhss}]} = do
   case m_grhss of
     GRHSs { grhssGRHSs = [L _ (GRHS _ [] body)] } -> Just (ns, body)
     _                                             -> Nothing
-
 viewSimpleMatchGroup _ = Nothing
+
 viewMatchPats :: Match GhcRn (LHsExpr GhcRn) -> [GHC.LPat GhcRn]
 viewMatchPats Match{m_pats} =
-#if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
-  m_pats
-#else
+#if MIN_VERSION_GLASGOW_HASKELL(9,12,0,0)
   unLoc m_pats
+#else
+  m_pats
 #endif
 
 viewVarPatName :: GHC.LPat GhcRn -> Maybe Name
