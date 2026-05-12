@@ -52,7 +52,7 @@ showExprView = \case
 
 
 viewExpr :: DynFlags -> LHsExpr GhcRn -> ExprView
-viewExpr dflags e@(L _ e0) = case e0 of
+viewExpr dflags (L _ e0) = case e0 of
     HsVar _ (L _ nm) ->
         VVar nm
 

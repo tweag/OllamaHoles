@@ -4,7 +4,7 @@ import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
 import Data.Functor ((<&>))
 import Data.Text qualified as T
-import GHC.Driver.Plugins (CommandLineOption(..))
+import GHC.Driver.Plugins (CommandLineOption)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertFailure, testCase, (@?=))
 import Test.Tasty.QuickCheck qualified as QC
