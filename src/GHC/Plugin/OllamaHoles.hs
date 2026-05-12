@@ -376,15 +376,16 @@ verifyHoleFit _ hole fit | Just h <- th_hole hole = discardErrs $ do
                       -- based on tcRnExpr, but in the TcM so that we get the right references,
                       -- without zonking and passing the constraints on to the hole.
                       ((tc_lvl, expr_ty), wanteds) <-
-                         GHC.captureTopConstraints $
-                          GHC.pushTcLevelM $ GHC.tcInferSigma False rn_e
+                        GHC.captureTopConstraints $
+                          GHC.pushTcLevelM $
+                            inferSigmaType rn_e
                       fresh <- GHC.newName (mkVarOcc "hf-fit")
                       ((qtvs, dicts, _, _), residual) <-
                         GHC.captureConstraints $
-                          GHC.simplifyInfer tc_lvl GHC.NoRestrictions
-                                            []    {- No sig vars -}
-                                            [(fresh, expr_ty)]
-                                            wanteds
+                          simplifyInferCompat
+                            tc_lvl
+                            [(fresh, expr_ty)]
+                            wanteds
                       let r_ty = mkInfForAllTys qtvs $ GHC.mkPhiTy (map idType dicts) expr_ty
                       _ <- GHC.simplifyTop residual
                       zonked <- GHC.runTcSEarlyAbort $ GHC.zonkTcType r_ty
