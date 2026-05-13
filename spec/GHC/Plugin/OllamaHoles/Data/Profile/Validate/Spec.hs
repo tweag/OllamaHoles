@@ -120,6 +120,12 @@ tests_validateProfileTriggers_unit_success =
       , serviceProfileWithTrigger (ProfileName "c") (TriggerPrefix "hole")
       ]
     )
+
+  , ( "TriggerNone is ignored beside an active prefix"
+    , [ serviceProfileWithTrigger (ProfileName "disabled") TriggerNone
+      , serviceProfileWithTrigger (ProfileName "default") (TriggerPrefix "llm")
+      ]
+    )
   ]
 
 tests_validateProfileTriggers_unit_failure
@@ -166,6 +172,17 @@ tests_validateProfileTriggers_unit_failure =
       , serviceProfileWithTrigger (ProfileName "p") (TriggerPrefix "llm")
       ]
     , TriggerAllOverlaps (ProfileName "all") (ProfileName "p") (TriggerPrefix "llm")
+    )
+
+  , ( "plugin-style prefix overlap is rejected"
+    , [ serviceProfileWithTrigger (ProfileName "default") (TriggerPrefix "llm")
+      , serviceProfileWithTrigger (ProfileName "fast") (TriggerPrefix "llm_fast")
+      ]
+    , TriggerPrefixOverlap
+        (ProfileName "default")
+        "llm"
+        (ProfileName "fast")
+        "llm_fast"
     )
   ]
 

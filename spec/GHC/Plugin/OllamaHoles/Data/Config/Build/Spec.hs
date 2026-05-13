@@ -3,14 +3,16 @@ module GHC.Plugin.OllamaHoles.Data.Config.Build.Spec
   ) where
 
 import Control.Monad.Except ( runExceptT )
+import Control.Monad.Trans.Class (MonadTrans(..))
 import Data.Aeson ( Value(..) )
+import Data.Functor ((<&>))
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import System.Directory ( createDirectoryIfMissing )
-import System.FilePath ( (</>) )
+import System.FilePath ( (</>), takeDirectory, takeFileName )
 import System.IO.Temp ( withSystemTempDirectory )
 
 import Test.Tasty
@@ -26,426 +28,1543 @@ import GHC.Plugin.OllamaHoles.Data.Profile
 import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Data.Trigger
 import GHC.Plugin.OllamaHoles.Data.Template
+import GHC.Plugin.OllamaHoles.Data.Template.Types.Internal (unsafeCreateRawTemplateName)
+
+import GHC.Plugin.OllamaHoles.Data.Config.Types.Gen
+import GHC.Plugin.OllamaHoles.Data.Config.Error.Predicate
 
 
 
 tests :: TestTree
-tests =
-  testGroup "GHC.Plugin.OllamaHoles.Data.Config.Build"
-    [ simpleConfigTests
-    , fancyConfigTests
-    , validationTests
-    , mapBuilderTests
-    , propertyTests
-    ]
+tests = testGroup "Config.Build"
+  [ test_buildConfig_unit_basic
+  , test_buildConfig_unit_validate
+  , test_buildConfig_prop
+  ]
+
+test_buildConfig_unit_basic :: TestTree
+test_buildConfig_unit_basic = testGroup "buildConfig (unit)"
+  [ testGroup "success" $
+      tests_buildConfig_unit_basic_success <&>
+        \(name, flags, mConfig, expected) ->
+          testCase name $ do
+            result <- run_buildConfig flags mConfig
+            case result of
+              Left err -> assertFailure $
+                "expected successful build but got this error: " <> show err
+              Right actual -> actual @?= expected
+
+  , testGroup "failure" $
+      tests_buildConfig_unit_basic_failure <&>
+        \(name, flags, mConfig) ->
+          testCase name $ do
+            result <- run_buildConfig flags mConfig
+            case result of
+              Left _ -> pure ()
+              Right ok -> assertFailure $
+                "expected failed build but got this result: " <> show ok
+  ]
+
+test_buildConfig_unit_validate :: TestTree
+test_buildConfig_unit_validate = testGroup "buildConfig (validation)"
+  [ testGroup "success" $
+      tests_buildConfig_unit_validate_success <&>
+        \(name, flags, mConfig, expected) ->
+          testCase name $ do
+            result <- run_buildConfig flags mConfig
+            case result of
+              Left err -> assertFailure $
+                "expected successful build but got this error: " <> show err
+              Right actual -> actual @?= expected
+
+  , testGroup "failure" $
+      tests_buildConfig_unit_validate_failure <&>
+        \(name, flags, mConfig, checkFailure) ->
+          testCase name $ do
+            result <- run_buildConfig flags mConfig
+            case result of
+              Left err -> checkFailure err
+              Right ok -> assertFailure $
+                "expected failed build but got this result: " <> show ok
+  ]
+
+run_buildConfig
+  :: (Maybe FilePath -> Flags) -> Maybe (String, Text)
+  -> IO (Either ConfigError Config)
+run_buildConfig flags mConfig =
+  withSystemTempDirectory "config-build" $ \dir -> do
+    path <- writeConfig dir mConfig
+    runExceptT $ buildConfig $ flags path
+
+writeConfig
+  :: FilePath -> Maybe (String, Text) -> IO (Maybe FilePath)
+writeConfig dir mConfig = case mConfig of
+  Nothing -> pure Nothing
+  Just (configTitle, configContent) -> do
+    let cpath = dir </> configTitle
+    createDirectoryIfMissing True dir
+    T.writeFile cpath configContent
+    pure $ Just cpath
+
+test_buildConfig_prop :: TestTree
+test_buildConfig_prop = testGroup "buildConfig (prop)"
+  [ QC.testProperty "config=disabled always builds simple config" $
+    QC.forAll genSimpleFlags $ \flags0 -> QC.ioProperty $ do
+      result <- run_buildConfig
+        (\_path -> flags0
+          { config_path = Just ConfigDisabled
+          })
+        Nothing
+
+      pure $ case result of
+        Right ConfigSimple{} -> QC.property True
+        other -> QC.counterexample
+          ("expected ConfigSimple, got: " <> show other)
+          False
+
+  , QC.testProperty "config=disabled ignores config files" $
+    QC.forAll genSimpleFlags $ \flags0 -> QC.ioProperty $ do
+      result <- run_buildConfig
+        (\_path -> flags0
+          { config_path = Just ConfigDisabled
+          })
+        (Just ("config.toml", basicFancyToml))
+
+      pure $ case result of
+        Right ConfigSimple{} -> QC.property True
+        other -> QC.counterexample
+          ("expected ConfigSimple, got: " <> show other)
+          False
+
+  , QC.testProperty "explicit missing config paths are rejected" $
+    QC.forAll genSafeFileName $ \fileName -> QC.ioProperty $ do
+      result <- run_buildConfig
+        (\path -> mempty
+          { config_path = Just $ ConfigExplicit $
+              case path of
+                Nothing -> fileName
+                Just anchorPath -> takeDirectory anchorPath </> fileName
+          })
+          (Just ("anchor.toml", ""))
+
+      pure $ case result of
+        Left (ConfigFileNotFound path) ->
+          takeFileName path QC.=== fileName
+        other -> QC.counterexample
+          ("expected ConfigFileNotFound for " <> show fileName <> ", got: " <> show other)
+          False
+
+    , QC.testProperty "buildConfig succeeds for valid service-only config files" $
+      QC.forAll genValidServiceOnlyConfigToml $
+        \(toml, expectedServiceCount, expectedProfileCount) ->
+          QC.ioProperty $ do
+            result <- run_buildConfig
+              (\path -> mempty
+                { config_path = ConfigExplicit <$> path
+                })
+              (Just ("config.toml", toml))
+
+            pure $ case result of
+              Left err -> QC.counterexample
+                ("unexpected error: " <> show err <> "\n\nTOML:\n" <> T.unpack toml)
+                False
+              Right (ConfigFancy cfg) ->
+                  M.size (cfgServices cfg) QC.=== expectedServiceCount
+                    QC..&&.
+                  M.size (cfgProfiles cfg) QC.=== expectedProfileCount
+              Right other -> QC.counterexample
+                ("expected ConfigFancy, got: " <> show other)
+                False
+
+    , QC.testProperty "buildConfig rejects missing service references" $
+      QC.forAll genMissingServiceConfigToml $
+        \(toml, missingProfile, missingService) ->
+          QC.ioProperty $ do
+            result <- run_buildConfig
+              (\path -> mempty
+                { config_path = ConfigExplicit <$> path
+                })
+              (Just ("config.toml", toml))
+
+            pure $ case result of
+              Left (UnknownServiceReference prof service) ->
+                prof QC.=== missingProfile
+                  QC..&&.
+                service QC.=== missingService
+              other -> QC.counterexample
+                ("expected UnknownServiceReference, got: " <> show other <> "\n\nTOML:\n" <> T.unpack toml)
+                False
+
+    , QC.testProperty "buildConfig rejects self-cycles" $
+      QC.forAll genSelfCycleConfigToml $ \(toml, cyclicProfile) ->
+        QC.ioProperty $ do
+          result <- run_buildConfig
+            (\path -> mempty
+              { config_path = ConfigExplicit <$> path
+              })
+            (Just ("config.toml", toml))
+
+          pure $ case result of
+            Left (CyclicProfileReference cyclePath) -> QC.counterexample
+              ("cycle path did not mention expected profile: " <> show cyclePath)
+              (cyclicProfile `elem` cyclePath)
+            other -> QC.counterexample
+              ("expected CyclicProfileReference, got: " <> show other <> "\n\nTOML:\n" <> T.unpack toml)
+              False
+  ]
 
 
--- Simple config
-----------------
 
-simpleConfigTests :: TestTree
-simpleConfigTests =
-  testGroup "simple config"
-    [ testCase "config=disabled builds simple config with defaults" $ do
-        result <-
-          runBuild mempty
-            { config_path = Just ConfigDisabled
-            }
+tests_buildConfig_unit_basic_success
+  :: [(TestName, Maybe FilePath -> Flags, Maybe (String, Text), Config)]
+tests_buildConfig_unit_basic_success =
+  [ ( "config=disabled builds simple config with defaults"
+    , \_path -> mempty
+        { config_path = Just ConfigDisabled
+        }
+    , Nothing
+    , ConfigSimple $ SimpleConfig
+        { simpleTrigger = defaultTriggerPolicy
+        , simpleService = Service
+          { svcName = ServiceName "__simple__"
+          , svcConfig = SvcOllama (OllamaConfig Nothing)
+          }
+        , simpleProfile = ServiceProf
+          { profService = ServiceName "__simple__"
+          , profModel = ModelName "qwen3:latest"
+          , profTemplate = Nothing
+          , profModelOptions = Nothing
+          , profNumExpr = Just 5
+          , profIncludeDocs = Just False
+          }
+        }
+    )
 
-        case result of
-          Left err ->
-            assertFailure ("unexpected config error: " <> show err)
+  , ( "simple config honors command-line service/profile flags"
+    , \_path -> mempty
+        { config_path = Just ConfigDisabled
+        , backend_name = Just OpenAI
+        , openai_base_url = Just "https://example.invalid/v1"
+        , openai_key_name = Just "TEST_API_KEY"
+        , model_name = Just "gpt-test"
+        , trigger_policy = Just TriggerAll
+        , num_expr = Just 12
+        , include_docs = Just True
+        , model_options = Just (String "opts")
+        , template_path = Just "prompt.txt"
+        }
+    , Nothing
+    , ConfigSimple SimpleConfig
+        { simpleTrigger = TriggerAll
+        , simpleService = Service
+          { svcName = ServiceName "__simple__"
+          , svcConfig = SvcOpenAI $ OpenAIConfig
+              "https://example.invalid/v1"
+              "TEST_API_KEY"
+          }
+        , simpleProfile = ServiceProf
+          { profService = ServiceName "__simple__"
+          , profModel = ModelName "gpt-test"
+          , profTemplate = Just (TemplateFile "prompt.txt")
+          , profModelOptions = Just (String "opts")
+          , profNumExpr = Just 12
+          , profIncludeDocs = Just True
+          }
+        }
+    )
 
-          Right (ConfigSimple cfg) -> do
-            simpleTrigger cfg @?= defaultTriggerPolicy
-
-            simpleService cfg @?= Service
-              { svcName = ServiceName "__simple__"
-              , svcConfig = SvcOllama (OllamaConfig Nothing)
+  , ( "explicit config file builds fancy config with override extras by default"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'ollama', protocol = 'ollama' }\n\
+        \]\n\
+        \\n\
+        \profiles = [\n\
+        \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
+        \]"
+      )
+    , ConfigFancy FancyConfig
+        { cfgServices = M.fromList
+          [ ( ServiceName "ollama"
+            , Service
+                { svcName = ServiceName "ollama"
+                , svcConfig = SvcOllama (OllamaConfig Nothing)
+                }
+            )
+          ]
+        , cfgProfiles = M.fromList
+          [ ( ProfileName "p"
+            , Profile
+              { profName = ProfileName "p"
+              , profTrigger = TriggerPrefix "llm"
+              , profKind = ProfService ServiceProf
+                { profService = ServiceName "ollama"
+                , profModel = ModelName "qwen3:latest"
+                , profTemplate = Nothing
+                , profModelOptions = Nothing
+                , profNumExpr = Nothing
+                , profIncludeDocs = Nothing
+                }
               }
+            )
+          ]
+        , cfgExtras =
+            Just (ConfigOverride emptyOverrideConfig)
+        }
+    )
 
-            simpleProfile cfg @?= ServiceProf
-              { profService = ServiceName "__simple__"
-              , profModel = ModelName "qwen3:latest"
-              , profTemplate = Nothing
-              , profModelOptions = Nothing
-              , profNumExpr = Just 5
-              , profIncludeDocs = Just False
+  , ( "fancy config uses ConfigOverride for non-overlay command-line flags"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        , model_name = Just "override-model"
+        , num_expr = Just 3
+        , include_docs = Just True
+        , model_options = Just (String "override-options")
+        , template_name = Just $ unsafeCreateRawTemplateName "compact"
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'ollama', protocol = 'ollama' }\n\
+        \]\n\
+        \\n\
+        \profiles = [\n\
+        \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
+        \]"
+      )
+    , ConfigFancy FancyConfig
+        { cfgServices = M.fromList
+          [ ( ServiceName "ollama"
+            , Service
+                { svcName = ServiceName "ollama"
+                , svcConfig = SvcOllama (OllamaConfig Nothing)
+                }
+            )
+          ]
+        , cfgProfiles = M.fromList
+          [ ( ProfileName "p"
+            , Profile
+                { profName = ProfileName "p"
+                , profTrigger = TriggerPrefix "llm"
+                , profKind = ProfService ServiceProf
+                  { profService = ServiceName "ollama"
+                  , profModel = ModelName "qwen3:latest"
+                  , profTemplate = Nothing
+                  , profModelOptions = Nothing
+                  , profNumExpr = Nothing
+                  , profIncludeDocs = Nothing
+                  }
+                }
+            )
+          ]
+        , cfgExtras = Just
+          ( ConfigOverride OverrideConfig
+              { overrideModelName = Just (ModelName "override-model")
+              , overrideNumExpr = Just 3
+              , overrideIncludeDocs = Just True
+              , overrideModelOptions = Just (String "override-options")
+              , overrideTemplate = Just (NamedTemplate $ unsafeCreateRawTemplateName "compact")
               }
+          )
+        }
+    )
 
-          Right other ->
-            assertFailure ("expected ConfigSimple, got: " <> show other)
-
-    , testCase "simple config honors command-line service/profile flags" $ do
-        result <-
-          runBuild mempty
-            { config_path = Just ConfigDisabled
-            , backend_name = Just OpenAI
-            , openai_base_url = Just "https://example.invalid/v1"
-            , openai_key_name = Just "TEST_API_KEY"
-            , model_name = Just "gpt-test"
-            , trigger_policy = Just TriggerAll
-            , num_expr = Just 12
-            , include_docs = Just True
-            , model_options = Just (String "opts")
-            , template_path = Just "prompt.txt"
-            }
-
-        case result of
-          Left err ->
-            assertFailure ("unexpected config error: " <> show err)
-
-          Right (ConfigSimple cfg) -> do
-            simpleTrigger cfg @?= TriggerAll
-
-            simpleService cfg @?= Service
-              { svcName = ServiceName "__simple__"
-              , svcConfig =
-                  SvcOpenAI $
-                    OpenAIConfig
+  , ( "fancy config creates overlay when backend-ish flags are set"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        , backend_name = Just OpenAI
+        , openai_base_url = Just "https://example.invalid/v1"
+        , openai_key_name = Just "TEST_API_KEY"
+        , model_name = Just "overlay-model"
+        , trigger_policy = Just (TriggerPrefix "ask")
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'ollama', protocol = 'ollama' }\n\
+        \]\n\
+        \\n\
+        \profiles = [\n\
+        \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
+        \]"
+      )
+    , ConfigFancy FancyConfig
+        { cfgServices = M.fromList
+          [ ( ServiceName "ollama"
+            , Service
+                { svcName = ServiceName "ollama"
+                , svcConfig = SvcOllama (OllamaConfig Nothing)
+                }
+            )
+          , ( ServiceName "__simple__"
+            , Service
+                { svcName = ServiceName "__simple__"
+                , svcConfig = SvcOpenAI $ OpenAIConfig
+                    "https://example.invalid/v1"
+                    "TEST_API_KEY"
+                }
+            )
+          ]
+        , cfgProfiles = M.fromList
+          [ ( ProfileName "p"
+            , Profile
+                { profName = ProfileName "p"
+                , profTrigger = TriggerPrefix "llm"
+                , profKind = ProfService ServiceProf
+                  { profService = ServiceName "ollama"
+                  , profModel = ModelName "qwen3:latest"
+                  , profTemplate = Nothing
+                  , profModelOptions = Nothing
+                  , profNumExpr = Nothing
+                  , profIncludeDocs = Nothing
+                  }
+                }
+            )
+          ]
+        , cfgExtras = Just
+            ( ConfigOverlay SimpleConfig
+                { simpleTrigger = TriggerPrefix "ask"
+                , simpleService = Service
+                  { svcName = ServiceName "__simple__"
+                  , svcConfig = SvcOpenAI $ OpenAIConfig
                       "https://example.invalid/v1"
                       "TEST_API_KEY"
-              }
-
-            simpleProfile cfg @?= ServiceProf
-              { profService = ServiceName "__simple__"
-              , profModel = ModelName "gpt-test"
-              , profTemplate = Just (TemplateFile "prompt.txt")
-              , profModelOptions = Just (String "opts")
-              , profNumExpr = Just 12
-              , profIncludeDocs = Just True
-              }
-
-          Right other ->
-            assertFailure ("expected ConfigSimple, got: " <> show other)
-
-    , testCase "explicit missing config file is an error" $
-        withSystemTempDirectory "ollama-holes-config-build" $ \dir -> do
-          let path =
-                dir </> "missing.toml"
-
-          result <-
-            runBuild mempty
-              { config_path = Just (ConfigExplicit path)
-              }
-
-          result @?= Left (ConfigFileNotFound path)
-    ]
-
-
--- Fancy config
----------------
-
-fancyConfigTests :: TestTree
-fancyConfigTests =
-  testGroup "fancy config"
-    [ testCase "explicit config file builds fancy config with override extras by default" $
-        withConfigFile basicFancyToml $ \path -> do
-          result <-
-            runBuild mempty
-              { config_path = Just (ConfigExplicit path)
-              }
-
-          case result of
-            Left err ->
-              assertFailure ("unexpected config error: " <> show err)
-
-            Right (ConfigFancy cfg) -> do
-              M.keys (cfgServices cfg) @?= [ServiceName "ollama"]
-
-              M.keys (cfgProfiles cfg) @?= [ProfileName "p"]
-
-              cfgExtras cfg @?= Just
-                (ConfigOverride emptyOverrideConfig)
-
-              M.lookup (ProfileName "p") (cfgProfiles cfg)
-                @?= Just
-                  Profile
-                    { profName = ProfileName "p"
-                    , profTrigger = TriggerPrefix "llm"
-                    , profKind =
-                        ProfService ServiceProf
-                          { profService = ServiceName "ollama"
-                          , profModel = ModelName "qwen3:latest"
-                          , profTemplate = Nothing
-                          , profModelOptions = Nothing
-                          , profNumExpr = Nothing
-                          , profIncludeDocs = Nothing
-                          }
-                    }
-
-            Right other ->
-              assertFailure ("expected ConfigFancy, got: " <> show other)
-
-    , testCase "fancy config uses ConfigOverride for non-overlay command-line flags" $
-        withConfigFile basicFancyToml $ \path -> do
-          templateName <-
-            assertRight $
-              parseTemplateName "compact"
-
-          result <-
-            runBuild mempty
-              { config_path = Just (ConfigExplicit path)
-              , model_name = Just "override-model"
-              , num_expr = Just 3
-              , include_docs = Just True
-              , model_options = Just (String "override-options")
-              , template_name = Just templateName
-              }
-
-          case result of
-            Left err ->
-              assertFailure ("unexpected config error: " <> show err)
-
-            Right (ConfigFancy cfg) ->
-              cfgExtras cfg @?= Just
-                ( ConfigOverride OverrideConfig
-                    { overrideModelName = Just (ModelName "override-model")
-                    , overrideNumExpr = Just 3
-                    , overrideIncludeDocs = Just True
-                    , overrideModelOptions = Just (String "override-options")
-                    , overrideTemplate = Just (NamedTemplate templateName)
-                    }
-                )
-
-            Right other ->
-              assertFailure ("expected ConfigFancy, got: " <> show other)
-
-    , testCase "fancy config creates overlay when backend-ish flags are set" $
-        withConfigFile basicFancyToml $ \path -> do
-          result <-
-            runBuild mempty
-              { config_path = Just (ConfigExplicit path)
-              , backend_name = Just OpenAI
-              , openai_base_url = Just "https://example.invalid/v1"
-              , openai_key_name = Just "TEST_API_KEY"
-              , model_name = Just "overlay-model"
-              , trigger_policy = Just (TriggerPrefix "ask")
-              }
-
-          case result of
-            Left err ->
-              assertFailure ("unexpected config error: " <> show err)
-
-            Right (ConfigFancy cfg) -> do
-              M.member (ServiceName "__simple__") (cfgServices cfg)
-                @?= True
-
-              cfgExtras cfg @?= Just
-                ( ConfigOverlay SimpleConfig
-                    { simpleTrigger = TriggerPrefix "ask"
-                    , simpleService =
-                        Service
-                          { svcName = ServiceName "__simple__"
-                          , svcConfig =
-                              SvcOpenAI $
-                                OpenAIConfig
-                                  "https://example.invalid/v1"
-                                  "TEST_API_KEY"
-                          }
-                    , simpleProfile =
-                        ServiceProf
-                          { profService = ServiceName "__simple__"
-                          , profModel = ModelName "overlay-model"
-                          , profTemplate = Nothing
-                          , profModelOptions = Nothing
-                          , profNumExpr = Just 5
-                          , profIncludeDocs = Just False
-                          }
-                    }
-                )
-
-            Right other ->
-              assertFailure ("expected ConfigFancy, got: " <> show other)
-
-    , testCase "fancy config reports parse errors" $
-        withConfigFile "not valid toml = [\n" $ \path -> do
-          result <-
-            runBuild mempty
-              { config_path = Just (ConfigExplicit path)
-              }
-
-          assertBool
-            ("expected parse failure, got: " <> show result)
-            (isConfigParseError result)
-    ]
-
-
--- Validation
--------------
-
-validationTests :: TestTree
-validationTests =
-  testGroup "validation"
-    [ testCase "duplicate service names are rejected" $
-        withConfigFile duplicateServicesToml $ \path -> do
-          result <-
-            runBuild mempty
-              { config_path = Just (ConfigExplicit path)
-              }
-
-          result @?= Left (DuplicateServiceName (ServiceName "ollama"))
-
-    , testCase "duplicate profile names are rejected" $
-        withConfigFile duplicateProfilesToml $ \path -> do
-          result <-
-            runBuild mempty
-              { config_path = Just (ConfigExplicit path)
-              }
-
-          result @?= Left (DuplicateProfileName (ProfileName "p"))
-
-    , testCase "unknown service reference is rejected" $
-        withConfigFile unknownServiceToml $ \path -> do
-          result <-
-            runBuild mempty
-              { config_path = Just (ConfigExplicit path)
-              }
-
-          result @?= Left
-            (UnknownServiceReference
-              (ProfileName "p")
-              (ServiceName "missing"))
-
-    , testCase "unknown fanout profile reference is rejected" $
-        withConfigFile unknownFanoutProfileToml $ \path -> do
-          result <-
-            runBuild mempty
-              { config_path = Just (ConfigExplicit path)
-              }
-
-          result @?= Left
-            (UnknownProfileReference
-              (ProfileName "fan")
-              (ProfileName "missing"))
-
-    , testCase "cyclic fanout profile reference is rejected" $
-        withConfigFile cyclicFanoutToml $ \path -> do
-          result <-
-            runBuild mempty
-              { config_path = Just (ConfigExplicit path)
-              }
-
-          assertBool
-            ("expected cyclic profile error, got: " <> show result)
-            (isCyclicProfileError result)
-
-    , testCase "fanout profiles are flattened to service leaves" $
-        withConfigFile nestedFanoutToml $ \path -> do
-          result <-
-            runBuild mempty
-              { config_path = Just (ConfigExplicit path)
-              }
-
-          case result of
-            Left err ->
-              assertFailure ("unexpected config error: " <> show err)
-
-            Right (ConfigFancy cfg) ->
-              M.lookup (ProfileName "top") (cfgProfiles cfg)
-                @?= Just
-                  Profile
-                    { profName = ProfileName "top"
-                    , profTrigger = TriggerPrefix "top"
-                    , profKind =
-                        ProfFanout $
-                          FanoutProf
-                            (ProfileName "a" :| [ProfileName "b"])
-                    }
-
-            Right other ->
-              assertFailure ("expected ConfigFancy, got: " <> show other)
-
-    , testCase "ambiguous profile triggers are rejected" $
-        withConfigFile ambiguousTriggersToml $ \path -> do
-          result <-
-            runBuild mempty
-              { config_path = Just (ConfigExplicit path)
-              }
-
-          assertBool
-            ("expected ambiguous trigger error, got: " <> show result)
-            (isAmbiguousTriggerError result)
-    ]
-
-
--- Direct map-builder tests
----------------------------
-
-mapBuilderTests :: TestTree
-mapBuilderTests =
-  testGroup "map builders"
-    [ testCase "buildServiceMap accepts distinct services" $
-        buildServiceMap [ollamaService, openAIService]
-          @?= Right
-                ( M.fromList
-                    [ (ServiceName "ollama", ollamaService)
-                    , (ServiceName "openai", openAIService)
-                    ]
-                )
-
-    , testCase "buildServiceMap rejects duplicate services" $
-        buildServiceMap [ollamaService, ollamaService]
-          @?= Left (DuplicateServiceName (ServiceName "ollama"))
-
-    , testCase "buildProfileMap accepts service profile with known service" $
-        buildProfileMap
-          (M.fromList [(ServiceName "ollama", ollamaService)])
-          [basicProfile]
-          @?= Right
-                (M.fromList [(ProfileName "p", basicProfile)])
-
-    , testCase "buildProfileMap rejects service profile with unknown service" $
-        buildProfileMap
-          M.empty
-          [basicProfile]
-          @?= Left
-                (UnknownServiceReference
-                  (ProfileName "p")
-                  (ServiceName "ollama"))
-    ]
-
-
--- Properties
--------------
-
-propertyTests :: TestTree
-propertyTests =
-  testGroup "properties"
-    [ QC.testProperty "config=disabled always builds simple config" $
-        QC.forAll genSimpleFlags $ \flags0 ->
-          let
-            flags =
-              flags0 { config_path = Just ConfigDisabled }
-          in
-            QC.ioProperty $ do
-              result <- runBuild flags
-
-              pure $
-                case result of
-                  Right (ConfigSimple _) ->
-                    QC.property True
-
-                  other ->
-                    QC.counterexample
-                      ("expected ConfigSimple, got: " <> show other)
-                      False
-
-    , QC.testProperty "explicit missing config paths are rejected" $
-        QC.forAll genSafeFileName $ \fileName ->
-          QC.ioProperty $
-            withSystemTempDirectory "ollama-holes-config-build" $ \dir -> do
-              let path =
-                    dir </> fileName
-
-              result <-
-                runBuild mempty
-                  { config_path = Just (ConfigExplicit path)
                   }
+                , simpleProfile = ServiceProf
+                  { profService = ServiceName "__simple__"
+                  , profModel = ModelName "overlay-model"
+                  , profTemplate = Nothing
+                  , profModelOptions = Nothing
+                  , profNumExpr = Just 5
+                  , profIncludeDocs = Just False
+                  }
+                }
+            )
+        }
+    )
 
-              pure $
-                result QC.=== Left (ConfigFileNotFound path)
-    ]
+  , ( "config=disabled ignores available config file"
+    , \_path -> mempty
+        { config_path = Just ConfigDisabled
+        }
+    , Just ("config.toml", basicFancyToml)
+    , ConfigSimple SimpleConfig
+        { simpleTrigger = defaultTriggerPolicy
+        , simpleService = Service
+          { svcName = ServiceName "__simple__"
+          , svcConfig = SvcOllama (OllamaConfig Nothing)
+          }
+        , simpleProfile = ServiceProf
+          { profService = ServiceName "__simple__"
+          , profModel = ModelName "qwen3:latest"
+          , profTemplate = Nothing
+          , profModelOptions = Nothing
+          , profNumExpr = Just 5
+          , profIncludeDocs = Just False
+          }
+        }
+    )
+
+  , ( "missing default config path builds simple config"
+    , \_path -> mempty
+        { config_path = Nothing
+        }
+    , Nothing
+    , ConfigSimple SimpleConfig
+        { simpleTrigger = defaultTriggerPolicy
+        , simpleService = Service
+          { svcName = ServiceName "__simple__"
+          , svcConfig = SvcOllama (OllamaConfig Nothing)
+          }
+        , simpleProfile = ServiceProf
+          { profService = ServiceName "__simple__"
+          , profModel = ModelName "qwen3:latest"
+          , profTemplate = Nothing
+          , profModelOptions = Nothing
+          , profNumExpr = Just 5
+          , profIncludeDocs = Just False
+          }
+        }
+    )
+
+  , ( "default config path uses config file when present"
+    , \path -> mempty
+        { config_path =
+            case path of
+              Nothing -> Nothing
+              Just p  -> Just (ConfigExplicit p)
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'ollama', protocol = 'ollama' }\n\
+        \]\n\
+        \\n\
+        \profiles = [\n\
+        \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
+        \]"
+      )
+    , ConfigFancy FancyConfig
+        { cfgServices = M.fromList
+          [ ( ServiceName "ollama"
+            , Service
+                { svcName = ServiceName "ollama"
+                , svcConfig = SvcOllama (OllamaConfig Nothing)
+                }
+            )
+          ]
+        , cfgProfiles = M.fromList
+          [ ( ProfileName "p"
+            , Profile
+                { profName = ProfileName "p"
+                , profTrigger = TriggerPrefix "llm"
+                , profKind = ProfService ServiceProf
+                  { profService = ServiceName "ollama"
+                  , profModel = ModelName "qwen3:latest"
+                  , profTemplate = Nothing
+                  , profModelOptions = Nothing
+                  , profNumExpr = Nothing
+                  , profIncludeDocs = Nothing
+                  }
+                }
+            )
+          ]
+        , cfgExtras = Just (ConfigOverride emptyOverrideConfig)
+        }
+    )
+
+  , ( "simple config uses template path over template name"
+    , \_path -> mempty
+        { config_path = Just ConfigDisabled
+        , template_path = Just "prompt.txt"
+        , template_name = Just $ unsafeCreateRawTemplateName "compact"
+        }
+    , Nothing
+    , ConfigSimple SimpleConfig
+        { simpleTrigger = defaultTriggerPolicy
+        , simpleService = Service
+          { svcName = ServiceName "__simple__"
+          , svcConfig = SvcOllama (OllamaConfig Nothing)
+          }
+        , simpleProfile = ServiceProf
+          { profService = ServiceName "__simple__"
+          , profModel = ModelName "qwen3:latest"
+          , profTemplate = Just (TemplateFile "prompt.txt")
+          , profModelOptions = Nothing
+          , profNumExpr = Just 5
+          , profIncludeDocs = Just False
+          }
+        }
+    )
+
+  , ( "simple config uses template name when template path is absent"
+    , \_path -> mempty
+        { config_path = Just ConfigDisabled
+        , template_name = Just $ unsafeCreateRawTemplateName "compact"
+        }
+    , Nothing
+    , ConfigSimple SimpleConfig
+        { simpleTrigger = defaultTriggerPolicy
+        , simpleService = Service
+          { svcName = ServiceName "__simple__"
+          , svcConfig = SvcOllama (OllamaConfig Nothing)
+          }
+        , simpleProfile = ServiceProf
+          { profService = ServiceName "__simple__"
+          , profModel = ModelName "qwen3:latest"
+          , profTemplate = Just (NamedTemplate $ unsafeCreateRawTemplateName "compact")
+          , profModelOptions = Nothing
+          , profNumExpr = Just 5
+          , profIncludeDocs = Just False
+          }
+        }
+    )
+
+  , ( "fancy config override uses template path over template name"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        , template_path = Just "prompt.txt"
+        , template_name = Just $ unsafeCreateRawTemplateName "compact"
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'ollama', protocol = 'ollama' }\n\
+        \]\n\
+        \\n\
+        \profiles = [\n\
+        \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
+        \]"
+      )
+    , ConfigFancy FancyConfig
+        { cfgServices = M.fromList
+          [ ( ServiceName "ollama"
+            , Service
+                { svcName = ServiceName "ollama"
+                , svcConfig = SvcOllama (OllamaConfig Nothing)
+                }
+            )
+          ]
+        , cfgProfiles = M.fromList
+          [ ( ProfileName "p"
+            , Profile
+                { profName = ProfileName "p"
+                , profTrigger = TriggerPrefix "llm"
+                , profKind = ProfService ServiceProf
+                  { profService = ServiceName "ollama"
+                  , profModel = ModelName "qwen3:latest"
+                  , profTemplate = Nothing
+                  , profModelOptions = Nothing
+                  , profNumExpr = Nothing
+                  , profIncludeDocs = Nothing
+                  }
+                }
+            )
+          ]
+        , cfgExtras = Just
+            ( ConfigOverride OverrideConfig
+                { overrideModelName = Nothing
+                , overrideNumExpr = Nothing
+                , overrideIncludeDocs = Nothing
+                , overrideModelOptions = Nothing
+                , overrideTemplate = Just (TemplateFile "prompt.txt")
+                }
+            )
+        }
+    )
+
+  , ( "fancy config override uses template name when template path is absent"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        , template_name = Just $ unsafeCreateRawTemplateName "compact"
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'ollama', protocol = 'ollama' }\n\
+        \]\n\
+        \\n\
+        \profiles = [\n\
+        \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
+        \]"
+      )
+    , ConfigFancy FancyConfig
+        { cfgServices = M.fromList
+          [ ( ServiceName "ollama"
+            , Service
+                { svcName = ServiceName "ollama"
+                , svcConfig = SvcOllama (OllamaConfig Nothing)
+                }
+            )
+          ]
+        , cfgProfiles = M.fromList
+          [ ( ProfileName "p"
+            , Profile
+                { profName = ProfileName "p"
+                , profTrigger = TriggerPrefix "llm"
+                , profKind = ProfService ServiceProf
+                  { profService = ServiceName "ollama"
+                  , profModel = ModelName "qwen3:latest"
+                  , profTemplate = Nothing
+                  , profModelOptions = Nothing
+                  , profNumExpr = Nothing
+                  , profIncludeDocs = Nothing
+                  }
+                }
+            )
+          ]
+        , cfgExtras = Just
+            ( ConfigOverride OverrideConfig
+                { overrideModelName = Nothing
+                , overrideNumExpr = Nothing
+                , overrideIncludeDocs = Nothing
+                , overrideModelOptions = Nothing
+                , overrideTemplate = Just (NamedTemplate $ unsafeCreateRawTemplateName "compact")
+                }
+            )
+        }
+    )
+
+  , ( "fancy config overlay uses template path over template name"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        , backend_name = Just OpenAI
+        , openai_base_url = Just "https://example.invalid/v1"
+        , openai_key_name = Just "TEST_API_KEY"
+        , template_path = Just "prompt.txt"
+        , template_name = Just $ unsafeCreateRawTemplateName "compact"
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'ollama', protocol = 'ollama' }\n\
+        \]\n\
+        \\n\
+        \profiles = [\n\
+        \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
+        \]"
+      )
+    , ConfigFancy FancyConfig
+        { cfgServices = M.fromList
+          [ ( ServiceName "ollama"
+            , Service
+                { svcName = ServiceName "ollama"
+                , svcConfig = SvcOllama (OllamaConfig Nothing)
+                }
+            )
+          , ( ServiceName "__simple__"
+            , Service
+                { svcName = ServiceName "__simple__"
+                , svcConfig = SvcOpenAI $ OpenAIConfig
+                    "https://example.invalid/v1"
+                    "TEST_API_KEY"
+                }
+            )
+          ]
+        , cfgProfiles = M.fromList
+          [ ( ProfileName "p"
+            , Profile
+                { profName = ProfileName "p"
+                , profTrigger = TriggerPrefix "llm"
+                , profKind = ProfService ServiceProf
+                  { profService = ServiceName "ollama"
+                  , profModel = ModelName "qwen3:latest"
+                  , profTemplate = Nothing
+                  , profModelOptions = Nothing
+                  , profNumExpr = Nothing
+                  , profIncludeDocs = Nothing
+                  }
+                }
+            )
+          ]
+        , cfgExtras = Just
+            ( ConfigOverlay SimpleConfig
+                { simpleTrigger = defaultTriggerPolicy
+                , simpleService = Service
+                  { svcName = ServiceName "__simple__"
+                  , svcConfig = SvcOpenAI $ OpenAIConfig
+                      "https://example.invalid/v1"
+                      "TEST_API_KEY"
+                  }
+                , simpleProfile = ServiceProf
+                  { profService = ServiceName "__simple__"
+                  , profModel = ModelName "qwen3:latest"
+                  , profTemplate = Just (TemplateFile "prompt.txt")
+                  , profModelOptions = Nothing
+                  , profNumExpr = Just 5
+                  , profIncludeDocs = Just False
+                  }
+                }
+            )
+        }
+    )
+
+  , ( "fancy config overlay uses template name when template path is absent"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        , backend_name = Just OpenAI
+        , openai_base_url = Just "https://example.invalid/v1"
+        , openai_key_name = Just "TEST_API_KEY"
+        , template_name = Just $ unsafeCreateRawTemplateName "compact"
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'ollama', protocol = 'ollama' }\n\
+        \]\n\
+        \\n\
+        \profiles = [\n\
+        \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
+        \]"
+      )
+    , ConfigFancy FancyConfig
+        { cfgServices = M.fromList
+          [ ( ServiceName "ollama"
+            , Service
+                { svcName = ServiceName "ollama"
+                , svcConfig = SvcOllama (OllamaConfig Nothing)
+                }
+            )
+          , ( ServiceName "__simple__"
+            , Service
+                { svcName = ServiceName "__simple__"
+                , svcConfig = SvcOpenAI $ OpenAIConfig
+                    "https://example.invalid/v1"
+                    "TEST_API_KEY"
+                }
+            )
+          ]
+        , cfgProfiles = M.fromList
+          [ ( ProfileName "p"
+            , Profile
+                { profName = ProfileName "p"
+                , profTrigger = TriggerPrefix "llm"
+                , profKind = ProfService ServiceProf
+                  { profService = ServiceName "ollama"
+                  , profModel = ModelName "qwen3:latest"
+                  , profTemplate = Nothing
+                  , profModelOptions = Nothing
+                  , profNumExpr = Nothing
+                  , profIncludeDocs = Nothing
+                  }
+                }
+            )
+          ]
+        , cfgExtras = Just
+            ( ConfigOverlay SimpleConfig
+                { simpleTrigger = defaultTriggerPolicy
+                , simpleService = Service
+                  { svcName = ServiceName "__simple__"
+                  , svcConfig = SvcOpenAI $ OpenAIConfig
+                      "https://example.invalid/v1"
+                      "TEST_API_KEY"
+                  }
+                , simpleProfile = ServiceProf
+                  { profService = ServiceName "__simple__"
+                  , profModel = ModelName "qwen3:latest"
+                  , profTemplate = Just (NamedTemplate $ unsafeCreateRawTemplateName "compact")
+                  , profModelOptions = Nothing
+                  , profNumExpr = Just 5
+                  , profIncludeDocs = Just False
+                  }
+                }
+            )
+        }
+    )
+
+  , ( "openai overlay uses default base url"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        , backend_name = Just OpenAI
+        , openai_key_name = Just "TEST_API_KEY"
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'ollama', protocol = 'ollama' }\n\
+        \]\n\
+        \\n\
+        \profiles = [\n\
+        \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
+        \]"
+      )
+    , ConfigFancy FancyConfig
+        { cfgServices = M.fromList
+          [ ( ServiceName "ollama"
+            , Service
+                { svcName = ServiceName "ollama"
+                , svcConfig = SvcOllama (OllamaConfig Nothing)
+                }
+            )
+          , ( ServiceName "__simple__"
+            , Service
+                { svcName = ServiceName "__simple__"
+                , svcConfig = SvcOpenAI $ OpenAIConfig
+                    "https://api.openai.com"
+                    "TEST_API_KEY"
+                }
+            )
+          ]
+        , cfgProfiles = M.fromList
+          [ ( ProfileName "p"
+            , Profile
+                { profName = ProfileName "p"
+                , profTrigger = TriggerPrefix "llm"
+                , profKind = ProfService ServiceProf
+                  { profService = ServiceName "ollama"
+                  , profModel = ModelName "qwen3:latest"
+                  , profTemplate = Nothing
+                  , profModelOptions = Nothing
+                  , profNumExpr = Nothing
+                  , profIncludeDocs = Nothing
+                  }
+                }
+            )
+          ]
+        , cfgExtras = Just
+            ( ConfigOverlay SimpleConfig
+                { simpleTrigger = defaultTriggerPolicy
+                , simpleService = Service
+                  { svcName = ServiceName "__simple__"
+                  , svcConfig = SvcOpenAI $ OpenAIConfig
+                      "https://api.openai.com"
+                      "TEST_API_KEY"
+                  }
+                , simpleProfile = ServiceProf
+                  { profService = ServiceName "__simple__"
+                  , profModel = ModelName "qwen3:latest"
+                  , profTemplate = Nothing
+                  , profModelOptions = Nothing
+                  , profNumExpr = Just 5
+                  , profIncludeDocs = Just False
+                  }
+                }
+            )
+        }
+    )
+
+  , ( "openai overlay uses default key name"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        , backend_name = Just OpenAI
+        , openai_base_url = Just "https://example.invalid/v1"
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'ollama', protocol = 'ollama' }\n\
+        \]\n\
+        \\n\
+        \profiles = [\n\
+        \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
+        \]"
+      )
+    , ConfigFancy FancyConfig
+        { cfgServices = M.fromList
+          [ ( ServiceName "ollama"
+            , Service
+                { svcName = ServiceName "ollama"
+                , svcConfig = SvcOllama (OllamaConfig Nothing)
+                }
+            )
+          , ( ServiceName "__simple__"
+            , Service
+                { svcName = ServiceName "__simple__"
+                , svcConfig = SvcOpenAI $ OpenAIConfig
+                    "https://example.invalid/v1"
+                    "OPENAI_API_KEY"
+                }
+            )
+          ]
+        , cfgProfiles = M.fromList
+          [ ( ProfileName "p"
+            , Profile
+                { profName = ProfileName "p"
+                , profTrigger = TriggerPrefix "llm"
+                , profKind = ProfService ServiceProf
+                  { profService = ServiceName "ollama"
+                  , profModel = ModelName "qwen3:latest"
+                  , profTemplate = Nothing
+                  , profModelOptions = Nothing
+                  , profNumExpr = Nothing
+                  , profIncludeDocs = Nothing
+                  }
+                }
+            )
+          ]
+        , cfgExtras = Just
+            ( ConfigOverlay SimpleConfig
+                { simpleTrigger = defaultTriggerPolicy
+                , simpleService = Service
+                  { svcName = ServiceName "__simple__"
+                  , svcConfig = SvcOpenAI $ OpenAIConfig
+                      "https://example.invalid/v1"
+                      "OPENAI_API_KEY"
+                  }
+                , simpleProfile = ServiceProf
+                  { profService = ServiceName "__simple__"
+                  , profModel = ModelName "qwen3:latest"
+                  , profTemplate = Nothing
+                  , profModelOptions = Nothing
+                  , profNumExpr = Just 5
+                  , profIncludeDocs = Just False
+                  }
+                }
+            )
+        }
+    )
+
+  , ( "valid toml with empty config semantics builds empty fancy config"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , "services = []\n\
+        \profiles = []"
+      )
+    , ConfigFancy FancyConfig
+        { cfgServices = M.fromList []
+        , cfgProfiles = M.fromList []
+        , cfgExtras = Just
+            ( ConfigOverride OverrideConfig
+                { overrideModelName = Nothing
+                , overrideNumExpr = Nothing
+                , overrideIncludeDocs = Nothing
+                , overrideModelOptions = Nothing
+                , overrideTemplate = Nothing
+                }
+            )
+        }
+    )
+  ]
+
+tests_buildConfig_unit_basic_failure
+  :: [(TestName, Maybe FilePath -> Flags, Maybe (String, Text))]
+tests_buildConfig_unit_basic_failure =
+  [ ( "explicit missing config file is an error"
+    , \path -> mempty
+        { config_path = Just $ ConfigExplicit $
+            case path of
+              Nothing -> "missing.toml"
+              Just anchorPath -> takeDirectory anchorPath </> "missing.toml"
+        }
+    , Just ("anchor.toml", "")
+    )
+
+  , ( "fancy config reports parse errors"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+        ( "bad.toml"
+        , "not valid toml = [\n"
+        )
+    )
+
+  , ( "empty toml is rejected"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , ""
+      )
+    )
+
+  , ( "valid toml with profile referencing missing service is rejected"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , "profiles = [\n\
+        \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'missing', model = 'qwen3:latest' }\n\
+        \]"
+      )
+    )
+
+  , ( "valid toml with unknown service protocol is rejected"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'bad', protocol = 'not-a-backend' }\n\
+        \]\n\
+        \\n\
+        \profiles = [\n\
+        \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'bad', model = 'qwen3:latest' }\n\
+        \]"
+      )
+    )
+
+  , ( "valid toml with invalid trigger policy is rejected"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'ollama', protocol = 'ollama' }\n\
+        \]\n\
+        \\n\
+        \profiles = [\n\
+        \  { name = 'p', type = 'service', trigger = 'prefix:', service = 'ollama', model = 'qwen3:latest' }\n\
+        \]"
+      )
+    )
+
+  , ( "valid toml with invalid template name is rejected"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'ollama', protocol = 'ollama' }\n\
+        \]\n\
+        \\n\
+        \templates = [\n\
+        \  { name = '../bad', path = 'prompt.txt' }\n\
+        \]\n\
+        \\n\
+        \profiles = [\n\
+        \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest', template = '../bad' }\n\
+        \]"
+      )
+    )
+  ]
+
+tests_buildConfig_unit_validate_success
+  :: [(TestName, Maybe FilePath -> Flags, Maybe (String, Text), Config)]
+tests_buildConfig_unit_validate_success =
+  [ ( "fanout profiles are flattened to service leaves"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , nestedFanoutToml
+      )
+    , ConfigFancy FancyConfig
+        { cfgServices = M.fromList
+          [ ( ServiceName "ollama"
+            , Service
+                { svcName = ServiceName "ollama"
+                , svcConfig = SvcOllama (OllamaConfig Nothing)
+                }
+            )
+          ]
+        , cfgProfiles = M.fromList
+          [ ( ProfileName "a"
+            , Profile
+                { profName = ProfileName "a"
+                , profTrigger = TriggerNone
+                , profKind = ProfService ServiceProf
+                  { profService = ServiceName "ollama"
+                  , profModel = ModelName "ma"
+                  , profTemplate = Nothing
+                  , profModelOptions = Nothing
+                  , profNumExpr = Nothing
+                  , profIncludeDocs = Nothing
+                  }
+                }
+            )
+          , ( ProfileName "b"
+            , Profile
+                { profName = ProfileName "b"
+                , profTrigger = TriggerNone
+                , profKind = ProfService ServiceProf
+                  { profService = ServiceName "ollama"
+                  , profModel = ModelName "mb"
+                  , profTemplate = Nothing
+                  , profModelOptions = Nothing
+                  , profNumExpr = Nothing
+                  , profIncludeDocs = Nothing
+                  }
+                }
+            )
+          , ( ProfileName "mid"
+            , Profile
+                { profName = ProfileName "mid"
+                , profTrigger = TriggerPrefix "mid"
+                , profKind = ProfFanout $
+                    FanoutProf (ProfileName "a" :| [ProfileName "b"])
+                }
+            )
+          , ( ProfileName "top"
+            , Profile
+                { profName = ProfileName "top"
+                , profTrigger = TriggerPrefix "top"
+                , profKind = ProfFanout $
+                    FanoutProf (ProfileName "a" :| [ProfileName "b"])
+                }
+            )
+          ]
+        , cfgExtras = Just (ConfigOverride emptyOverrideConfig)
+        }
+    )
+
+  , ( "config accepts distinct services"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'ollama', protocol = 'ollama' },\n\
+        \  { name = 'openai', protocol = 'openai', base_url = 'https://example.invalid/v1', key_name = 'TEST_API_KEY' }\n\
+        \]\n\
+        \\n\
+        \profiles = []"
+      )
+    , ConfigFancy FancyConfig
+        { cfgServices = M.fromList
+          [ ( ServiceName "ollama"
+            , Service
+                { svcName = ServiceName "ollama"
+                , svcConfig = SvcOllama (OllamaConfig Nothing)
+                }
+            )
+          , ( ServiceName "openai"
+            , Service
+                { svcName = ServiceName "openai"
+                , svcConfig = SvcOpenAI $ OpenAIConfig
+                    "https://example.invalid/v1"
+                    "TEST_API_KEY"
+                }
+            )
+          ]
+        , cfgProfiles = M.fromList []
+        , cfgExtras = Just (ConfigOverride emptyOverrideConfig)
+        }
+    )
+
+  , ( "config accepts service profile with known service"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'ollama', protocol = 'ollama' }\n\
+        \]\n\
+        \\n\
+        \profiles = [\n\
+        \  { name = 'p', type = 'service', service = 'ollama', model = 'qwen3:latest' }\n\
+        \]"
+      )
+    , ConfigFancy FancyConfig
+        { cfgServices = M.fromList
+          [ ( ServiceName "ollama"
+            , Service
+                { svcName = ServiceName "ollama"
+                , svcConfig = SvcOllama (OllamaConfig Nothing)
+                }
+            )
+          ]
+        , cfgProfiles = M.fromList
+          [ ( ProfileName "p"
+            , Profile
+                { profName = ProfileName "p"
+                , profTrigger = TriggerNone
+                , profKind = ProfService ServiceProf
+                  { profService = ServiceName "ollama"
+                  , profModel = ModelName "qwen3:latest"
+                  , profTemplate = Nothing
+                  , profModelOptions = Nothing
+                  , profNumExpr = Nothing
+                  , profIncludeDocs = Nothing
+                  }
+                }
+            )
+          ]
+        , cfgExtras = Just (ConfigOverride emptyOverrideConfig)
+        }
+    )
+
+  , ( "nested fanout preserves flattened leaf order"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'local', protocol = 'ollama' }\n\
+        \]\n\
+        \\n\
+        \profiles = [\n\
+        \  { name = 'leaf1', type = 'service', service = 'local', model = 'qwen3:latest' },\n\
+        \  { name = 'leaf2', type = 'service', service = 'local', model = 'qwen3:latest' },\n\
+        \  { name = 'inner', type = 'fanout', profiles = ['leaf1', 'leaf2'] },\n\
+        \  { name = 'outer', type = 'fanout', profiles = ['inner', 'leaf1'] }\n\
+        \]"
+      )
+    , ConfigFancy FancyConfig
+        { cfgServices = M.fromList
+          [ ( ServiceName "local"
+            , Service
+                { svcName = ServiceName "local"
+                , svcConfig = SvcOllama (OllamaConfig Nothing)
+                }
+            )
+          ]
+        , cfgProfiles = M.fromList
+          [ ( ProfileName "inner"
+            , Profile
+                { profName = ProfileName "inner"
+                , profTrigger = TriggerNone
+                , profKind = ProfFanout $
+                    FanoutProf
+                      (ProfileName "leaf1" :| [ProfileName "leaf2"])
+                }
+            )
+          , ( ProfileName "leaf1"
+            , Profile
+                { profName = ProfileName "leaf1"
+                , profTrigger = TriggerNone
+                , profKind = ProfService ServiceProf
+                  { profService = ServiceName "local"
+                  , profModel = ModelName "qwen3:latest"
+                  , profTemplate = Nothing
+                  , profModelOptions = Nothing
+                  , profNumExpr = Nothing
+                  , profIncludeDocs = Nothing
+                  }
+                }
+            )
+          , ( ProfileName "leaf2"
+            , Profile
+                { profName = ProfileName "leaf2"
+                , profTrigger = TriggerNone
+                , profKind = ProfService ServiceProf
+                  { profService = ServiceName "local"
+                  , profModel = ModelName "qwen3:latest"
+                  , profTemplate = Nothing
+                  , profModelOptions = Nothing
+                  , profNumExpr = Nothing
+                  , profIncludeDocs = Nothing
+                  }
+                }
+            )
+          , ( ProfileName "outer"
+            , Profile
+                { profName = ProfileName "outer"
+                , profTrigger = TriggerNone
+                , profKind = ProfFanout $
+                    FanoutProf
+                      ( ProfileName "leaf1"
+                      :| [ ProfileName "leaf2"
+                         , ProfileName "leaf1"
+                         ]
+                      )
+                }
+            )
+          ]
+        , cfgExtras = Just (ConfigOverride emptyOverrideConfig)
+        }
+    )
+
+  , ( "service profile fields are preserved by validation"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'remote', protocol = 'openai', base_url = 'https://example.invalid/v1', key_name = 'TEST_API_KEY' }\n\
+        \]\n\
+        \\n\
+        \profiles = [\n\
+        \  { name = 'rich', type = 'service', trigger = 'all', service = 'remote', model = 'gpt-test', template = 'prompt', num_expr = 17, include_docs = true }\n\
+        \]"
+      )
+    , ConfigFancy FancyConfig
+        { cfgServices = M.fromList
+          [ ( ServiceName "remote"
+            , Service
+                { svcName = ServiceName "remote"
+                , svcConfig = SvcOpenAI $ OpenAIConfig
+                    "https://example.invalid/v1"
+                    "TEST_API_KEY"
+                }
+            )
+          ]
+        , cfgProfiles = M.fromList
+          [ ( ProfileName "rich"
+            , Profile
+                { profName = ProfileName "rich"
+                , profTrigger = TriggerAll
+                , profKind = ProfService ServiceProf
+                  { profService = ServiceName "remote"
+                  , profModel = ModelName "gpt-test"
+                  , profTemplate = Just (NamedTemplate (unsafeCreateRawTemplateName "prompt"))
+                  , profModelOptions = Nothing
+                  , profNumExpr = Just 17
+                  , profIncludeDocs = Just True
+                  }
+                }
+            )
+          ]
+        , cfgExtras = Just (ConfigOverride emptyOverrideConfig)
+        }
+    )
+  ]
+
+tests_buildConfig_unit_validate_failure
+  :: [(TestName, Maybe FilePath -> Flags, Maybe (String, Text), ConfigError -> Assertion)]
+tests_buildConfig_unit_validate_failure =
+  [ ( "duplicate service names are rejected"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , duplicateServicesToml
+      )
+    , \err ->
+        err @?= DuplicateServiceName (ServiceName "ollama")
+    )
+
+  , ( "duplicate profile names are rejected"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , duplicateProfilesToml
+      )
+    , \err ->
+        err @?= DuplicateProfileName (ProfileName "p")
+    )
+
+  , ( "unknown service reference is rejected"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , unknownServiceToml
+      )
+    , \err ->
+        err @?= UnknownServiceReference
+          (ProfileName "p")
+          (ServiceName "missing")
+    )
+
+  , ( "unknown fanout profile reference is rejected"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , unknownFanoutProfileToml
+      )
+    , \err ->
+        err @?= UnknownProfileReference
+          (ProfileName "fan")
+          (ProfileName "missing")
+    )
+
+  , ( "cyclic fanout profile reference is rejected"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , cyclicFanoutToml
+      )
+    , \err ->
+        assertBool
+          ("expected cyclic profile error, got: " <> show err)
+          (isCyclicProfileError (Left err))
+    )
+
+  , ( "ambiguous profile triggers are rejected"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , ambiguousTriggersToml
+      )
+    , \err ->
+        assertBool
+          ("expected ambiguous trigger error, got: " <> show err)
+          (isAmbiguousTriggerError (Left err))
+    )
+
+  , ( "config rejects duplicate services"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'ollama', protocol = 'ollama' },\n\
+        \  { name = 'ollama', protocol = 'ollama' }\n\
+        \]\n\
+        \\n\
+        \profiles = []"
+      )
+    , \err ->
+        err @?= DuplicateServiceName (ServiceName "ollama")
+    )
+
+  , ( "config rejects service profile with unknown service"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , "services = []\n\
+        \profiles = [\n\
+        \  { name = 'p', type = 'service', service = 'ollama', model = 'qwen3:latest' }\n\
+        \]"
+      )
+    , \err ->
+        err @?= UnknownServiceReference
+          (ProfileName "p")
+          (ServiceName "ollama")
+    )
+
+  , ( "self-cycle in fanout profile is rejected"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'local', protocol = 'ollama' }\n\
+        \]\n\
+        \\n\
+        \profiles = [\n\
+        \  { name = 'leaf', type = 'service', service = 'local', model = 'qwen3:latest' },\n\
+        \  { name = 'self', type = 'fanout', profiles = ['self'] }\n\
+        \]"
+      )
+    , \err ->
+        err @?= CyclicProfileReference
+          [ ProfileName "self"
+          , ProfileName "self"
+          ]
+    )
+
+  , ( "mutual cycle between fanout profiles is rejected"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'local', protocol = 'ollama' }\n\
+        \]\n\
+        \\n\
+        \profiles = [\n\
+        \  { name = 'leaf', type = 'service', service = 'local', model = 'qwen3:latest' },\n\
+        \  { name = 'a', type = 'fanout', profiles = ['b'] },\n\
+        \  { name = 'b', type = 'fanout', profiles = ['a'] }\n\
+        \]"
+      )
+    , \err ->
+        err @?= CyclicProfileReference
+          [ ProfileName "a"
+          , ProfileName "b"
+          , ProfileName "a"
+          ]
+    )
+
+  , ( "fanout validates transitive service dependencies"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+      ( "config.toml"
+      , "services = [\n\
+        \  { name = 'local', protocol = 'ollama' }\n\
+        \]\n\
+        \\n\
+        \profiles = [\n\
+        \  { name = 'good', type = 'service', service = 'local', model = 'qwen3:latest' },\n\
+        \  { name = 'bad', type = 'service', service = 'missing', model = 'qwen3:latest' },\n\
+        \  { name = 'pair', type = 'fanout', profiles = ['good', 'bad'] }\n\
+        \]"
+      )
+    , \err ->
+        err @?= UnknownServiceReference
+          (ProfileName "bad")
+          (ServiceName "missing")
+    )
+  ]
+
+
+
 
 
 -- TOML fixtures
@@ -561,14 +1680,6 @@ ambiguousTriggersToml =
 -- Shared fixtures
 ------------------
 
-ollamaService :: Service
-ollamaService =
-  Service
-    { svcName = ServiceName "ollama"
-    , svcConfig = SvcOllama (OllamaConfig Nothing)
-    }
-
-
 openAIService :: Service
 openAIService =
   Service
@@ -607,111 +1718,3 @@ emptyOverrideConfig =
     , overrideModelOptions = Nothing
     , overrideTemplate = Nothing
     }
-
-
--- Test utilities
------------------
-
-runBuild :: Flags -> IO (Either ConfigError Config)
-runBuild =
-  runExceptT . buildConfig
-
-
-withConfigFile :: Text -> (FilePath -> IO a) -> IO a
-withConfigFile contents action =
-  withSystemTempDirectory "ollama-holes-config-build" $ \dir -> do
-    let path =
-          dir </> "ollama-holes.toml"
-
-    createDirectoryIfMissing True dir
-    T.writeFile path contents
-    action path
-
-
-assertRight :: Show e => Either e a -> IO a
-assertRight result =
-  case result of
-    Left err ->
-      assertFailure ("expected Right, got Left: " <> show err)
-
-    Right value ->
-      pure value
-
-
-isConfigParseError :: Either ConfigError Config -> Bool
-isConfigParseError =
-  \case
-    Left (ConfigParseErrors _ _) ->
-      True
-
-    _ ->
-      False
-
-
-isCyclicProfileError :: Either ConfigError Config -> Bool
-isCyclicProfileError =
-  \case
-    Left (CyclicProfileReference _) ->
-      True
-
-    _ ->
-      False
-
-
-isAmbiguousTriggerError :: Either ConfigError Config -> Bool
-isAmbiguousTriggerError =
-  \case
-    Left (AmbiguousProfileTriggers _) ->
-      True
-
-    _ ->
-      False
-
-
-genSimpleFlags :: QC.Gen Flags
-genSimpleFlags = do
-  model <-
-    QC.frequency
-      [ (2, pure Nothing)
-      , (1, Just . T.pack <$> QC.elements ["m1", "m2", "qwen3:latest"])
-      ]
-
-  n <-
-    QC.frequency
-      [ (2, pure Nothing)
-      , (1, Just <$> QC.chooseInt (1, 20))
-      ]
-
-  includeDocs <-
-    QC.frequency
-      [ (2, pure Nothing)
-      , (1, Just <$> QC.arbitrary)
-      ]
-
-  trigger <-
-    QC.frequency
-      [ (2, pure Nothing)
-      , (1, Just <$> genTriggerPolicy)
-      ]
-
-  pure mempty
-    { model_name = model
-    , num_expr = n
-    , include_docs = includeDocs
-    , trigger_policy = trigger
-    }
-
-
-genTriggerPolicy :: QC.Gen TriggerPolicy
-genTriggerPolicy =
-  QC.oneof
-    [ pure TriggerAll
-    , pure TriggerNone
-    , TriggerPrefix . T.pack <$> QC.elements ["llm", "ask", "hole"]
-    ]
-
-
-genSafeFileName :: QC.Gen FilePath
-genSafeFileName = do
-  n <- QC.chooseInt (1, 999999 :: Int)
-  pure ("missing-" <> show n <> ".toml")
