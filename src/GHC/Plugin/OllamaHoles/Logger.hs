@@ -93,7 +93,7 @@ renderLogEvent now config event =
 -- | Invoke a logger (this is exposed)
 writeLogEvent :: Logger -> LogEvent -> IO ()
 writeLogEvent logger event = do
-    let Logger write config = logger
+    let Logger write _ = logger
     write event
 
 
@@ -184,7 +184,6 @@ type ValidCount      = Int
 type Timestamp       = T.Text
 type PromptHash      = T.Text
 type ResponseHash    = T.Text
-type Blob            = T.Text
 
 -- | Smart constructor
 mkLogEvent

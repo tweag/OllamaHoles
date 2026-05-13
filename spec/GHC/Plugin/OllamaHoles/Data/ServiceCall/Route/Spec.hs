@@ -337,11 +337,11 @@ propertyTests =
 ----------
 
 simpleConfig :: TriggerPolicy -> Service -> ServiceProf -> SimpleConfig
-simpleConfig trigger service serviceProf =
+simpleConfig trigger svc profile =
   SimpleConfig
     { simpleTrigger = trigger
-    , simpleService = service
-    , simpleProfile = serviceProf
+    , simpleService = svc
+    , simpleProfile = profile
     }
 
 
@@ -354,8 +354,8 @@ fancyConfig services profiles extras =
   ConfigFancy FancyConfig
     { cfgServices =
         M.fromList
-          [ (svcName service, service)
-          | service <- services
+          [ (svcName svc, svc)
+          | svc <- services
           ]
 
     , cfgProfiles =
@@ -370,11 +370,11 @@ fancyConfig services profiles extras =
 
 
 serviceProfile :: ProfileName -> TriggerPolicy -> ServiceProf -> Profile
-serviceProfile name trigger serviceProf =
+serviceProfile name trigger profile =
   Profile
     { profName = name
     , profTrigger = trigger
-    , profKind = ProfService serviceProf
+    , profKind = ProfService profile
     }
 
 

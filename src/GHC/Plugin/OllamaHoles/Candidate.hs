@@ -1,6 +1,5 @@
 module GHC.Plugin.OllamaHoles.Candidate where
 
-import Control.Monad (when)
 import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -18,7 +17,7 @@ import GHC.Tc.Errors.Hole qualified as GHC (tcCheckHoleFit, withoutUnification)
 import qualified GHC.Tc.Solver as GHC
     (simplifyTop, simplifyInfer, captureTopConstraints, InferMode(..))
 import qualified GHC.Tc.Solver.Monad as GHC (zonkTcType, runTcSEarlyAbort)
-import GHC.Tc.Types (TcM(..))
+import GHC.Tc.Types (TcM)
 import GHC.Tc.Types.Constraint (Hole(..))
 import qualified GHC.Tc.Utils.Monad as GHC
 import GHC.Tc.Utils.Monad (discardErrs, ifErrsM)
@@ -135,11 +134,9 @@ parseCandidate ParseCtx{pxDynFlags} src = do
             }
 
 renameCandidate :: RenameCtx -> ParsedCandidate -> TcM (Either CandidateError RenamedCandidate)
-renameCandidate RenameCtx{rxDebug} ParsedCandidate{pcSource, pcParsed, pcLog} =
+renameCandidate _ ParsedCandidate{pcSource, pcParsed, pcLog} =
     discardErrs $ do
-        let onError = do
-                let msg = "rename failed" :: Text
-                pure (Left (CandidateRenameError msg))
+        let onError = pure $ Left $ CandidateRenameError "rename failed"
         (rn_e, _) <- GHC.rnLExpr pcParsed
         ifErrsM onError $
             pure $ Right $ RenamedCandidate
@@ -150,7 +147,7 @@ renameCandidate RenameCtx{rxDebug} ParsedCandidate{pcSource, pcParsed, pcLog} =
                 }
 
 checkCandidateFit :: CheckCtx -> RenamedCandidate -> TcM (Either CandidateError CheckedCandidate)
-checkCandidateFit CheckCtx{cxDebug, cxHole} RenamedCandidate{rcSource, rcRenamed, rcLog}
+checkCandidateFit CheckCtx{cxHole} RenamedCandidate{rcSource, rcRenamed, rcLog}
     | Just h <- th_hole cxHole =
         discardErrs $ do
             ((doesFit, _), zonkedTy) <-
@@ -172,9 +169,8 @@ checkCandidateFit CheckCtx{cxDebug, cxHole} RenamedCandidate{rcSource, rcRenamed
                     ok <- GHC.tcCheckHoleFit cxHole (hole_ty h) zonked
                     pure (ok, zonked)
 
-            let onError = do
-                    let msg = "type inference or hole-fit check failed"
-                    pure (Left (CandidateTypeError msg))
+            let onError = pure $ Left $ CandidateTypeError
+                  "type inference or hole-fit check failed"
 
             ifErrsM onError $
                 pure $ if doesFit
@@ -379,10 +375,10 @@ data CandidateError
 
 renderCandidateError :: Text -> CandidateError -> Text
 renderCandidateError src = \case
-    CandidateParseError msg  -> "parse failed: " <> src <> "\n  " <> msg
-    CandidateRenameError msg -> "rename failed: " <> src <> "\n  " <> msg
-    CandidateTypeError msg   -> "type inference or hole-fit check failed: " <> src <> "\n  " <> msg
-    CandidateRejected msg    -> "rejected: " <> src <> "\n  " <> msg
+    CandidateParseError err  -> "parse failed: " <> src <> "\n  " <> err
+    CandidateRenameError err -> "rename failed: " <> src <> "\n  " <> err
+    CandidateTypeError err   -> "type inference or hole-fit check failed: " <> src <> "\n  " <> err
+    CandidateRejected err    -> "rejected: " <> src <> "\n  " <> err
 
 
 

@@ -11,18 +11,13 @@ import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
-import System.Directory
-  ( createDirectoryIfMissing )
-
-import System.FilePath
-  ( (</>), takeDirectory, takeFileName )
+import System.Directory ( createDirectoryIfMissing )
+import System.FilePath ( (</>), takeDirectory, takeFileName )
+import System.IO.Temp ( withSystemTempDirectory )
 
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck qualified as QC
-
-import System.IO.Temp
-  ( withSystemTempDirectory )
 
 import GHC.Plugin.OllamaHoles.Backend
 import GHC.Plugin.OllamaHoles.Data.Config.Build

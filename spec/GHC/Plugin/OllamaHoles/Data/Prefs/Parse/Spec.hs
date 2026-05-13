@@ -5,7 +5,6 @@ import Data.Aeson qualified as Aeson
 import Data.Functor ((<&>))
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Text (Text)
-import Data.Text qualified as T
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 import Test.Tasty.QuickCheck qualified as QC
