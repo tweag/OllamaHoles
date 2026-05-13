@@ -26,36 +26,20 @@ validateProfileTriggers profiles =
       ]
 
 
-
-
-
 firstConflict :: [(ProfileName, TriggerPolicy)] -> Maybe TriggerConflict
-firstConflict triggers =
-  case triggerAlls of
-    [] ->
-      firstPrefixConflict prefixTriggers
-
-    [_] -> case triggerAlls of
-      [] -> Nothing
-      (allProfile,_):_ -> case prefixTriggers of
-        [] -> Nothing
-        (name, trigger) : _ -> Just $
-          TriggerAllOverlaps allProfile name (TriggerPrefix trigger)
-
-    (profileA, _) : (profileB, _) : _ ->
-      Just (MultipleTriggerAll profileA profileB)
+firstConflict triggers = case triggerAlls of
+  [] -> firstPrefixConflict prefixTriggers
+  [(allProfile, _)] -> case prefixTriggers of
+    [] -> Nothing
+    (name, trigger) : _ -> Just $
+      TriggerAllOverlaps allProfile name (TriggerPrefix trigger)
+  (profileA, _) : (profileB, _) : _ ->
+    Just (MultipleTriggerAll profileA profileB)
   where
-    triggerAlls :: [(ProfileName, TriggerPolicy)]
     triggerAlls =
-      [ pair
-      | pair@(_, TriggerAll) <- triggers
-      ]
-
-    prefixTriggers :: [(ProfileName, Text)]
+      [ pair | pair@(_, TriggerAll) <- triggers ]
     prefixTriggers =
-      [ (profName, prefix)
-      | (profName, TriggerPrefix prefix) <- triggers
-      ]
+      [ (profName, prefix) | (profName, TriggerPrefix prefix) <- triggers ]
 
 
 firstPrefixConflict :: [(ProfileName, Text)] -> Maybe TriggerConflict
