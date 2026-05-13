@@ -35,14 +35,12 @@ firstConflict triggers =
     [] ->
       firstPrefixConflict prefixTriggers
 
-    [_] ->
-      case prefixTriggers of
+    [_] -> case triggerAlls of
+      [] -> Nothing
+      (allProfile,_):_ -> case prefixTriggers of
         [] -> Nothing
-        (name, trigger) : _ ->
-          Just (TriggerAllOverlaps allProfile name (TriggerPrefix trigger))
-      where
-        (allProfile, _) =
-          head triggerAlls
+        (name, trigger) : _ -> Just $
+          TriggerAllOverlaps allProfile name (TriggerPrefix trigger)
 
     (profileA, _) : (profileB, _) : _ ->
       Just (MultipleTriggerAll profileA profileB)

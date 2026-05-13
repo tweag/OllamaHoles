@@ -23,14 +23,14 @@ lookupPlaceholder (TemplateEnv m) name =
 expandTemplate
   :: Template -> TemplateEnv -> Either TemplateError Text
 expandTemplate (Template exprs) env = do
-    collectEithers UnknownPlaceholders mconcat $
-        fmap (expandTemplateExpr env) exprs
-    where
-        expandTemplateExpr
-            :: TemplateEnv -> TemplateExpr -> Either Placeholder Text
-        expandTemplateExpr env expr = case expr of
-            TemplateChunk txt -> Right txt
-            TemplateVar var -> lookupPlaceholder env var
+  collectEithers UnknownPlaceholders mconcat $
+    fmap expandTemplateExpr exprs
+  where
+    expandTemplateExpr
+      :: TemplateExpr -> Either Placeholder Text
+    expandTemplateExpr expr = case expr of
+      TemplateChunk txt -> Right txt
+      TemplateVar var -> lookupPlaceholder env var
 
 collectEithers
     :: forall a b u v. ([a] -> u) -> ([b] -> v) -> [Either a b] -> Either u v

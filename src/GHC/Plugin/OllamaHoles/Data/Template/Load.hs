@@ -2,7 +2,6 @@ module GHC.Plugin.OllamaHoles.Data.Template.Load
   ( loadTemplate
   ) where
 
-import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import System.Directory (doesFileExist)

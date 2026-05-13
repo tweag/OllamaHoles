@@ -20,7 +20,6 @@ module GHC.Plugin.OllamaHoles.Candidate.Rewrite
 
 import Data.List (find)
 import Data.Text (Text)
-import qualified Data.Text as T
 
 --------------------------------------------------------------------------------
 -- Rule representation

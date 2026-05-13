@@ -66,17 +66,6 @@ isValidTriggerPrefix txt = case T.uncons txt of
         isIdentifierStartNoUnderscore c0
             && T.all isIdentifierContinue rest
 
--- | The suffix after the prefix may be empty, or any sequence of
--- identifier-continue characters.
---
--- This lets @_foo@ and @_foodefault@ remain distinct:
---
---   * @_foo@        has suffix @""
---   * @_foodefault@ has suffix @"default"@
---
-isValidTriggerSuffix :: Text -> Bool
-isValidTriggerSuffix = T.all isIdentifierContinue
-
 isIdentifierStartNoUnderscore :: Char -> Bool
 isIdentifierStartNoUnderscore c = isLower c
 
