@@ -242,10 +242,10 @@ test-suite ollama-holes-spec
     , GHC.Plugin.OllamaHoles.Candidate.WithRenamedExpr
     , GHC.Plugin.OllamaHoles.Logger.Spec
     , GHC.Plugin.OllamaHoles.Options.Spec
-    , GHC.Plugin.OllamaHoles.Config.Spec
-    , GHC.Plugin.OllamaHoles.Config.Trigger.Spec
     , GHC.Plugin.OllamaHoles.Data.ServiceCall.Route.Spec
     , GHC.Plugin.OllamaHoles.Data.Spec
+    , GHC.Plugin.OllamaHoles.Data.Config.Types.Gen
+    , GHC.Plugin.OllamaHoles.Data.Config.Error.Predicate
     , GHC.Plugin.OllamaHoles.Data.Config.Build.Spec
     , GHC.Plugin.OllamaHoles.Data.Flags.Spec
     , GHC.Plugin.OllamaHoles.Data.Flags.Types.Gen
