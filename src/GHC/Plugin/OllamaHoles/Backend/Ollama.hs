@@ -24,7 +24,7 @@ data OllamaConfig = OllamaConfig
 
 -- | The locally hosted ollama backend
 ollamaBackend :: OllamaConfig -> Backend
-ollamaBackend config = Backend{..}
+ollamaBackend _ = Backend{..}
   where
     listModels = fmap getMs <$> Ollama.list
     getMs (Ollama.Models models) = fmap Ollama.name models

@@ -17,7 +17,6 @@ import Test.Tasty.QuickCheck qualified as QC
 import GHC
     ( Ghc
     , GhcRn
-    , HsBind(..)
     , LHsBind
     , LHsExpr
     , LoadHowMuch(..)

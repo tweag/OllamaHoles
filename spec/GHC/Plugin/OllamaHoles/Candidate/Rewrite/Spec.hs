@@ -1,8 +1,7 @@
 module GHC.Plugin.OllamaHoles.Candidate.Rewrite.Spec (tests) where
 
-import Data.Text (Text)
 import qualified Data.Text as T
-import Test.Tasty
+import Test.Tasty hiding (after)
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck qualified as QC
 

@@ -2,32 +2,20 @@ module GHC.Plugin.OllamaHoles.Data.Config.Build.Spec
   ( tests
   ) where
 
-import Control.Monad.Except
-  ( runExceptT )
-
-import Data.Aeson
-  ( Value(..) )
-
-import Data.Either
-  ( isLeft )
-
+import Control.Monad.Except ( runExceptT )
+import Data.Aeson ( Value(..) )
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
-import System.Directory
-  ( createDirectoryIfMissing )
-
-import System.FilePath
-  ( (</>) )
+import System.Directory ( createDirectoryIfMissing )
+import System.FilePath ( (</>) )
+import System.IO.Temp ( withSystemTempDirectory )
 
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck qualified as QC
-
-import System.IO.Temp
-  ( withSystemTempDirectory )
 
 import GHC.Plugin.OllamaHoles.Backend
 import GHC.Plugin.OllamaHoles.Data.Config.Build

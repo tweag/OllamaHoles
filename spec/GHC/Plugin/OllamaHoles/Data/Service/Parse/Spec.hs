@@ -4,10 +4,9 @@ module GHC.Plugin.OllamaHoles.Data.Service.Parse.Spec
 
 import Data.Either (isLeft)
 import Data.Functor ((<&>))
-import Data.String (IsString(..))
 import Data.Text (Text)
 import Test.Tasty
-import Test.Tasty.HUnit (testCase, assertBool, (@?=), Assertion(..), assertFailure)
+import Test.Tasty.HUnit (testCase, assertBool, (@?=))
 import Test.Tasty.QuickCheck qualified as QC
 import Toml qualified as Toml
 import Toml.Schema qualified as Toml
