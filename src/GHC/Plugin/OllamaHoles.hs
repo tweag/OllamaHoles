@@ -5,8 +5,8 @@
 -- | The Ollama plugin for GHC
 module GHC.Plugin.OllamaHoles where
 
-import Control.Monad (unless, when, forM_, (>=>))
-import Control.Monad.Except (ExceptT, runExceptT, MonadError(..), liftEither, modifyError, withExceptT)
+import Control.Monad (unless, when, forM_)
+import Control.Monad.Except (ExceptT, runExceptT, MonadError(..), liftEither, withExceptT)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Data.Char (isSpace)
@@ -69,23 +69,13 @@ mkHoleFitPluginR
   :: [CommandLineOption] -> HoleFitPluginR
 mkHoleFitPluginR opts = HoleFitPluginR
   -- Initialize the plugin (this may fail).
-  { hfPluginInit = hfPluginInitLLM opts
+  { hfPluginInit = pluginInit opts >>= newTcRef
   , hfPluginStop = \_ -> return ()
   , hfPluginRun = \ref -> HoleFitPlugin
     { candPlugin = \_ cs -> updTcRef ref (fmap (setCandidates cs)) >> return cs
     , fitPlugin = fitPluginLLM ref
     }
   }
-
-
-
--- Initialize
--------------
-
-hfPluginInitLLM
-  :: [CommandLineOption]
-  -> TcM (TcRef (Either PluginError (PluginState TcM)))
-hfPluginInitLLM = pluginInit >=> newTcRef
 
 
 
