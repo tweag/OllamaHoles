@@ -128,6 +128,8 @@ library
       GHC.Plugin.OllamaHoles.Candidate
       GHC.Plugin.OllamaHoles.Candidate.Compat
       GHC.Plugin.OllamaHoles.Candidate.Rewrite
+      GHC.Plugin.OllamaHoles.Constants
+      GHC.Plugin.OllamaHoles.Console
       GHC.Plugin.OllamaHoles.Data.Flags
       GHC.Plugin.OllamaHoles.Data.Flags.Error
       GHC.Plugin.OllamaHoles.Data.Flags.Parse
@@ -165,10 +167,15 @@ library
       GHC.Plugin.OllamaHoles.Data.Trigger.Error
       GHC.Plugin.OllamaHoles.Data.Trigger.Parse
       GHC.Plugin.OllamaHoles.Data.Trigger.Match
+      GHC.Plugin.OllamaHoles.Data.PluginState
+      GHC.Plugin.OllamaHoles.Data.PluginState.Types
       GHC.Plugin.OllamaHoles.Error
       GHC.Plugin.OllamaHoles.Flags
       GHC.Plugin.OllamaHoles.Logger
       GHC.Plugin.OllamaHoles.Prompt
+      GHC.Plugin.OllamaHoles.Runtime
+      GHC.Plugin.OllamaHoles.Runtime.Ops
+      GHC.Plugin.OllamaHoles.Runtime.Init
 
 
 
@@ -185,6 +192,8 @@ library ollama-holes-lib
     , GHC.Plugin.OllamaHoles.Candidate
     , GHC.Plugin.OllamaHoles.Candidate.Compat
     , GHC.Plugin.OllamaHoles.Candidate.Rewrite
+    , GHC.Plugin.OllamaHoles.Constants
+    , GHC.Plugin.OllamaHoles.Console
     , GHC.Plugin.OllamaHoles.Data.Flags
     , GHC.Plugin.OllamaHoles.Data.Flags.Error
     , GHC.Plugin.OllamaHoles.Data.Flags.Parse
@@ -222,10 +231,15 @@ library ollama-holes-lib
     , GHC.Plugin.OllamaHoles.Data.Trigger.Error
     , GHC.Plugin.OllamaHoles.Data.Trigger.Parse
     , GHC.Plugin.OllamaHoles.Data.Trigger.Match
+    , GHC.Plugin.OllamaHoles.Data.PluginState
+    , GHC.Plugin.OllamaHoles.Data.PluginState.Types
     , GHC.Plugin.OllamaHoles.Error
     , GHC.Plugin.OllamaHoles.Flags
     , GHC.Plugin.OllamaHoles.Logger
     , GHC.Plugin.OllamaHoles.Prompt
+    , GHC.Plugin.OllamaHoles.Runtime
+    , GHC.Plugin.OllamaHoles.Runtime.Ops
+    , GHC.Plugin.OllamaHoles.Runtime.Init
 
 
 

@@ -5,8 +5,8 @@
 -- | The Ollama plugin for GHC
 module GHC.Plugin.OllamaHoles where
 
-import Control.Monad (unless, when, forM_, (>=>))
-import Control.Monad.Except (ExceptT, runExceptT, MonadError(..), liftEither, modifyError, withExceptT)
+import Control.Monad (unless, when, forM_)
+import Control.Monad.Except (ExceptT, runExceptT, MonadError(..), liftEither, withExceptT)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Data.Char (isSpace)
@@ -15,9 +15,7 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Data.Traversable (for)
-import Data.Map qualified as M
 import Data.List qualified as L
-import GHC.IORef
 import GHC.Plugins hiding ((<>))
 import GHC.Tc.Types
 import GHC.Tc.Types.Constraint (Hole (..))
@@ -49,18 +47,15 @@ import GHC.Tc.Utils.TcType qualified as GHC (tyCoFVsOfType, mkPhiTy)
 import GHC.Tc.Solver qualified as GHC (simplifyTop, simplifyInfer, captureTopConstraints, InferMode(..))
 import GHC.Tc.Solver.Monad qualified as GHC (zonkTcType, runTcSEarlyAbort)
 
-import GHC.Plugin.OllamaHoles.Backend
-import GHC.Plugin.OllamaHoles.Data.Flags
 import GHC.Plugin.OllamaHoles.Prompt
 import GHC.Plugin.OllamaHoles.Logger qualified as Log
 import GHC.Plugin.OllamaHoles.Candidate
 import GHC.Plugin.OllamaHoles.Error
-import GHC.Plugin.OllamaHoles.Flags
-import GHC.Plugin.OllamaHoles.Data.Config
-import GHC.Plugin.OllamaHoles.Data.Service.Types
-import GHC.Plugin.OllamaHoles.Data.Profile.Types
 import GHC.Plugin.OllamaHoles.Data.ServiceCall
-import GHC.Plugin.OllamaHoles.Data.Template
+import GHC.Plugin.OllamaHoles.Data.PluginState
+import GHC.Plugin.OllamaHoles.Runtime
+import GHC.Plugin.OllamaHoles.Constants
+import GHC.Plugin.OllamaHoles.Console
 
 
 
@@ -70,15 +65,11 @@ plugin = defaultPlugin
   { holeFitPlugin = Just . mkHoleFitPluginR
   }
 
-pluginName :: Text
-pluginName = "Ollama Plugin"
-
 mkHoleFitPluginR
   :: [CommandLineOption] -> HoleFitPluginR
 mkHoleFitPluginR opts = HoleFitPluginR
-  { hfPluginInit =
-      -- Initialize the plugin (this may fail).
-      hfPluginInitLLM opts :: TcM (TcRef (Either PluginError PluginState))
+  -- Initialize the plugin (this may fail).
+  { hfPluginInit = pluginInit opts >>= newTcRef
   , hfPluginStop = \_ -> return ()
   , hfPluginRun = \ref -> HoleFitPlugin
     { candPlugin = \_ cs -> updTcRef ref (fmap (setCandidates cs)) >> return cs
@@ -87,61 +78,6 @@ mkHoleFitPluginR opts = HoleFitPluginR
   }
 
 
-
--- State
---------
-
-data PluginState = PluginState
-  { candidates     :: [HoleFitCandidate]
-  , writeLogEvent  :: Log.Logger
-  , templateSpec   :: TemplateSpec
-  , parsedTemplate :: Template
-  , configuration  :: Config
-  , serviceCallOps :: ServiceCallOps TcM
-  }
-
-setCandidates :: [HoleFitCandidate] -> PluginState -> PluginState
-setCandidates cs st = st { candidates = cs }
-
-isDebugMode :: PluginState -> Bool
-isDebugMode = configDebug . configuration
-
-
-
--- Initialize
--------------
-
-hfPluginInitLLM
-  :: [CommandLineOption]
-  -> TcM (TcRef (Either PluginError PluginState))
-hfPluginInitLLM =
-  (liftIO . runExceptT . tryPluginInitLLM)
-    >=> printRenderedError >=> newTcRef
-
--- | Initialize the plugin state
-tryPluginInitLLM
-  :: [CommandLineOption] -> ExceptT PluginError IO PluginState
-tryPluginInitLLM opts = do
-  flags <- case parseFlags opts of
-    Right (fs, []) -> pure fs
-    Right (_, unk) -> throwError $ UnknownOptionError unk
-    Left err       -> throwError $ OptionParseError err
-  spec <- liftEitherIO TemplateSpecError $ pure $ mkTemplateSpec flags
-  logger <- liftIO $ Log.initLogger (log_mode flags) (log_dir flags)
-  template <- liftEitherIO TemplateParseError $ loadTemplate spec
-  config <- modifyError SomeConfigError $ buildConfig flags
-  backendCache <- liftIO newBackendCache
-  let ops = mkServiceCallOps backendCache
-  let st = PluginState
-        { candidates     = []
-        , writeLogEvent  = logger
-        , templateSpec   = spec
-        , parsedTemplate = template
-        , configuration  = config
-        , serviceCallOps = ops
-        }
-  debugMsg st $ "running with flags: " <> T.pack (show flags)
-  pure st
 
 
 
@@ -156,7 +92,7 @@ tryPluginInitLLM opts = do
 -- This wrapper launches the hole fit process
 -- and catches any errors.
 fitPluginLLM
-  :: TcRef (Either PluginError PluginState)
+  :: TcRef (Either PluginError (PluginState TcM))
   -> TypedHole
   -> [HoleFit] -- Known hole fits from GHC
   -> TcM [HoleFit]
@@ -172,7 +108,7 @@ fitPluginLLM ref hole fits = do
       pure fits
 
 tryFitPluginLLM
-  :: PluginState -> TypedHole -> [HoleFit]
+  :: PluginState TcM -> TypedHole -> [HoleFit]
   -> ExceptT PluginError TcM [HoleFit]
 tryFitPluginLLM st typedHole fits = do
   withTypedHole typedHole $ \hole -> do
@@ -198,7 +134,7 @@ holeTriggerName =
   T.pack . occNameString . rdrNameOcc . hole_occ
 
 buildPromptContext
-  :: PluginState -> TypedHole -> [HoleFit]
+  :: PluginState TcM -> TypedHole -> [HoleFit]
   -> ExceptT PluginError TcM PromptContext
 buildPromptContext st hole fits = do
   gblEnv <- lift getGblEnv
@@ -213,13 +149,13 @@ buildPromptContext st hole fits = do
 
 -- TODO: need to log individual responses properly
 extractHoleFitsFromPromptResponses
-  :: PluginState -> [PromptResponse] -> TypedHole -> Hole -> TcM [HoleFit]
+  :: PluginState TcM -> [PromptResponse] -> TypedHole -> Hole -> TcM [HoleFit]
 extractHoleFitsFromPromptResponses st resps th hole =
   let resp = mconcat [txt | PromptResponse txt <- resps]
   in extractHoleFitsFromResponse st mempty resp th hole
 
 extractHoleFitsFromResponse
-  :: PluginState -> Log.Prompt -> Log.Response
+  :: PluginState TcM -> Log.Prompt -> Log.Response
   -> TypedHole -> Hole -> TcM [HoleFit]
 extractHoleFitsFromResponse st prompt rsp hole h = do
   let logger = writeLogEvent st
@@ -418,95 +354,5 @@ getDocs cs = do
 -- Utils
 --------
 
-debugMsg :: (MonadIO m) => PluginState -> Text -> m ()
-debugMsg st txt = liftIO $ when (isDebugMode st) $
-  T.putStrLn $ pluginName <> ": " <> txt
-
-warnMsg :: (MonadIO m) => PluginState -> Text -> m ()
-warnMsg st txt = liftIO $ when (isDebugMode st) $
-  T.putStrLn $ pluginName <> ": " <> txt
-
 liftEitherIO :: (MonadIO m) => (e1 -> e2) -> IO (Either e1 a) -> ExceptT e2 m a
 liftEitherIO f act = liftIO act >>= either (throwError . f) pure
-
-printRenderedError
-  :: (MonadIO m) => Either PluginError u -> m (Either PluginError u)
-printRenderedError x = case x of
-  Right u -> pure (Right u)
-  Left err -> do
-    liftIO $ T.putStrLn $ renderPluginError err
-    pure (Left err)
-
-
-
-defaultModelName :: Text
-defaultModelName = "qwen3:latest"
-
-defaultBackendName :: BackendSlug
-defaultBackendName = Ollama
-
-defaultNumExpr :: Int
-defaultNumExpr = 5
-
-defaultDebug :: Bool
-defaultDebug = True
-
-defaultIncludeDocs :: Bool
-defaultIncludeDocs = True
-
-defaultConfigPath :: ConfigPathSpec
-defaultConfigPath = ConfigDefault
-
-defaultOpenAIBaseUrl :: Text
-defaultOpenAIBaseUrl = "https://api.openai.com"
-
-defaultOpenAIKeyName :: Text
-defaultOpenAIKeyName = "OPENAI_API_KEY"
-
-defaultTemplateSearchDir :: Text
-defaultTemplateSearchDir = "."
-
-
-
-newtype BackendCache = BackendCache
-  { unBackendCache :: IORef (M.Map BackendConfig Backend)
-  }
-
-newBackendCache :: IO BackendCache
-newBackendCache =
-  BackendCache <$> newIORef M.empty
-
-backendForConfig
-  :: BackendCache -> BackendConfig -> IO Backend
-backendForConfig (BackendCache ref) config = do
-  cache <- readIORef ref
-  case M.lookup config cache of
-    Just backend ->
-      pure backend
-    Nothing -> do
-      let backend =
-            configureBackend config
-      atomicModifyIORef' ref $ \cache0 ->
-        ( M.insert config backend cache0
-        , backend
-        )
-
-backendForService
-  :: BackendCache -> Service -> IO Backend
-backendForService cache service =
-  backendForConfig cache (svcConfig service)
-
-mkServiceCallOps
-  :: BackendCache -> ServiceCallOps TcM
-mkServiceCallOps backendCache = ServiceCallOps
-  { opsListModels = \service -> liftIO $ do
-      backend <- backendForService backendCache service
-      fmap (map ModelName) <$> listModels backend
-
-  , opsGetServiceCallTemplate = getServiceCallTemplate
-
-  , opsSubmitServiceCall = \request call -> do
-      backend <- liftIO $
-        backendForService backendCache (callService call)
-      submitServiceCallWithBackend backend request call
-  }
