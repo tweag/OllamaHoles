@@ -175,6 +175,7 @@ library
       GHC.Plugin.OllamaHoles.Prompt
       GHC.Plugin.OllamaHoles.Runtime
       GHC.Plugin.OllamaHoles.Runtime.Ops
+      GHC.Plugin.OllamaHoles.Runtime.Init
 
 
 
@@ -238,6 +239,7 @@ library ollama-holes-lib
     , GHC.Plugin.OllamaHoles.Prompt
     , GHC.Plugin.OllamaHoles.Runtime
     , GHC.Plugin.OllamaHoles.Runtime.Ops
+    , GHC.Plugin.OllamaHoles.Runtime.Init
 
 
 
