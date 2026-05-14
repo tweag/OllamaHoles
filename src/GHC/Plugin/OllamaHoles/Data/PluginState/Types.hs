@@ -4,7 +4,6 @@ module GHC.Plugin.OllamaHoles.Data.PluginState.Types
   , isDebugMode
   , debugMsg
   , warnMsg
-  , pluginName
   ) where
 
 import Control.Monad (when)
@@ -16,6 +15,7 @@ import GHC.Tc.Errors.Hole.FitTypes (HoleFitCandidate)
 import GHC.Plugin.OllamaHoles.Logger qualified as Log
 import GHC.Plugin.OllamaHoles.Data.Config
 import GHC.Plugin.OllamaHoles.Data.ServiceCall
+import GHC.Plugin.OllamaHoles.Constants
 
 
 
@@ -32,6 +32,8 @@ setCandidates cs st = st { candidates = cs }
 isDebugMode :: PluginState m -> Bool
 isDebugMode = configDebug . configuration
 
+
+
 debugMsg :: (MonadIO m) => PluginState m' -> Text -> m ()
 debugMsg st txt = liftIO $ when (isDebugMode st) $
   T.putStrLn $ pluginName <> ": " <> txt
@@ -39,6 +41,3 @@ debugMsg st txt = liftIO $ when (isDebugMode st) $
 warnMsg :: (MonadIO m) => PluginState m' -> Text -> m ()
 warnMsg st txt = liftIO $ when (isDebugMode st) $
   T.putStrLn $ pluginName <> ": " <> txt
-
-pluginName :: Text
-pluginName = "Ollama Plugin"

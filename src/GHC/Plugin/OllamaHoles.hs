@@ -15,9 +15,7 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Data.Traversable (for)
-import Data.Map qualified as M
 import Data.List qualified as L
-import GHC.IORef
 import GHC.Plugins hiding ((<>))
 import GHC.Tc.Types
 import GHC.Tc.Types.Constraint (Hole (..))
@@ -56,10 +54,10 @@ import GHC.Plugin.OllamaHoles.Logger qualified as Log
 import GHC.Plugin.OllamaHoles.Candidate
 import GHC.Plugin.OllamaHoles.Error
 import GHC.Plugin.OllamaHoles.Data.Config
-import GHC.Plugin.OllamaHoles.Data.Service.Types
-import GHC.Plugin.OllamaHoles.Data.Profile.Types
 import GHC.Plugin.OllamaHoles.Data.ServiceCall
 import GHC.Plugin.OllamaHoles.Data.PluginState
+import GHC.Plugin.OllamaHoles.Runtime
+import GHC.Plugin.OllamaHoles.Constants
 
 
 
@@ -91,12 +89,12 @@ hfPluginInitLLM
   :: [CommandLineOption]
   -> TcM (TcRef (Either PluginError (PluginState TcM)))
 hfPluginInitLLM =
-  (liftIO . runExceptT . tryPluginInitLLM)
+  (runExceptT . tryPluginInitLLM)
     >=> printRenderedError >=> newTcRef
 
 -- | Initialize the plugin state
 tryPluginInitLLM
-  :: [CommandLineOption] -> ExceptT PluginError IO (PluginState TcM)
+  :: [CommandLineOption] -> ExceptT PluginError TcM (PluginState TcM)
 tryPluginInitLLM opts = do
   flags <- case parseFlags opts of
     Right (fs, []) -> pure fs
@@ -104,8 +102,7 @@ tryPluginInitLLM opts = do
     Left err       -> throwError $ OptionParseError err
   logger <- liftIO $ Log.initLogger (log_mode flags) (log_dir flags)
   config <- modifyError SomeConfigError $ buildConfig flags
-  backendCache <- liftIO newBackendCache
-  let ops = mkServiceCallOps backendCache
+  ops <- lift newServiceCallOps
   let st = PluginState
         { candidates     = []
         , writeLogEvent  = logger
@@ -400,77 +397,3 @@ printRenderedError x = case x of
   Left err -> do
     liftIO $ T.putStrLn $ renderPluginError err
     pure (Left err)
-
-
-
-defaultModelName :: Text
-defaultModelName = "qwen3:latest"
-
-defaultBackendName :: BackendSlug
-defaultBackendName = Ollama
-
-defaultNumExpr :: Int
-defaultNumExpr = 5
-
-defaultDebug :: Bool
-defaultDebug = True
-
-defaultIncludeDocs :: Bool
-defaultIncludeDocs = True
-
-defaultConfigPath :: ConfigPathSpec
-defaultConfigPath = ConfigDefault
-
-defaultOpenAIBaseUrl :: Text
-defaultOpenAIBaseUrl = "https://api.openai.com"
-
-defaultOpenAIKeyName :: Text
-defaultOpenAIKeyName = "OPENAI_API_KEY"
-
-defaultTemplateSearchDir :: Text
-defaultTemplateSearchDir = "."
-
-
-
-newtype BackendCache = BackendCache
-  { unBackendCache :: IORef (M.Map BackendConfig Backend)
-  }
-
-newBackendCache :: IO BackendCache
-newBackendCache =
-  BackendCache <$> newIORef M.empty
-
-backendForConfig
-  :: BackendCache -> BackendConfig -> IO Backend
-backendForConfig (BackendCache ref) config = do
-  cache <- readIORef ref
-  case M.lookup config cache of
-    Just backend ->
-      pure backend
-    Nothing -> do
-      let backend =
-            configureBackend config
-      atomicModifyIORef' ref $ \cache0 ->
-        ( M.insert config backend cache0
-        , backend
-        )
-
-backendForService
-  :: BackendCache -> Service -> IO Backend
-backendForService cache service =
-  backendForConfig cache (svcConfig service)
-
-mkServiceCallOps
-  :: BackendCache -> ServiceCallOps TcM
-mkServiceCallOps backendCache = ServiceCallOps
-  { opsListModels = \service -> liftIO $ do
-      backend <- backendForService backendCache service
-      fmap (map ModelName) <$> listModels backend
-
-  , opsGetServiceCallTemplate = getServiceCallTemplate
-
-  , opsSubmitServiceCall = \request call -> do
-      backend <- liftIO $
-        backendForService backendCache (callService call)
-      submitServiceCallWithBackend backend request call
-  }

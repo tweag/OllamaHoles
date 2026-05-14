@@ -25,8 +25,8 @@ import GHC.Plugin.OllamaHoles.Data.ServiceCall.Route
 
 
 submitServiceCallWithBackend
-  :: Backend -> PromptRequest -> ServiceCall
-  -> ExceptT ServiceCallError TcM PromptResponse
+  :: (MonadIO m) => Backend -> PromptRequest -> ServiceCall
+  -> ExceptT ServiceCallError m PromptResponse
 submitServiceCallWithBackend backend req caller = do
   prompt <- renderPromptForServiceCall req caller
   let
@@ -40,7 +40,7 @@ submitServiceCallWithBackend backend req caller = do
     Right response -> pure $ PromptResponse response
 
 renderPromptForServiceCall
-  :: PromptRequest -> ServiceCall -> ExceptT ServiceCallError TcM Text
+  :: (Monad m) => PromptRequest -> ServiceCall -> ExceptT ServiceCallError m Text
 renderPromptForServiceCall req caller = do
   let template = requestTemplate req
   let docs = mempty
