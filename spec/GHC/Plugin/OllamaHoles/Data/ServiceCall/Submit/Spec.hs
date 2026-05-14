@@ -84,7 +84,7 @@ tests_submitRoutedServiceCalls_prop = testGroup "submitRoutedServiceCalls (prop)
             }
             }
 
-          config =
+          config = defaultConfigOfMode $
             ConfigFancy FancyConfig
               { cfgServices = M.fromList
                 [ (svcName svc, svc) | svc <- services ]
@@ -120,7 +120,7 @@ tests_submitRoutedServiceCalls_unit_success
   :: [(String, Config, String, ServiceCallTestEnv, ([PromptResponse], [ModelSelectionWarning]))]
 tests_submitRoutedServiceCalls_unit_success =
   [ ( "submits one routed simple service"
-    , ConfigSimple SimpleConfig
+    , defaultConfigOfMode $ ConfigSimple SimpleConfig
         { simpleTrigger = TriggerAll
         , simpleService = svcA
         , simpleProfile = profA
@@ -139,7 +139,7 @@ tests_submitRoutedServiceCalls_unit_success =
     )
 
   , ( "submits fanout services in routed order"
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
           [ (ServiceName "svc-a", svcA)
           , (ServiceName "svc-b", svcB)
@@ -192,7 +192,7 @@ tests_submitRoutedServiceCalls_unit_success =
     )
 
   , ( "returns model-selection warnings from skipped routed services"
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
           [ (ServiceName "svc-a", svcA)
           , (ServiceName "svc-b", svcB)
@@ -247,7 +247,7 @@ tests_submitRoutedServiceCalls_unit_failure
   :: [(String, Config, String, ServiceCallTestEnv)]
 tests_submitRoutedServiceCalls_unit_failure =
   [ ( "fails when no service routes"
-    , ConfigSimple SimpleConfig
+    , defaultConfigOfMode $ ConfigSimple SimpleConfig
         { simpleTrigger = TriggerPrefix "llm"
         , simpleService = svcA
         , simpleProfile = profA
@@ -261,7 +261,7 @@ tests_submitRoutedServiceCalls_unit_failure =
     )
 
   , ( "fails when all routed services are filtered before submission"
-    , ConfigSimple SimpleConfig
+    , defaultConfigOfMode $ ConfigSimple SimpleConfig
         { simpleTrigger = TriggerAll
         , simpleService = svcA
         , simpleProfile = profA
@@ -275,7 +275,7 @@ tests_submitRoutedServiceCalls_unit_failure =
     )
 
   , ( "fails when submitter has no fake response for accepted service"
-    , ConfigSimple SimpleConfig
+    , defaultConfigOfMode $ ConfigSimple SimpleConfig
         { simpleTrigger = TriggerAll
         , simpleService = svcA
         , simpleProfile = profA

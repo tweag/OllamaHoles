@@ -39,9 +39,11 @@ buildConfig
   :: (MonadIO m) => Flags -> ExceptT ConfigError m Config
 buildConfig flags = do
   intent <- inferConfigKindIntent flags
-  case intent of
+  configMode <- case intent of
     SimpleConfigIntent -> fmap ConfigSimple $ buildSimpleConfig flags
     FancyConfigIntent path raw -> fmap ConfigFancy $ buildFancyConfig path flags raw
+  let configDebug = maybe False id $ debug flags
+  pure $ Config {configMode, configDebug}
 
 
 

@@ -79,7 +79,7 @@ filterServiceCallsByAvailableModels listServiceModels calls = do
 routeServiceCalls
   :: Config -> HoleName
   -> Either RouteConfigError (Maybe [ServiceCall])
-routeServiceCalls config holeName = case config of
+routeServiceCalls config holeName = case configMode config of
   ConfigSimple simple -> Right $ routeSimpleConfig simple holeName
   ConfigFancy  fancy  -> routeFancyConfig fancy holeName
 

@@ -12,7 +12,12 @@ import GHC.Plugin.OllamaHoles.Data.Profile
 
 
 
-data Config
+data Config = Config
+  { configMode  :: ConfigMode
+  , configDebug :: Bool
+  } deriving (Eq, Show, Generic)
+
+data ConfigMode
   = ConfigSimple SimpleConfig
   | ConfigFancy FancyConfig
   deriving (Eq, Show, Generic)
@@ -42,3 +47,12 @@ data OverrideConfig = OverrideConfig
   , overrideModelOptions  :: Maybe Value
   , overrideTemplate      :: Maybe TemplateSource
   } deriving (Eq, Show, Generic)
+
+
+
+defaultConfigOfMode
+  :: ConfigMode -> Config
+defaultConfigOfMode mode = Config
+  { configMode  = mode
+  , configDebug = False
+  }
