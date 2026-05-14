@@ -17,7 +17,6 @@ on:
 
 
 jobs:
-
   build:
     runs-on: ${{ matrix.os }}
 
@@ -28,30 +27,31 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         ghc: ['9.6', '9.8', '9.10', '9.12']
-    name: GHC ${{ matrix.ghc }}
+    name: GHC ${{ matrix.ghc }} on ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
 
     # Haskell pipeline
     - name: Install Cabal/GHC
+      id: setup-haskell
       uses: haskell-actions/setup@v2
       with:
         ghc-version: ${{ matrix.ghc }}
         cabal-version: 'latest'
 
     # We restore the cabal packages, but also .cabal/bin for fourmolu
-    - name: Cabal cache
-      id: cabal-cache
-      uses: actions/cache/restore@v4
+    - name: Cache Cabal
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cabal/packages
-          ~/.cabal/store
+          ${{ steps.setup-haskell.outputs.cabal-store }}
           ~/.cabal/bin
           dist-newstyle
-        key: ${{ runner.os }}-cabal-ghc-${{ matrix.ghc }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
-        restore-keys:
-          ${{ runner.os }}-cabal-ghc-${{ matrix.ghc }}-
+        key: build-${{ runner.os }}-ghc-${{ matrix.ghc }}-cabal-${{ hashFiles('**/*.cabal', 'cabal.project', 'cabal.project.freeze') }}
+        restore-keys: |
+          build-${{ runner.os }}-ghc-${{ matrix.ghc }}-cabal-
+          ${{ runner.os }}-ghc-${{ matrix.ghc }}-cabal-
 
     - name: Update cabal index
       run: cabal update
@@ -63,18 +63,9 @@ jobs:
       run: cabal test ollama-holes-spec --test-options='--hide-successes'
 
     - name: Build Documentation
+      if: matrix.os == 'ubuntu-latest' && matrix.ghc == '9.12'
       run: cabal haddock
 
-    # We save it here so that the haddock builds are saved as well
-    - name: Save cabal cache
-      uses: actions/cache/save@v4
-      with:
-        path: |
-          ~/.cabal/packages
-          ~/.cabal/store
-          ~/.cabal/bin
-          dist-newstyle
-        key: ${{ steps.cabal-cache.outputs.cache-primary-key }}
   test:
     runs-on: ubuntu-latest
 
@@ -90,44 +81,32 @@ jobs:
 
     # Haskell pipeline
     - name: Install Cabal/GHC
+      id: setup-haskell
       uses: haskell-actions/setup@v2
       with:
         ghc-version: ${{ matrix.ghc }}
         cabal-version: 'latest'
 
     # We restore the cabal packages, but also .cabal/bin for fourmolu
-    - name: Cabal cache
-      id: cabal-cache
-      uses: actions/cache/restore@v4
+    - name: Cache Cabal
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cabal/packages
-          ~/.cabal/store
+          ${{ steps.setup-haskell.outputs.cabal-store }}
           ~/.cabal/bin
           dist-newstyle
-        key: ${{ runner.os }}-cabal-ghc-${{ matrix.ghc }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
-        restore-keys:
-          ${{ runner.os }}-cabal-ghc-${{ matrix.ghc }}-
+        key: demo-${{ runner.os }}-ghc-${{ matrix.ghc }}-cabal-${{ hashFiles('**/*.cabal', 'cabal.project', 'cabal.project.freeze') }}
+        restore-keys: |
+          build-${{ runner.os }}-ghc-${{ matrix.ghc }}-cabal-
+          demo-${{ runner.os }}-ghc-${{ matrix.ghc }}-cabal-
+          ${{ runner.os }}-ghc-${{ matrix.ghc }}-cabal-
 
     - name: Update cabal index
       run: cabal update
 
     - name: Build Haskell project
       run: cabal build lib:ollama-holes-lib lib:ollama-holes-plugin
-
-    - name: Build Documentation
-      run: cabal haddock
-
-    # We save it here so that the haddock builds are saved as well
-    - name: Save cabal cache
-      uses: actions/cache/save@v4
-      with:
-        path: |
-          ~/.cabal/packages
-          ~/.cabal/store
-          ~/.cabal/bin
-          dist-newstyle
-        key: ${{ steps.cabal-cache.outputs.cache-primary-key }}
 
     - name: Install Ollama
       run: curl -fsSL https://ollama.com/install.sh | sh
