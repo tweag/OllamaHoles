@@ -3,18 +3,16 @@ module GHC.Plugin.OllamaHoles.Data.ServiceCall.Route.Spec
   ) where
 
 import Control.Monad.Except
-import Data.Aeson (Value(..))
 import Data.Functor ((<&>))
-import Data.List (nub)
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as M
 import Data.Text (Text)
-import Data.Text qualified as T
 
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck qualified as QC
 
+import GHC.Plugin.OllamaHoles.Backend
 import GHC.Plugin.OllamaHoles.Data.Config
 import GHC.Plugin.OllamaHoles.Data.Profile
 import GHC.Plugin.OllamaHoles.Data.Service
@@ -22,7 +20,6 @@ import GHC.Plugin.OllamaHoles.Data.ServiceCall.Error
 import GHC.Plugin.OllamaHoles.Data.ServiceCall.Route
 import GHC.Plugin.OllamaHoles.Data.ServiceCall.TestM
 import GHC.Plugin.OllamaHoles.Data.ServiceCall.Types
-import GHC.Plugin.OllamaHoles.Data.Template
 import GHC.Plugin.OllamaHoles.Data.Trigger
 
 import GHC.Plugin.OllamaHoles.Data.ServiceCall.Types.Gen
@@ -81,10 +78,9 @@ tests_prepareServiceCalls_prop = testGroup "prepareServiceCalls (prop)"
             , simpleProfile = profA
             }
 
-          env = ServiceCallTestEnv
-            { testModels = M.fromList
-              [ (ServiceName "svc-a", Just [ModelName "model-a"])
-              ]
+          env =  ServiceCallTestEnv
+            { testOllamaModels = Just [ModelName "model-a"]
+            , testOpenAIModels = Nothing
             , testResponses = M.empty
             }
 
@@ -127,14 +123,12 @@ tests_prepareServiceCalls_prop = testGroup "prepareServiceCalls (prop)"
             , cfgExtras = Just (ConfigOverride emptyOverrides)
             }
 
-          env =
-            ServiceCallTestEnv
-              { testModels = M.fromList
-                [ ( indexedServiceName i, Just [indexedModelName i] )
-                | i <- indices
-                ]
-              , testResponses = M.empty
-              }
+          env = ServiceCallTestEnv
+            { testOllamaModels = Just
+                [ indexedModelName i | i <- indices ]
+            , testOpenAIModels = Nothing
+            , testResponses = M.empty
+            }
 
           expected =
             Right CheckedServiceCalls
@@ -165,11 +159,10 @@ tests_prepareServiceCalls_unit_success =
       , "_llm"
       )
     , ServiceCallTestEnv
-        { testModels = M.fromList
-          [ (ServiceName "svc-a", Just [ModelName "model-a"])
-          ]
-        , testResponses = M.empty
-        }
+      { testOllamaModels = Just [ModelName "model-a"]
+      , testOpenAIModels = Nothing
+      , testResponses = M.empty
+      }
     , CheckedServiceCalls
         { checkedAccepted =
           [ ServiceCall
@@ -190,11 +183,10 @@ tests_prepareServiceCalls_unit_success =
       , "_anything"
       )
     , ServiceCallTestEnv
-        { testModels = M.fromList
-          [ (ServiceName "svc-a", Just [ModelName "model-a"])
-          ]
-        , testResponses = M.empty
-        }
+      { testOllamaModels = Just [ModelName "model-a"]
+      , testOpenAIModels = Nothing
+      , testResponses = M.empty
+      }
     , CheckedServiceCalls
         { checkedAccepted =
           [ ServiceCall
@@ -230,11 +222,10 @@ tests_prepareServiceCalls_unit_success =
       , "_anything"
       )
     , ServiceCallTestEnv
-        { testModels = M.fromList
-          [ (ServiceName "svc-overlay", Just [ModelName "model-overlay"])
-          ]
-        , testResponses = M.empty
-        }
+      { testOllamaModels = Just [ModelName "model-overlay"]
+      , testOpenAIModels = Nothing
+      , testResponses = M.empty
+      }
     , CheckedServiceCalls
         { checkedAccepted =
           [ ServiceCall
@@ -283,12 +274,13 @@ tests_prepareServiceCalls_unit_success =
       , "_fan"
       )
     , ServiceCallTestEnv
-        { testModels = M.fromList
-          [ (ServiceName "svc-a", Just [ModelName "model-a"])
-          , (ServiceName "svc-b", Just [ModelName "model-b"])
-          ]
-        , testResponses = M.empty
-        }
+      { testOllamaModels = Just
+        [ ModelName "model-a"
+        , ModelName "model-b"
+        ]
+      , testOpenAIModels = Nothing
+      , testResponses = M.empty
+      }
     , CheckedServiceCalls
         { checkedAccepted =
           [ ServiceCall
@@ -341,25 +333,96 @@ tests_prepareServiceCalls_unit_success =
       , "_anything"
       )
     , ServiceCallTestEnv
-        { testModels = M.fromList
-          [ (ServiceName "svc-a", Just [ModelName "model-a"])
-          , (ServiceName "svc-b", Just [ModelName "not-model-b"])
-          ]
+      { testOllamaModels = Just [ModelName "model-a"]
+      , testOpenAIModels = Just [ModelName "not-model-b"]
+      , testResponses = M.empty
+      }
+  , CheckedServiceCalls
+    { checkedAccepted =
+      [ ServiceCall
+          { callService = svcA
+          , callProfile = profA
+          }
+      ]
+    , checkedWarnings =
+      [ SkippedServiceMissingModel
+          (ServiceName "svc-b")
+          (ModelName "model-b")
+          [ModelName "model-a"]
+      ]
+    }
+  )
+
+  , ( "normal route uses configured service when overlay has same service name"
+    , ( ConfigFancy FancyConfig
+          { cfgServices = M.fromList
+            [ ( ServiceName "shared"
+              , Service
+                  { svcName = ServiceName "shared"
+                  , svcConfig = SvcOllama (OllamaConfig Nothing)
+                  }
+              )
+            ]
+          , cfgProfiles = M.fromList
+            [ ( ProfileName "normal"
+              , Profile
+                  { profName = ProfileName "normal"
+                  , profTrigger = TriggerPrefix "llm"
+                  , profKind = ProfService ServiceProf
+                    { profService = ServiceName "shared"
+                    , profModel = ModelName "normal-model"
+                    , profTemplate = Nothing
+                    , profModelOptions = Nothing
+                    , profNumExpr = Nothing
+                    , profIncludeDocs = Nothing
+                    }
+                  }
+              )
+            ]
+          , cfgExtras = Just $
+              ConfigOverlay SimpleConfig
+                { simpleTrigger = TriggerPrefix "overlay"
+                , simpleService = Service
+                  { svcName = ServiceName "shared"
+                  , svcConfig = SvcOpenAI $ OpenAIConfig
+                      "https://example.invalid/v1"
+                      "TEST_API_KEY"
+                  }
+                , simpleProfile = ServiceProf
+                  { profService = ServiceName "shared"
+                  , profModel = ModelName "overlay-model"
+                  , profTemplate = Nothing
+                  , profModelOptions = Nothing
+                  , profNumExpr = Nothing
+                  , profIncludeDocs = Nothing
+                  }
+                }
+          }
+      , "_llm"
+      )
+    , ServiceCallTestEnv
+        { testOllamaModels = Just [ModelName "normal-model"]
+        , testOpenAIModels = Just [ModelName "overlay-model"]
         , testResponses = M.empty
         }
     , CheckedServiceCalls
         { checkedAccepted =
           [ ServiceCall
-              { callService = svcA
-              , callProfile = profA
+              { callService = Service
+                { svcName = ServiceName "shared"
+                , svcConfig = SvcOllama (OllamaConfig Nothing)
+                }
+              , callProfile = ServiceProf
+                { profService = ServiceName "shared"
+                , profModel = ModelName "normal-model"
+                , profTemplate = Nothing
+                , profModelOptions = Nothing
+                , profNumExpr = Nothing
+                , profIncludeDocs = Nothing
+                }
               }
           ]
-        , checkedWarnings =
-          [ SkippedServiceMissingModel
-              (ServiceName "svc-b")
-              (ModelName "model-b")
-              [ModelName "not-model-b"]
-          ]
+        , checkedWarnings = []
         }
     )
   ]
@@ -376,11 +439,10 @@ tests_prepareServiceCalls_unit_failure =
       , "_other"
       )
     , ServiceCallTestEnv
-        { testModels = M.fromList
-          [ (ServiceName "svc-a", Just [ModelName "model-a"])
-          ]
-        , testResponses = M.empty
-        }
+      { testOllamaModels = Just [ModelName "model-a"]
+      , testOpenAIModels = Nothing
+      , testResponses = M.empty
+      }
     )
 
   , ( "TriggerNone in simple config never routes"
@@ -392,11 +454,10 @@ tests_prepareServiceCalls_unit_failure =
       , "_llm"
       )
     , ServiceCallTestEnv
-        { testModels = M.fromList
-          [ (ServiceName "svc-a", Just [ModelName "model-a"])
-          ]
-        , testResponses = M.empty
-        }
+      { testOllamaModels = Just [ModelName "model-a"]
+      , testOpenAIModels = Nothing
+      , testResponses = M.empty
+      }
     )
 
   , ( "fancy config reports ambiguous matching profiles"
@@ -426,7 +487,8 @@ tests_prepareServiceCalls_unit_failure =
       , "_anything"
       )
     , ServiceCallTestEnv
-        { testModels = M.empty
+        { testOllamaModels = Nothing
+        , testOpenAIModels = Nothing
         , testResponses = M.empty
         }
     )
@@ -450,7 +512,8 @@ tests_prepareServiceCalls_unit_failure =
       , "_anything"
       )
     , ServiceCallTestEnv
-        { testModels = M.empty
+        { testOllamaModels = Nothing
+        , testOpenAIModels = Nothing
         , testResponses = M.empty
         }
     )
@@ -475,7 +538,8 @@ tests_prepareServiceCalls_unit_failure =
       , "_anything"
       )
     , ServiceCallTestEnv
-        { testModels = M.empty
+        { testOllamaModels = Nothing
+        , testOpenAIModels = Nothing
         , testResponses = M.empty
         }
     )
@@ -489,9 +553,8 @@ tests_prepareServiceCalls_unit_failure =
       , "_anything"
       )
     , ServiceCallTestEnv
-        { testModels = M.fromList
-          [ (ServiceName "svc-a", Nothing)
-          ]
+        { testOllamaModels = Nothing
+        , testOpenAIModels = Nothing
         , testResponses = M.empty
         }
     )
@@ -505,10 +568,9 @@ tests_prepareServiceCalls_unit_failure =
       , "_anything"
       )
     , ServiceCallTestEnv
-        { testModels = M.fromList
-          [ (ServiceName "svc-a", Just [ModelName "other-model"])
-          ]
-        , testResponses = M.empty
-        }
+      { testOllamaModels = Just [ModelName "other-model"]
+      , testOpenAIModels = Nothing
+      , testResponses = M.empty
+      }
     )
   ]

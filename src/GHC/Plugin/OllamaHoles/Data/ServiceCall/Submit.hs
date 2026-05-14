@@ -5,6 +5,7 @@ module GHC.Plugin.OllamaHoles.Data.ServiceCall.Submit
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Except
+import Data.Maybe (fromMaybe)
 import Data.Traversable (for)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -48,7 +49,8 @@ renderPromptForServiceCall req caller = do
 --    if effectiveIncludeDocs (callProfile caller)
 --      then getDocs (candidates st)
 --      else pure ""
-  let effectiveNumExpr = const 10
+  let effectiveNumExpr profile =
+        fromMaybe 10 (profNumExpr profile)
 
   let result = expandTemplate template $ mkTemplateEnv
         [ ("backend", unServiceName (svcName (callService caller)))

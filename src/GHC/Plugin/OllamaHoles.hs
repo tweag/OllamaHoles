@@ -5,18 +5,16 @@
 -- | The Ollama plugin for GHC
 module GHC.Plugin.OllamaHoles where
 
-import Control.Monad (unless, when, forM_, (>=>), filterM)
+import Control.Monad (unless, when, forM_, (>=>))
 import Control.Monad.Except (ExceptT, runExceptT, MonadError(..), liftEither, modifyError, withExceptT)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
-import Data.Aeson (Value)
 import Data.Char (isSpace)
 import Data.Foldable (traverse_)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Data.Traversable (for)
-import Data.Map (Map)
 import Data.Map qualified as M
 import Data.List qualified as L
 import GHC.IORef

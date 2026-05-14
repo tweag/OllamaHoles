@@ -93,12 +93,13 @@ tests_submitRoutedServiceCalls_prop = testGroup "submitRoutedServiceCalls (prop)
               , cfgExtras = Just (ConfigOverride emptyOverrides)
               }
 
-          env =
-            ServiceCallTestEnv
-              { testModels = M.fromList
-                [ ( indexedServiceName i , Just [indexedModelName i] )
-                | i <- indices
-                ]
+          env = ServiceCallTestEnv
+              { testOllamaModels =
+                  Just
+                    [ indexedModelName i
+                    | i <- indices
+                    ]
+              , testOpenAIModels = Nothing
               , testResponses = M.fromList
                 [ ( indexedServiceName i
                   , PromptResponse ("response-" <> T.pack (show i)) )
@@ -126,9 +127,8 @@ tests_submitRoutedServiceCalls_unit_success =
         }
     , "_anything"
     , ServiceCallTestEnv
-        { testModels = M.fromList
-          [ (ServiceName "svc-a", Just [ModelName "model-a"])
-          ]
+        { testOllamaModels = Just [ModelName "model-a"]
+        , testOpenAIModels = Nothing
         , testResponses = M.fromList
           [ (ServiceName "svc-a", PromptResponse "response-a")
           ]
@@ -174,10 +174,11 @@ tests_submitRoutedServiceCalls_unit_success =
         }
     , "_anything"
     , ServiceCallTestEnv
-        { testModels = M.fromList
-          [ (ServiceName "svc-a", Just [ModelName "model-a"])
-          , (ServiceName "svc-b", Just [ModelName "model-b"])
+        { testOllamaModels = Just
+          [ ModelName "model-a"
+          , ModelName "model-b"
           ]
+        , testOpenAIModels = Nothing
         , testResponses = M.fromList
           [ (ServiceName "svc-a", PromptResponse "response-a")
           , (ServiceName "svc-b", PromptResponse "response-b")
@@ -226,16 +227,18 @@ tests_submitRoutedServiceCalls_unit_success =
         }
     , "_anything"
     , ServiceCallTestEnv
-        { testModels = M.fromList
-          [ (ServiceName "svc-a", Just [ModelName "model-a"])
-          , (ServiceName "svc-b", Nothing)
-          ]
+        { testOllamaModels = Just [ModelName "model-a"]
+        , testOpenAIModels = Nothing
         , testResponses = M.fromList
           [ (ServiceName "svc-a", PromptResponse "response-a")
           ]
         }
     , ( [PromptResponse "response-a"]
-      , [SkippedServiceCannotListModels (ServiceName "svc-b")]
+      , [ SkippedServiceMissingModel
+          (ServiceName "svc-b")
+          (ModelName "model-b")
+          [ModelName "model-a"]
+        ]
       )
     )
   ]
@@ -251,9 +254,8 @@ tests_submitRoutedServiceCalls_unit_failure =
         }
     , "_other"
     , ServiceCallTestEnv
-        { testModels = M.fromList
-          [ (ServiceName "svc-a", Just [ModelName "model-a"])
-          ]
+        { testOllamaModels = Just [ModelName "model-a"]
+        , testOpenAIModels = Nothing
         , testResponses = M.empty
         }
     )
@@ -266,9 +268,8 @@ tests_submitRoutedServiceCalls_unit_failure =
         }
     , "_anything"
     , ServiceCallTestEnv
-        { testModels = M.fromList
-          [ (ServiceName "svc-a", Just [ModelName "not-model-a"])
-          ]
+        { testOllamaModels = Just [ModelName "not-model-a"]
+        , testOpenAIModels = Nothing
         , testResponses = M.empty
         }
     )
@@ -281,9 +282,8 @@ tests_submitRoutedServiceCalls_unit_failure =
         }
     , "_anything"
     , ServiceCallTestEnv
-        { testModels = M.fromList
-          [ (ServiceName "svc-a", Just [ModelName "model-a"])
-          ]
+        { testOllamaModels = Just [ModelName "model-a"]
+        , testOpenAIModels = Nothing
         , testResponses = M.empty
         }
     )

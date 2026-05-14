@@ -50,11 +50,9 @@ runTestM =
 
 
 data ServiceCallTestEnv = ServiceCallTestEnv
-  { testModels
-      :: M.Map ServiceName (Maybe [ModelName])
-
-  , testResponses
-      :: M.Map ServiceName PromptResponse
+  { testOllamaModels :: Maybe [ModelName]
+  , testOpenAIModels :: Maybe [ModelName]
+  , testResponses :: M.Map ServiceName PromptResponse
   }
 
 
@@ -62,10 +60,9 @@ data ServiceCallTestEnv = ServiceCallTestEnv
 listModelsFromEnv
   :: ServiceCallTestEnv -> Service -> TestM (Maybe [ModelName])
 listModelsFromEnv env service =
-  pure $
-    M.findWithDefault Nothing
-      (svcName service)
-      (testModels env)
+  pure $ case svcConfig service of
+    SvcOllama{} -> testOllamaModels env
+    SvcOpenAI{} -> testOpenAIModels env
 
 
 

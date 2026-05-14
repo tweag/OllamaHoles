@@ -109,7 +109,7 @@ routeFancyOverlay fancy holeName = case cfgExtras fancy of
   Just (ConfigOverride _) -> Nothing
   -- If there is an overlay, route it like a simple config.
   Just (ConfigOverlay overlay) -> routeSimpleConfig overlay holeName
-  _ -> error "routeFancyOverlay"
+  Nothing -> Nothing
 
 routeFancyProfiles
   :: FancyConfig -> HoleName
@@ -148,7 +148,7 @@ serviceCallForServiceProf fancy prof =
 
 applyExtraConfig :: FancyConfig -> ServiceProf -> ServiceProf
 applyExtraConfig fancy serviceProf = case cfgExtras fancy of
-  Nothing -> error "applyExtraConfig"
+  Nothing -> serviceProf
   Just (ConfigOverlay _) -> serviceProf
   Just (ConfigOverride overrides) -> applyOverrideConfig overrides serviceProf
 

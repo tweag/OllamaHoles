@@ -38,7 +38,7 @@ data CheckedServiceCalls = CheckedServiceCalls
 data ServiceCallResponses = ServiceCallResponses
   { serviceCallResponses :: [PromptResponse]
   , serviceCallWarnings  :: [ModelSelectionWarning]
-  }
+  } deriving (Eq, Show)
 
 data ServiceCallOps m = ServiceCallOps
   { opsListModels
