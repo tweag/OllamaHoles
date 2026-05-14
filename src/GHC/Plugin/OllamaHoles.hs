@@ -95,7 +95,6 @@ data PluginState = PluginState
   { candidates     :: [HoleFitCandidate]
   , writeLogEvent  :: Log.Logger
   , templateSpec   :: TemplateSpec
-  , parsedTemplate :: Template
   , configuration  :: Config
   , serviceCallOps :: ServiceCallOps TcM
   }
@@ -128,7 +127,6 @@ tryPluginInitLLM opts = do
     Left err       -> throwError $ OptionParseError err
   spec <- liftEitherIO TemplateSpecError $ pure $ mkTemplateSpec flags
   logger <- liftIO $ Log.initLogger (log_mode flags) (log_dir flags)
-  template <- liftEitherIO TemplateParseError $ loadTemplate spec
   config <- modifyError SomeConfigError $ buildConfig flags
   backendCache <- liftIO newBackendCache
   let ops = mkServiceCallOps backendCache
@@ -136,7 +134,6 @@ tryPluginInitLLM opts = do
         { candidates     = []
         , writeLogEvent  = logger
         , templateSpec   = spec
-        , parsedTemplate = template
         , configuration  = config
         , serviceCallOps = ops
         }
