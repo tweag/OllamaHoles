@@ -56,11 +56,21 @@ jobs:
     - name: Update cabal index
       run: cabal update
 
+    # See Note #1
     - name: Build Haskell project
+      if: runner.os != 'Windows'
       run: cabal build lib:ollama-holes-lib lib:ollama-holes-plugin
+    - name: Build Haskell project
+      if: runner.os == 'Windows'
+      run: cabal build lib:ollama-holes-lib lib:ollama-holes-plugin --jobs=1
 
+    # See Note #1
     - name: Run spec tests
+      if: runner.os != 'Windows'
       run: cabal test ollama-holes-spec --test-options='--hide-successes'
+    - name: Run spec tests
+      if: runner.os == 'Windows'
+      run: cabal test ollama-holes-spec --test-options='--hide-successes' --jobs=1
 
     - name: Build Documentation
       if: matrix.os == 'ubuntu-latest' && matrix.ghc == '9.12'
@@ -105,8 +115,13 @@ jobs:
     - name: Update cabal index
       run: cabal update
 
+    # See Note #1
     - name: Build Haskell project
+      if: runner.os != 'Windows'
       run: cabal build lib:ollama-holes-lib lib:ollama-holes-plugin
+    - name: Build Haskell project
+      if: runner.os == 'Windows'
+      run: cabal build lib:ollama-holes-lib lib:ollama-holes-plugin --jobs=1
 
     - name: Install Ollama
       run: curl -fsSL https://ollama.com/install.sh | sh
@@ -122,3 +137,11 @@ jobs:
           --ghc-option "-fplugin-opt=GHC.Plugin.OllamaHoles:model=${{ matrix.model }}" \
           2>&1 | tee demo-build.log || true
         grep "Valid hole fits" demo-build.log
+
+# Notes
+# =====
+
+# Note #1:
+# Running concurrent build tasks on Windows can cause intermittent permission errors like this:
+# ghc-pkg-9.10.3.exe: C:foo\\package.db\package.cache: you don't have permission to modify this file
+# The cause is a race condition. To avoid a flaky build we use only one concurrent job on windows.
