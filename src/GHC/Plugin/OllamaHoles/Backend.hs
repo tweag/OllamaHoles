@@ -43,7 +43,7 @@ data BackendConfig
   = SvcOllama OllamaConfig
   | SvcOpenAI OpenAIConfig
   | SvcGemini GeminiConfig
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Ord, Show, Generic)
 
 configureBackend :: BackendConfig -> Backend
 configureBackend = \case

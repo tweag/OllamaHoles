@@ -22,7 +22,7 @@ import Data.Maybe
 
 data GeminiConfig = GeminiConfig
   { svcGeminiKeyName :: Text
-  } deriving (Eq, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic)
 
 
 

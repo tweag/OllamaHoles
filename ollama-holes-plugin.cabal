@@ -242,7 +242,6 @@ test-suite ollama-holes-spec
     , GHC.Plugin.OllamaHoles.Candidate.WithRenamedExpr
     , GHC.Plugin.OllamaHoles.Logger.Spec
     , GHC.Plugin.OllamaHoles.Options.Spec
-    , GHC.Plugin.OllamaHoles.Data.ServiceCall.Route.Spec
     , GHC.Plugin.OllamaHoles.Data.Spec
     , GHC.Plugin.OllamaHoles.Data.Config.Types.Gen
     , GHC.Plugin.OllamaHoles.Data.Config.Error.Predicate
@@ -269,6 +268,11 @@ test-suite ollama-holes-spec
     , GHC.Plugin.OllamaHoles.Data.Prefs.Spec
     , GHC.Plugin.OllamaHoles.Data.Prefs.Types.Gen
     , GHC.Plugin.OllamaHoles.Data.Prefs.Parse.Spec
+    , GHC.Plugin.OllamaHoles.Data.ServiceCall.TestM
+    , GHC.Plugin.OllamaHoles.Data.ServiceCall.Spec
+    , GHC.Plugin.OllamaHoles.Data.ServiceCall.Types.Gen
+    , GHC.Plugin.OllamaHoles.Data.ServiceCall.Route.Spec
+    , GHC.Plugin.OllamaHoles.Data.ServiceCall.Submit.Spec
     , Toml.TestHelper
   build-depends:
       base

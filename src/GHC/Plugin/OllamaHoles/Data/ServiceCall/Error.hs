@@ -34,6 +34,8 @@ renderRouteConfigError = \case
 
 data ServiceCallError
   = ServiceCallError String
+  | ServiceCallModelError ModelSelectionError
+  | ServiceCallRouteError RouteConfigError
   | ServiceCallTemplateError TemplateError
   deriving (Eq, Show)
 
@@ -42,5 +44,62 @@ renderServiceCallError = \case
   ServiceCallError msg ->
     "service call error: " <> T.pack msg
 
+  ServiceCallModelError err ->
+    "service call model error: " <> renderModelSelectionError err
+
+  ServiceCallRouteError err ->
+    renderRouteConfigError err
+
   ServiceCallTemplateError templateError ->
     "failed to load template: " <> T.pack (show templateError)
+
+
+
+data ModelSelectionError
+  = NoServiceCallsRouted Text -- hole name
+  | CannotListModels ServiceName
+  | ModelNameNotFound ServiceName ModelName [ModelName]
+  | NoServiceCallsAfterModelFiltering [ModelSelectionWarning]
+  deriving (Eq, Show)
+
+renderModelSelectionError :: ModelSelectionError -> Text
+renderModelSelectionError = \case
+  NoServiceCallsRouted holeName ->
+    "no services routed for hole: " <> holeName
+
+  CannotListModels serviceName ->
+    "could not list models for service: " <> unServiceName serviceName
+
+  ModelNameNotFound serviceName modelName models ->
+    "model "
+      <> unModelName modelName
+      <> " not found for service "
+      <> unServiceName serviceName
+      <> "; available models: "
+      <> T.intercalate ", " (map unModelName models)
+
+  NoServiceCallsAfterModelFiltering warnings ->
+    "no routed services remain after model filtering: "
+      <> T.intercalate "; " (map renderModelSelectionWarning warnings)
+
+
+
+data ModelSelectionWarning
+  = SkippedServiceCannotListModels ServiceName
+  | SkippedServiceMissingModel ServiceName ModelName [ModelName]
+  deriving (Eq, Show)
+
+renderModelSelectionWarning :: ModelSelectionWarning -> Text
+renderModelSelectionWarning = \case
+  SkippedServiceCannotListModels serviceName ->
+    "skipped "
+      <> unServiceName serviceName
+      <> " because the backend could not list models"
+
+  SkippedServiceMissingModel serviceName modelName models ->
+    "skipped "
+      <> unServiceName serviceName
+      <> " because model "
+      <> unModelName modelName
+      <> " was not found; available models: "
+      <> T.intercalate ", " (map unModelName models)

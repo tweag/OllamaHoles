@@ -27,7 +27,7 @@ import Text.URI (mkURI)
 data OpenAIConfig = OpenAIConfig
   { svcOpenAIBaseUrl :: Text
   , svcOpenAIKeyName :: Text
-  } deriving (Eq, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic)
 
 -- | The OpenAI backend
 openAIBackend :: Backend
