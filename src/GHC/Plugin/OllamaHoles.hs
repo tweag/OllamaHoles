@@ -96,7 +96,6 @@ data PluginState = PluginState
   , writeLogEvent  :: Log.Logger
   , templateSpec   :: TemplateSpec
   , parsedTemplate :: Template
-  , commandOptions :: Flags
   , configuration  :: Config
   , serviceCallOps :: ServiceCallOps TcM
   }
@@ -138,7 +137,6 @@ tryPluginInitLLM opts = do
         , writeLogEvent  = logger
         , templateSpec   = spec
         , parsedTemplate = template
-        , commandOptions = flags
         , configuration  = config
         , serviceCallOps = ops
         }
