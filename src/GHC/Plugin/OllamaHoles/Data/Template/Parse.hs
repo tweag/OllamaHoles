@@ -106,20 +106,6 @@ nameSafeChar :: Char -> Bool
 nameSafeChar c = isAlphaNum c || c == '-' || c == '_'
 
 
-{-
-tomlTemplate :: Toml.Value' l -> Toml.Matcher l (TemplateName, Template)
-tomlTemplate value = do
-  table <- Toml.parseTableFromValue value
-  rawName <- Toml.reqKeyOf "name" table
-  rawBody <- Toml.reqKeyOf "body" table
-  name <- either (Toml.failAt value . T.unpack . renderTemplateError)
-      pure (parseTemplateName rawName)
-  template <-
-    either (Toml.failAt value . T.unpack . renderTemplateError)
-      pure (parseTemplate rawBody)
-  pure (name, template) -}
-
-
 
 tomlTemplate :: Toml.Value' l -> Toml.Matcher l (TemplateName, Template)
 tomlTemplate = Toml.parseTableFromValue $ do

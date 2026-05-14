@@ -9,7 +9,7 @@ import Data.Text (Text)
 
 newtype TemplateName = TemplateName
   { unTemplateName :: Text
-  } deriving (Eq, Show)
+  } deriving (Eq, Ord, Show)
 
 -- For tests
 unsafeCreateRawTemplateName :: Text -> TemplateName

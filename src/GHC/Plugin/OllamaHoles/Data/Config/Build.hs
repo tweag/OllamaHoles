@@ -23,7 +23,7 @@ import GHC.Plugin.OllamaHoles.Data.Service.Types
 import GHC.Plugin.OllamaHoles.Data.Trigger.Types
 import GHC.Plugin.OllamaHoles.Data.Prefs.Parse
 import GHC.Plugin.OllamaHoles.Data.Prefs.Types
-import GHC.Plugin.OllamaHoles.Data.Template (TemplateSource(..))
+import GHC.Plugin.OllamaHoles.Data.Template (TemplateSource(..), Template, TemplateName)
 
 import GHC.Plugin.OllamaHoles.Data.Config.Error
 
@@ -156,16 +156,18 @@ buildFancyConfig path flags rawConfig = do
 resolveConfig :: (MonadIO m) => Flags -> Preferences -> ExceptT ConfigError m FancyConfig
 resolveConfig flags prefs = do
   svcMap  <- ExceptT $ pure $ buildServiceMap (prefServices prefs)
-  profMap <- ExceptT $ pure $ buildProfileMap svcMap (prefProfiles prefs)
+  tmplMap <- ExceptT $ pure $ buildTemplateMap (prefTemplates prefs)
+  profMap <- ExceptT $ pure $ buildProfileMap svcMap tmplMap (prefProfiles prefs)
 
   case validateProfileTriggers (prefProfiles prefs) of
     Left err -> throwError $ AmbiguousProfileTriggers err
     Right () -> pure ()
 
   addFlagExtras flags $ FancyConfig
-    { cfgServices = svcMap
-    , cfgProfiles = profMap
-    , cfgExtras   = Nothing
+    { cfgServices  = svcMap
+    , cfgProfiles  = profMap
+    , cfgTemplates = tmplMap
+    , cfgExtras    = Nothing
     }
 
 buildServiceMap
@@ -176,13 +178,22 @@ buildServiceMap = flip foldM mempty $ \acc pref ->
     then Left (DuplicateServiceName (svcName pref))
     else Right (M.insert (svcName pref) pref acc)
 
+buildTemplateMap
+  :: [(TemplateName, Template)]
+  -> Either ConfigError (Map TemplateName Template)
+buildTemplateMap = flip foldM mempty $ \acc (name, tmpl) ->
+  if name `M.member` acc
+    then Left (DuplicateTemplateName name)
+    else Right (M.insert name tmpl acc)
+
 buildProfileMap
   :: Map ServiceName Service
+  -> Map TemplateName Template
   -> [Profile]
   -> Either ConfigError (Map ProfileName Profile)
-buildProfileMap svcMap prefs = do
+buildProfileMap svcMap tmplMap prefs = do
   prefMap <- buildProfilePreferenceMap prefs
-  traverse (resolveProfile prefMap svcMap []) prefMap
+  traverse (resolveProfile prefMap svcMap tmplMap []) prefMap
 
 buildProfilePreferenceMap
   :: [Profile]
@@ -195,21 +206,26 @@ buildProfilePreferenceMap = flip foldM mempty $ \acc prof ->
 resolveProfile
   :: Map ProfileName Profile
   -> Map ServiceName Service
+  -> Map TemplateName Template
   -> [ProfileName]
   -> Profile
   -> Either ConfigError Profile
-resolveProfile profMap svcMap stack prof =
+resolveProfile profMap svcMap tmplMap stack prof =
   case profKind prof of
     ProfService svcProf -> do
       -- Ensure that the service exists in config.
       case M.lookup (profService svcProf) svcMap of
         Nothing -> Left (UnknownServiceReference (profName prof) (profService svcProf))
-        Just _ -> pure prof
+        Just _ -> case profTemplate svcProf of
+          Just (NamedTemplate name) -> case M.lookup name tmplMap of
+            Just _ -> pure prof
+            _ -> Left (UnknownTemplateReference (profName prof) name)
+          _ -> pure prof
 
     ProfFanout fpp -> do
       -- Ensure dependencies exist and do not have cycles.
       leaves <- traverse
-        (resolveFanoutMember profMap svcMap (profName prof : stack) (profName prof))
+        (resolveFanoutMember profMap svcMap tmplMap (profName prof : stack) (profName prof))
         (profProfiles fpp)
       pure prof
         { profKind = ProfFanout $ FanoutProf $ foldl1 (<>) leaves
@@ -218,17 +234,18 @@ resolveProfile profMap svcMap stack prof =
 resolveFanoutMember
   :: Map ProfileName Profile
   -> Map ServiceName Service
+  -> Map TemplateName Template
   -> [ProfileName] -- stack of profiles
   -> ProfileName   -- parent
   -> ProfileName   -- child
   -> Either ConfigError (NonEmpty ProfileName)
-resolveFanoutMember profMap svcMap stack parent child =
+resolveFanoutMember profMap svcMap tmplMap stack parent child =
   if child `elem` stack
     then Left (CyclicProfileReference (reverse (child : stack)))
     else case M.lookup child profMap of
       Nothing -> Left $ UnknownProfileReference parent child
       Just prof -> do
-        prof' <- resolveProfile profMap svcMap stack prof
+        prof' <- resolveProfile profMap svcMap tmplMap stack prof
         case profKind prof' of
           ProfService _ -> Right (profName prof' :| [])
           ProfFanout (FanoutProf xs) -> Right xs

@@ -45,14 +45,16 @@ data TemplateEnv
 
 -- | Runtime specification for selecting a template.
 data TemplateSpec = TemplateSpec
-    { tsSearchDir :: FilePath       -- where to look
-    , tsSource    :: TemplateSource -- how to look
+    { tsSearchDir :: FilePath                  -- if defined in filesystem
+    , tsTmplMap   :: Map TemplateName Template -- if defined in config
+    , tsSource    :: TemplateSource            -- how to look
     } deriving (Eq, Show)
 
 data TemplateSource
-    = DefaultTemplate            -- Used if the spec is not specified
-    | TemplateFile FilePath      -- When using a specific template by path
-    | NamedTemplate TemplateName -- When using a template by name in @tsSearchDir@
+    = DefaultTemplate             -- Used if the spec is not specified
+    | TemplateFile FilePath       -- When using a specific template by path
+    | NamedTemplate TemplateName  -- When using a template by name in @tsSearchDir@
+    | InlineTemplate TemplateName -- Template defined in the fancy config
     deriving (Eq, Show)
 
 type Line = Int

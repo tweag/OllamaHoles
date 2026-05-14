@@ -314,6 +314,7 @@ tests_buildConfig_unit_basic_success =
               }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras =
             Just (ConfigOverride emptyOverrideConfig)
         }
@@ -365,6 +366,7 @@ tests_buildConfig_unit_basic_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just
           ( ConfigOverride OverrideConfig
               { overrideModelName = Just (ModelName "override-model")
@@ -431,6 +433,7 @@ tests_buildConfig_unit_basic_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just
             ( ConfigOverlay SimpleConfig
                 { simpleTrigger = TriggerPrefix "ask"
@@ -541,6 +544,7 @@ tests_buildConfig_unit_basic_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just (ConfigOverride emptyOverrideConfig)
         }
     )
@@ -635,6 +639,7 @@ tests_buildConfig_unit_basic_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just
             ( ConfigOverride OverrideConfig
                 { overrideModelName = Nothing
@@ -689,6 +694,7 @@ tests_buildConfig_unit_basic_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just
             ( ConfigOverride OverrideConfig
                 { overrideModelName = Nothing
@@ -755,6 +761,7 @@ tests_buildConfig_unit_basic_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just
             ( ConfigOverlay SimpleConfig
                 { simpleTrigger = defaultTriggerPolicy
@@ -830,6 +837,7 @@ tests_buildConfig_unit_basic_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just
             ( ConfigOverlay SimpleConfig
                 { simpleTrigger = defaultTriggerPolicy
@@ -903,6 +911,7 @@ tests_buildConfig_unit_basic_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just
             ( ConfigOverlay SimpleConfig
                 { simpleTrigger = defaultTriggerPolicy
@@ -976,6 +985,7 @@ tests_buildConfig_unit_basic_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just
             ( ConfigOverlay SimpleConfig
                 { simpleTrigger = defaultTriggerPolicy
@@ -1011,6 +1021,7 @@ tests_buildConfig_unit_basic_success =
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList []
         , cfgProfiles = M.fromList []
+        , cfgTemplates = mempty
         , cfgExtras = Just
             ( ConfigOverride OverrideConfig
                 { overrideModelName = Nothing
@@ -1303,6 +1314,7 @@ tests_buildConfig_unit_validate_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just (ConfigOverride emptyOverrideConfig)
         }
     )
@@ -1340,6 +1352,7 @@ tests_buildConfig_unit_validate_success =
             )
           ]
         , cfgProfiles = M.fromList []
+        , cfgTemplates = mempty
         , cfgExtras = Just (ConfigOverride emptyOverrideConfig)
         }
     )
@@ -1385,6 +1398,7 @@ tests_buildConfig_unit_validate_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just (ConfigOverride emptyOverrideConfig)
         }
     )
@@ -1469,6 +1483,7 @@ tests_buildConfig_unit_validate_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just (ConfigOverride emptyOverrideConfig)
         }
     )
@@ -1484,7 +1499,7 @@ tests_buildConfig_unit_validate_success =
         \]\n\
         \\n\
         \profiles = [\n\
-        \  { name = 'rich', type = 'service', trigger = 'all', service = 'remote', model = 'gpt-test', template = 'prompt', num_expr = 17, include_docs = true }\n\
+        \  { name = 'rich', type = 'service', trigger = 'all', service = 'remote', model = 'gpt-test', template = 'default', num_expr = 17, include_docs = true }\n\
         \]\n\
         \\n\
         \templates = []"
@@ -1508,7 +1523,7 @@ tests_buildConfig_unit_validate_success =
                 , profKind = ProfService ServiceProf
                   { profService = ServiceName "remote"
                   , profModel = ModelName "gpt-test"
-                  , profTemplate = Just (NamedTemplate (unsafeCreateRawTemplateName "prompt"))
+                  , profTemplate = Just DefaultTemplate
                   , profModelOptions = Nothing
                   , profNumExpr = Just 17
                   , profIncludeDocs = Just True
@@ -1516,6 +1531,7 @@ tests_buildConfig_unit_validate_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just (ConfigOverride emptyOverrideConfig)
         }
     )

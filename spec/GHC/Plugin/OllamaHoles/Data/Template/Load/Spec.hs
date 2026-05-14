@@ -55,7 +55,7 @@ tests_loadTemplate_prop :: TestTree
 tests_loadTemplate_prop = testGroup "loadTemplate (prop)"
   [ QC.testProperty "DefaultTemplate loads as parseTemplate defaultTemplateText" $
       QC.ioProperty $ do
-        result <- loadTemplate (TemplateSpec "" DefaultTemplate)
+        result <- loadTemplate (TemplateSpec "" mempty DefaultTemplate)
         pure $ result QC.=== parseTemplate defaultTemplateText
 
   , QC.testProperty "TemplateFile loads exactly as parseTemplate file contents" $
@@ -64,7 +64,7 @@ tests_loadTemplate_prop = testGroup "loadTemplate (prop)"
           withSystemTempDirectory "ollama-holes-template-load-spec" $ \dir -> do
             let fp = dir </> "prompt.txt"
             T.writeFile fp raw
-            result <- loadTemplate (TemplateSpec dir (TemplateFile fp))
+            result <- loadTemplate (TemplateSpec dir mempty (TemplateFile fp))
             pure $ result QC.=== parseTemplate raw
 
   , QC.testProperty "TemplateFile missing reports the requested file path" $
@@ -72,7 +72,7 @@ tests_loadTemplate_prop = testGroup "loadTemplate (prop)"
         QC.ioProperty $
           withSystemTempDirectory "ollama-holes-template-load-spec" $ \dir -> do
             let fp = dir </> T.unpack fileName <> ".txt"
-            result <- loadTemplate (TemplateSpec dir (TemplateFile fp))
+            result <- loadTemplate (TemplateSpec dir mempty (TemplateFile fp))
             pure $ result QC.=== Left (TemplateFileNotFound fp)
 
   , QC.testProperty "NamedTemplate loads <name>.txt exactly as parseTemplate file contents" $
@@ -83,7 +83,7 @@ tests_loadTemplate_prop = testGroup "loadTemplate (prop)"
             let fp = dir </> T.unpack name <> ".txt"
             T.writeFile fp raw
             result <- loadTemplate $
-              TemplateSpec dir $ NamedTemplate $ unsafeCreateRawTemplateName name
+              TemplateSpec dir mempty $ NamedTemplate $ unsafeCreateRawTemplateName name
             pure $ result QC.=== parseTemplate raw
 
   , QC.testProperty "NamedTemplate unknown safe name reports search dir and name" $
@@ -91,7 +91,7 @@ tests_loadTemplate_prop = testGroup "loadTemplate (prop)"
         QC.ioProperty $
           withSystemTempDirectory "ollama-holes-template-load-spec" $ \dir -> do
             result <- loadTemplate $
-              TemplateSpec dir $ NamedTemplate $ unsafeCreateRawTemplateName name
+              TemplateSpec dir mempty $ NamedTemplate $ unsafeCreateRawTemplateName name
             pure $ result QC.=== Left (UnknownTemplateName dir name)
 
   , QC.testProperty "NamedTemplate invalid names are rejected before lookup" $
@@ -99,7 +99,7 @@ tests_loadTemplate_prop = testGroup "loadTemplate (prop)"
         QC.ioProperty $
           withSystemTempDirectory "ollama-holes-template-load-spec" $ \dir -> do
             result <- loadTemplate $
-              TemplateSpec dir $ NamedTemplate $ unsafeCreateRawTemplateName name
+              TemplateSpec dir mempty $ NamedTemplate $ unsafeCreateRawTemplateName name
             pure $ result QC.=== Left (InvalidTemplateName name)
   ]
 
@@ -115,7 +115,7 @@ tests_loadTemplate_unit_success
 tests_loadTemplate_unit_success =
   [ ( "DefaultTemplate loads successfully"
     , Nothing
-    , \_ -> TemplateSpec "" DefaultTemplate
+    , \_ -> TemplateSpec "" mempty DefaultTemplate
     , Template
         [ TemplateChunk "Preliminaries:\n"
         , TemplateVar "docs"
@@ -142,20 +142,20 @@ tests_loadTemplate_unit_success =
 
   , ( "TemplateFile loads an existing file"
     , Just "hello {{name}}"
-    , \dir -> TemplateSpec dir (TemplateFile $ dir </> "prompt.txt")
+    , \dir -> TemplateSpec dir mempty (TemplateFile $ dir </> "prompt.txt")
     , Template [TemplateChunk "hello ", TemplateVar "name"]
     )
 
   , ( "NamedTemplate loads <searchDir>/<name>.txt"
     , Just "hello {{context}}"
-    , \dir -> TemplateSpec dir
+    , \dir -> TemplateSpec dir mempty
         $ NamedTemplate $ unsafeCreateRawTemplateName "prompt"
     , Template [TemplateChunk "hello ", TemplateVar "context"]
     )
 
   , ( "loaded file parses into expected chunks and vars"
     , Just "A {{foo}} B {{bar}}."
-    , \dir -> TemplateSpec dir (TemplateFile $ dir </> "prompt.txt")
+    , \dir -> TemplateSpec dir mempty (TemplateFile $ dir </> "prompt.txt")
     , Template
         [ TemplateChunk "A "
         , TemplateVar "foo"
@@ -171,31 +171,31 @@ tests_loadTemplate_unit_failure
 tests_loadTemplate_unit_failure =
   [ ( "TemplateFile reports missing file"
     , Nothing
-    , \dir -> TemplateSpec dir (TemplateFile $ dir </> "bogus.txt")
+    , \dir -> TemplateSpec dir mempty (TemplateFile $ dir </> "bogus.txt")
     )
 
   , ( "NamedTemplate rejects empty name"
     , Nothing
-    , \dir -> TemplateSpec dir (NamedTemplate $ unsafeCreateRawTemplateName "")
+    , \dir -> TemplateSpec dir mempty (NamedTemplate $ unsafeCreateRawTemplateName "")
     )
 
   , ( "NamedTemplate rejects unknown name"
     , Nothing
-    , \dir -> TemplateSpec dir (NamedTemplate $ unsafeCreateRawTemplateName "bogus")
+    , \dir -> TemplateSpec dir mempty (NamedTemplate $ unsafeCreateRawTemplateName "bogus")
     )
 
   , ( "NamedTemplate rejects path traversal with .."
     , Nothing
-    , \dir -> TemplateSpec dir (NamedTemplate $ unsafeCreateRawTemplateName "../../secret")
+    , \dir -> TemplateSpec dir mempty (NamedTemplate $ unsafeCreateRawTemplateName "../../secret")
     )
 
   , ( "NamedTemplate rejects slash"
     , Nothing
-    , \dir -> TemplateSpec dir (NamedTemplate $ unsafeCreateRawTemplateName "foo/bar")
+    , \dir -> TemplateSpec dir mempty (NamedTemplate $ unsafeCreateRawTemplateName "foo/bar")
     )
 
   , ( "NamedTemplate rejects backslash"
     , Nothing
-    , \dir -> TemplateSpec dir (NamedTemplate $ unsafeCreateRawTemplateName "foo\\bar")
+    , \dir -> TemplateSpec dir mempty (NamedTemplate $ unsafeCreateRawTemplateName "foo\\bar")
     )
   ]

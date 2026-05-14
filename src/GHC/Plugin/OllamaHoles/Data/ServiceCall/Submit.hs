@@ -75,6 +75,9 @@ submitRoutedServiceCalls ops config holeName ctx = do
   CheckedServiceCalls calls warnings <- prepareServiceCalls
     (opsListModels ops) config holeName
   responses <- for calls $ \call -> do
-    template <- opsGetServiceCallTemplate ops templateSearchDir call
+    let templateMap = case configMode config of
+          ConfigSimple _ -> mempty
+          ConfigFancy fancy -> cfgTemplates fancy
+    template <- opsGetServiceCallTemplate ops templateSearchDir templateMap call
     opsSubmitServiceCall ops (PromptRequest ctx template) call
   pure $ ServiceCallResponses responses warnings
