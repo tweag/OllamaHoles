@@ -128,7 +128,7 @@ tryPluginInitLLM opts = do
   logger <- liftIO $ Log.initLogger (log_mode flags) (log_dir flags)
   template <- liftEitherIO TemplateParseError $ loadTemplate spec
   config <- modifyError SomeConfigError $ buildConfig flags
-  backendCache <- liftIO $ newBackendCache config
+  backendCache <- liftIO newBackendCache
   let ops = mkServiceCallOps backendCache
   pure $ PluginState
     { candidates     = []
@@ -468,39 +468,33 @@ defaultTemplateSearchDir = "."
 
 
 
-type BackendCache =
-  IORef (M.Map ServiceName Backend)
+newtype BackendCache = BackendCache
+  { unBackendCache :: IORef (M.Map BackendConfig Backend)
+  }
 
-newBackendCache
-  :: Config -> IO BackendCache
-newBackendCache config = newIORef $ M.fromList
-  [ (svcName service, configureBackend (svcConfig service))
-  | service <- configServices config
-  ]
+newBackendCache :: IO BackendCache
+newBackendCache =
+  BackendCache <$> newIORef M.empty
 
-configServices :: Config -> [Service]
-configServices = \case
-  ConfigSimple simple -> [simpleService simple]
-  ConfigFancy fancy ->
-    M.elems (cfgServices fancy) <> extraServices fancy
-
-extraServices :: FancyConfig -> [Service]
-extraServices fancy = case cfgExtras fancy of
-  Just (ConfigOverlay simple) -> [simpleService simple]
-  Just (ConfigOverride _) -> []
-  Nothing -> []
+backendForConfig
+  :: BackendCache -> BackendConfig -> IO Backend
+backendForConfig (BackendCache ref) config = do
+  cache <- readIORef ref
+  case M.lookup config cache of
+    Just backend ->
+      pure backend
+    Nothing -> do
+      let backend =
+            configureBackend config
+      atomicModifyIORef' ref $ \cache0 ->
+        ( M.insert config backend cache0
+        , backend
+        )
 
 backendForService
   :: BackendCache -> Service -> IO Backend
-backendForService ref service = do
-  cache <- readIORef ref
-  case M.lookup (svcName service) cache of
-    Just backend -> pure backend
-    Nothing -> do
-      let backend = configureBackend (svcConfig service)
-      atomicModifyIORef' ref $ \cache0 ->
-        (M.insert (svcName service) backend cache0, ())
-      pure backend
+backendForService cache service =
+  backendForConfig cache (svcConfig service)
 
 mkServiceCallOps
   :: BackendCache -> ServiceCallOps TcM
@@ -514,6 +508,5 @@ mkServiceCallOps backendCache = ServiceCallOps
   , opsSubmitServiceCall = \request call -> do
       backend <- liftIO $
         backendForService backendCache (callService call)
-
       submitServiceCallWithBackend backend request call
   }

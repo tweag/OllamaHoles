@@ -18,7 +18,7 @@ import GHC.Plugin.OllamaHoles.Backend.Common
 
 data OllamaConfig = OllamaConfig
   { svcOllamaHost :: Maybe Text
-  } deriving (Eq, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic)
 
 
 
