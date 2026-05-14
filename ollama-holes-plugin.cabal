@@ -165,6 +165,8 @@ library
       GHC.Plugin.OllamaHoles.Data.Trigger.Error
       GHC.Plugin.OllamaHoles.Data.Trigger.Parse
       GHC.Plugin.OllamaHoles.Data.Trigger.Match
+      GHC.Plugin.OllamaHoles.Data.PluginState
+      GHC.Plugin.OllamaHoles.Data.PluginState.Types
       GHC.Plugin.OllamaHoles.Error
       GHC.Plugin.OllamaHoles.Flags
       GHC.Plugin.OllamaHoles.Logger
@@ -222,6 +224,8 @@ library ollama-holes-lib
     , GHC.Plugin.OllamaHoles.Data.Trigger.Error
     , GHC.Plugin.OllamaHoles.Data.Trigger.Parse
     , GHC.Plugin.OllamaHoles.Data.Trigger.Match
+    , GHC.Plugin.OllamaHoles.Data.PluginState
+    , GHC.Plugin.OllamaHoles.Data.PluginState.Types
     , GHC.Plugin.OllamaHoles.Error
     , GHC.Plugin.OllamaHoles.Flags
     , GHC.Plugin.OllamaHoles.Logger
