@@ -176,6 +176,7 @@ library
       GHC.Plugin.OllamaHoles.Runtime
       GHC.Plugin.OllamaHoles.Runtime.Ops
       GHC.Plugin.OllamaHoles.Runtime.Init
+      Toml.Extra
 
 
 
@@ -240,6 +241,7 @@ library ollama-holes-lib
     , GHC.Plugin.OllamaHoles.Runtime
     , GHC.Plugin.OllamaHoles.Runtime.Ops
     , GHC.Plugin.OllamaHoles.Runtime.Init
+    , Toml.Extra
 
 
 
