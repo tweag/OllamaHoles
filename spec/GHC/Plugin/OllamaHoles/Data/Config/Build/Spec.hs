@@ -28,6 +28,7 @@ import GHC.Plugin.OllamaHoles.Data.Profile
 import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Data.Trigger
 import GHC.Plugin.OllamaHoles.Data.Template
+import GHC.Plugin.OllamaHoles.Data.Template.Types.Gen
 import GHC.Plugin.OllamaHoles.Data.Template.Types.Internal (unsafeCreateRawTemplateName)
 
 import GHC.Plugin.OllamaHoles.Data.Config.Types.Gen
@@ -210,6 +211,54 @@ test_buildConfig_prop = testGroup "buildConfig (prop)"
               (cyclicProfile `elem` cyclePath)
             other -> QC.counterexample
               ("expected CyclicProfileReference, got: " <> show other <> "\n\nTOML:\n" <> T.unpack toml)
+              False
+
+  , QC.testProperty "buildConfig accepts service profiles with declared named templates" $
+    QC.forAll genSafeTemplateNameText $ \templateName ->
+    QC.forAll genTemplateValueText $ \body ->
+      QC.ioProperty $ do
+        let
+          toml = T.unlines
+            [ "services = ["
+            , "  { name = \"ollama\", protocol = \"ollama\" }"
+            , "]"
+            , ""
+            , "templates = ["
+            , "  { name = " <> quoteTomlText templateName <> ", body = " <> quoteTomlText body <> " }"
+            , "]"
+            , ""
+            , "profiles = ["
+            , "  { name = \"default\", type = \"service\", service = \"ollama\", model = \"qwen3:latest\", template = " <> quoteTomlText templateName <> " }"
+            , "]"
+            ]
+
+        result <- run_buildConfig
+          (\path -> mempty
+            { config_path = ConfigExplicit <$> path
+            })
+          (Just ("config.toml", toml))
+
+        pure $ case (parseTemplateName templateName, parseTemplate body, result) of
+          (Right expectedName, Right expectedTemplate, Right config) ->
+            case configMode config of
+              ConfigFancy fancy ->
+                M.lookup expectedName (cfgTemplates fancy)
+                  QC.=== Just expectedTemplate
+
+              other ->
+                QC.counterexample
+                  ("expected ConfigFancy, got: " <> show other)
+                  False
+
+          (Left _, _, Left _) ->
+            QC.property True
+
+          (_, Left _, Left _) ->
+            QC.property True
+
+          (_, _, other) ->
+            QC.counterexample
+              ("unexpected result: " <> show other <> "\n\nTOML:\n" <> T.unpack toml)
               False
   ]
 
@@ -1140,7 +1189,66 @@ tests_buildConfig_unit_basic_success =
           }
         }
     )
+
+  , ( "fancy config builds named template map"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+        ( "config.toml"
+        , T.unlines
+          [ "services = ["
+          , "  { name = \"ollama\", protocol = \"ollama\" }"
+          , "]"
+          , ""
+          , "templates = ["
+          , "  { name = \"brief\", body = \"Return only expressions.\" }"
+          , "]"
+          , ""
+          , "profiles = ["
+          , "  { name = \"default\", type = \"service\", service = \"ollama\", model = \"qwen3:latest\", template = \"brief\" }"
+          , "]"
+          ]
+        )
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
+        { cfgServices = M.fromList
+          [ ( ServiceName "ollama"
+            , Service
+              { svcName = ServiceName "ollama"
+              , svcConfig = SvcOllama (OllamaConfig Nothing)
+              }
+            )
+          ]
+        , cfgProfiles = M.fromList
+          [ ( ProfileName "default"
+            , Profile
+              { profName = ProfileName "default"
+              , profTrigger = TriggerNone
+              , profKind = ProfService ServiceProf
+                { profService = ServiceName "ollama"
+                , profModel = ModelName "qwen3:latest"
+                , profTemplate = Just $
+                    NamedTemplate $ unsafeCreateRawTemplateName "brief"
+                , profModelOptions = Nothing
+                , profNumExpr = Nothing
+                , profIncludeDocs = Nothing
+                }
+              }
+            )
+          ]
+        , cfgTemplates = M.fromList
+          [ ( unsafeCreateRawTemplateName "brief"
+            , expectTemplate "Return only expressions."
+            )
+          ]
+        , cfgExtras = Just $ ConfigOverride emptyOverrideConfig
+        }
+    )
   ]
+
+
+
+
 
 tests_buildConfig_unit_basic_failure
   :: [(TestName, Maybe FilePath -> Flags, Maybe (String, Text))]
@@ -1535,7 +1643,66 @@ tests_buildConfig_unit_validate_success =
         , cfgExtras = Just (ConfigOverride emptyOverrideConfig)
         }
     )
+
+  , ( "profile may reference existing named template"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+        ( "config.toml"
+        , T.unlines
+          [ "services = ["
+          , "  { name = \"ollama\", protocol = \"ollama\" }"
+          , "]"
+          , ""
+          , "templates = ["
+          , "  { name = \"brief\", body = \"Return only expressions.\" }"
+          , "]"
+          , ""
+          , "profiles = ["
+          , "  { name = \"default\", type = \"service\", service = \"ollama\", model = \"qwen3:latest\", template = \"brief\" }"
+          , "]"
+          ]
+        )
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
+        { cfgServices = M.fromList
+          [ ( ServiceName "ollama"
+            , Service
+              { svcName = ServiceName "ollama"
+              , svcConfig = SvcOllama (OllamaConfig Nothing)
+              }
+            )
+          ]
+        , cfgProfiles = M.fromList
+          [ ( ProfileName "default"
+            , Profile
+              { profName = ProfileName "default"
+              , profTrigger = TriggerNone
+              , profKind = ProfService ServiceProf
+                { profService = ServiceName "ollama"
+                , profModel = ModelName "qwen3:latest"
+                , profTemplate = Just $
+                    NamedTemplate $ unsafeCreateRawTemplateName "brief"
+                , profModelOptions = Nothing
+                , profNumExpr = Nothing
+                , profIncludeDocs = Nothing
+                }
+              }
+            )
+          ]
+        , cfgTemplates = M.fromList
+          [ ( unsafeCreateRawTemplateName "brief"
+            , expectTemplate "Return only expressions."
+            )
+          ]
+        , cfgExtras = Just $ ConfigOverride emptyOverrideConfig
+        }
+    )
   ]
+
+
+
+
 
 tests_buildConfig_unit_validate_failure
   :: [(TestName, Maybe FilePath -> Flags, Maybe (String, Text), ConfigError -> Assertion)]
@@ -1731,6 +1898,51 @@ tests_buildConfig_unit_validate_failure =
           (ProfileName "bad")
           (ServiceName "missing")
     )
+
+  , ( "profile may not reference missing named template"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+        ( "config.toml"
+        , T.unlines
+          [ "services = ["
+          , "  { name = \"ollama\", protocol = \"ollama\" }"
+          , "]"
+          , ""
+          , "templates = []"
+          , ""
+          , "profiles = ["
+          , "  { name = \"default\", type = \"service\", service = \"ollama\", model = \"qwen3:latest\", template = \"missing\" }"
+          , "]"
+          ]
+        )
+    , \err ->
+        err @?= UnknownTemplateReference
+          (ProfileName "default")
+          (unsafeCreateRawTemplateName "missing")
+    )
+
+  , ( "duplicate template names are rejected"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+        ( "config.toml"
+        , T.unlines
+          [ "services = []"
+          , "profiles = []"
+          , ""
+          , "templates = ["
+          , "  { name = \"brief\", body = \"A\" },"
+          , "  { name = \"brief\", body = \"B\" }"
+          , "]"
+          ]
+        )
+    , \err ->
+        err @?= DuplicateTemplateName
+          (unsafeCreateRawTemplateName "brief")
+    )
   ]
 
 
@@ -1904,3 +2116,21 @@ emptyOverrideConfig =
     , overrideModelOptions = Nothing
     , overrideTemplate = Nothing
     }
+
+
+
+expectTemplate :: Text -> Template
+expectTemplate raw = case parseTemplate raw of
+  Right template -> template
+  Left err -> error $ "invalid test template body: " <> show err
+
+quoteTomlText :: Text -> Text
+quoteTomlText txt =
+  "\"" <> T.concatMap escapeChar txt <> "\""
+ where
+  escapeChar = \case
+    '\\' -> "\\\\"
+    '"'  -> "\\\""
+    '\n' -> "\\n"
+    '\t' -> "\\t"
+    c    -> T.singleton c

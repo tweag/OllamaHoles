@@ -14,7 +14,7 @@ import GHC.Plugin.OllamaHoles.Data.Template.Types
 
 data TemplateError
     = TemplateFileNotFound FilePath
-    | UnknownTemplateName FilePath Text
+    | UnknownTemplateName TemplateName
     | UnknownPlaceholders [Placeholder]
     | MalformedTemplate Line Col TemplateParseError
     | InvalidTemplateName Text
@@ -32,11 +32,9 @@ renderTemplateError = \case
   TemplateFileNotFound path ->
     "Template file not found: " <> T.pack path
 
-  UnknownTemplateName searchDir name ->
+  UnknownTemplateName name ->
     "Unknown template name: "
-      <> quote name
-      <> " in template search directory: "
-      <> T.pack searchDir
+      <> quote (unTemplateName name)
 
   UnknownPlaceholders placeholders ->
     "Unknown template placeholder"

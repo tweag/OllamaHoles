@@ -1,6 +1,7 @@
 module GHC.Plugin.OllamaHoles.Data.Template.Load.Spec (tests) where
 
 import Data.Functor ((<&>))
+import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
@@ -75,32 +76,52 @@ tests_loadTemplate_prop = testGroup "loadTemplate (prop)"
             result <- loadTemplate (TemplateSpec dir mempty (TemplateFile fp))
             pure $ result QC.=== Left (TemplateFileNotFound fp)
 
-  , QC.testProperty "NamedTemplate loads <name>.txt exactly as parseTemplate file contents" $
-      QC.forAll genTemplateNameText $ \name ->
-      QC.forAll genTemplateText $ \raw ->
-        QC.ioProperty $
-          withSystemTempDirectory "ollama-holes-template-load-spec" $ \dir -> do
-            let fp = dir </> T.unpack name <> ".txt"
-            T.writeFile fp raw
-            result <- loadTemplate $
-              TemplateSpec dir mempty $ NamedTemplate $ unsafeCreateRawTemplateName name
-            pure $ result QC.=== parseTemplate raw
+    , QC.testProperty "NamedTemplate loads any template present in template map" $
+      QC.forAll genValidTemplateName $ \name ->
+      QC.forAll genValidTemplate $ \template ->
+        QC.ioProperty $ do
+        result <- loadTemplate $ TemplateSpec
+            ""
+            (M.fromList [(name, template)])
+            (NamedTemplate name)
+
+        pure $ result QC.=== Right template
 
   , QC.testProperty "NamedTemplate unknown safe name reports search dir and name" $
-      QC.forAll genTemplateNameText $ \name ->
+      QC.forAll genValidTemplateName $ \name ->
         QC.ioProperty $
           withSystemTempDirectory "ollama-holes-template-load-spec" $ \dir -> do
             result <- loadTemplate $
-              TemplateSpec dir mempty $ NamedTemplate $ unsafeCreateRawTemplateName name
-            pure $ result QC.=== Left (UnknownTemplateName dir name)
+              TemplateSpec dir mempty $ NamedTemplate name
+            pure $ result QC.=== Left (UnknownTemplateName name)
 
-  , QC.testProperty "NamedTemplate invalid names are rejected before lookup" $
-      QC.forAll genInvalidTemplateNameText $ \name ->
-        QC.ioProperty $
-          withSystemTempDirectory "ollama-holes-template-load-spec" $ \dir -> do
-            result <- loadTemplate $
-              TemplateSpec dir mempty $ NamedTemplate $ unsafeCreateRawTemplateName name
-            pure $ result QC.=== Left (InvalidTemplateName name)
+    , QC.testProperty "NamedTemplate fails when absent from template map" $
+      QC.forAll genValidTemplateName $ \name ->
+        QC.ioProperty $ do
+          result <- loadTemplate $ TemplateSpec "" mempty (NamedTemplate name)
+          pure $ case result of
+            Left (UnknownTemplateName rawName) -> rawName QC.=== name
+            other -> QC.counterexample
+              ("expected UnknownTemplateName, got: " <> show other) False
+
+  , QC.testProperty "NamedTemplate loads any template present in template map" $
+    QC.forAll genValidTemplateName $ \name ->
+    QC.forAll genValidTemplate $ \template -> QC.ioProperty $ do
+      result <- loadTemplate $ TemplateSpec
+        ""
+        (M.fromList [(name, template)])
+        (NamedTemplate name)
+
+      pure $ result QC.=== Right template
+
+  , QC.testProperty "NamedTemplate fails when template name is absent from map" $
+    QC.forAll genTemplateNameText $ \nameText -> QC.ioProperty $ do
+      let name = unsafeCreateRawTemplateName nameText
+      result <- loadTemplate $ TemplateSpec "" mempty (NamedTemplate name)
+      pure $ case result of
+        Left _ -> QC.property True
+        Right template -> QC.counterexample
+          ("expected missing named template, got: " <> show template) False
   ]
 
 
@@ -146,11 +167,17 @@ tests_loadTemplate_unit_success =
     , Template [TemplateChunk "hello ", TemplateVar "name"]
     )
 
-  , ( "NamedTemplate loads <searchDir>/<name>.txt"
-    , Just "hello {{context}}"
-    , \dir -> TemplateSpec dir mempty
-        $ NamedTemplate $ unsafeCreateRawTemplateName "prompt"
-    , Template [TemplateChunk "hello ", TemplateVar "context"]
+  , ( "NamedTemplate resolves from template map"
+    , Nothing
+    , \_dir -> TemplateSpec
+        ""
+        (M.fromList
+          [ ( unsafeCreateRawTemplateName "brief"
+            , Template [TemplateChunk "Return only expressions."]
+            )
+          ])
+        (NamedTemplate (unsafeCreateRawTemplateName "brief"))
+    , Template [TemplateChunk "Return only expressions."]
     )
 
   , ( "loaded file parses into expected chunks and vars"
@@ -163,6 +190,19 @@ tests_loadTemplate_unit_success =
         , TemplateVar "bar"
         , TemplateChunk "."
         ]
+    )
+
+  , ( "NamedTemplate resolves from template map"
+    , Nothing
+    , \_dir -> TemplateSpec
+        ""
+        (M.fromList
+          [ ( unsafeCreateRawTemplateName "brief"
+            , expectTemplate "Return only expressions."
+            )
+          ])
+        (NamedTemplate $ unsafeCreateRawTemplateName "brief")
+    , Template [TemplateChunk "Return only expressions."]
     )
   ]
 
@@ -198,4 +238,26 @@ tests_loadTemplate_unit_failure =
     , Nothing
     , \dir -> TemplateSpec dir mempty (NamedTemplate $ unsafeCreateRawTemplateName "foo\\bar")
     )
+
+  , ( "NamedTemplate rejects unknown config template name"
+    , Nothing
+    , \_dir -> TemplateSpec "" mempty (NamedTemplate $ unsafeCreateRawTemplateName "missing")
+    )
+
+  , ( "NamedTemplate fails when absent from template map"
+    , Nothing
+    , \_dir -> TemplateSpec "" mempty (NamedTemplate $ unsafeCreateRawTemplateName "missing")
+    )
+
+  , ( "NamedTemplate does not fall back to search dir file"
+    , Just "Return only expressions."
+    , \dir -> TemplateSpec dir mempty (NamedTemplate $ unsafeCreateRawTemplateName "prompt")
+    )
   ]
+
+
+
+expectTemplate :: Text -> Template
+expectTemplate raw = case parseTemplate raw of
+  Right template -> template
+  Left err -> error $ "invalid test template body: " <> show err

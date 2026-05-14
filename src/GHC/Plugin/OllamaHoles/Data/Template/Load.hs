@@ -2,6 +2,7 @@ module GHC.Plugin.OllamaHoles.Data.Template.Load
   ( loadTemplate
   ) where
 
+import Data.Map qualified as M
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import System.Directory (doesFileExist)
@@ -17,6 +18,7 @@ loadTemplate :: TemplateSpec -> IO (Either TemplateError Template)
 loadTemplate spec = do
     let TemplateSpec
           { tsSearchDir = searchDir
+          , tsTmplMap = templateMap
           , tsSource = source
           } = spec
     case source of
@@ -29,13 +31,7 @@ loadTemplate spec = do
                 then fmap parseTemplate $ T.readFile path
                 else pure $ Left $ TemplateFileNotFound path
 
-        NamedTemplate name' -> do
-            let name = unTemplateName name'
-            if T.any (not . nameSafeChar) name || T.null name
-                then pure (Left $ InvalidTemplateName name)
-                else do
-                    let path = searchDir </> T.unpack name <> ".txt"
-                    exists <- doesFileExist path
-                    if exists
-                        then fmap parseTemplate $ T.readFile path
-                        else pure (Left (UnknownTemplateName searchDir name))
+        NamedTemplate name -> case M.lookup name templateMap of
+            Just template -> pure $ Right template
+            Nothing -> pure $ Left $
+                UnknownTemplateName name
