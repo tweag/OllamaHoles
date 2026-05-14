@@ -47,7 +47,6 @@ import GHC.Tc.Utils.TcType qualified as GHC (tyCoFVsOfType, mkPhiTy)
 import GHC.Tc.Solver qualified as GHC (simplifyTop, simplifyInfer, captureTopConstraints, InferMode(..))
 import GHC.Tc.Solver.Monad qualified as GHC (zonkTcType, runTcSEarlyAbort)
 
-import GHC.Plugin.OllamaHoles.Backend
 import GHC.Plugin.OllamaHoles.Data.Flags
 import GHC.Plugin.OllamaHoles.Prompt
 import GHC.Plugin.OllamaHoles.Logger qualified as Log
@@ -58,6 +57,7 @@ import GHC.Plugin.OllamaHoles.Data.ServiceCall
 import GHC.Plugin.OllamaHoles.Data.PluginState
 import GHC.Plugin.OllamaHoles.Runtime
 import GHC.Plugin.OllamaHoles.Constants
+import GHC.Plugin.OllamaHoles.Console
 
 
 
@@ -70,9 +70,8 @@ plugin = defaultPlugin
 mkHoleFitPluginR
   :: [CommandLineOption] -> HoleFitPluginR
 mkHoleFitPluginR opts = HoleFitPluginR
-  { hfPluginInit =
-      -- Initialize the plugin (this may fail).
-      hfPluginInitLLM opts :: TcM (TcRef (Either PluginError (PluginState TcM)))
+  -- Initialize the plugin (this may fail).
+  { hfPluginInit = hfPluginInitLLM opts
   , hfPluginStop = \_ -> return ()
   , hfPluginRun = \ref -> HoleFitPlugin
     { candPlugin = \_ cs -> updTcRef ref (fmap (setCandidates cs)) >> return cs
@@ -389,11 +388,3 @@ getDocs cs = do
 
 liftEitherIO :: (MonadIO m) => (e1 -> e2) -> IO (Either e1 a) -> ExceptT e2 m a
 liftEitherIO f act = liftIO act >>= either (throwError . f) pure
-
-printRenderedError
-  :: (MonadIO m) => Either PluginError u -> m (Either PluginError u)
-printRenderedError x = case x of
-  Right u -> pure (Right u)
-  Left err -> do
-    liftIO $ T.putStrLn $ renderPluginError err
-    pure (Left err)

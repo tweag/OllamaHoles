@@ -129,6 +129,7 @@ library
       GHC.Plugin.OllamaHoles.Candidate.Compat
       GHC.Plugin.OllamaHoles.Candidate.Rewrite
       GHC.Plugin.OllamaHoles.Constants
+      GHC.Plugin.OllamaHoles.Console
       GHC.Plugin.OllamaHoles.Data.Flags
       GHC.Plugin.OllamaHoles.Data.Flags.Error
       GHC.Plugin.OllamaHoles.Data.Flags.Parse
@@ -191,6 +192,7 @@ library ollama-holes-lib
     , GHC.Plugin.OllamaHoles.Candidate.Compat
     , GHC.Plugin.OllamaHoles.Candidate.Rewrite
     , GHC.Plugin.OllamaHoles.Constants
+    , GHC.Plugin.OllamaHoles.Console
     , GHC.Plugin.OllamaHoles.Data.Flags
     , GHC.Plugin.OllamaHoles.Data.Flags.Error
     , GHC.Plugin.OllamaHoles.Data.Flags.Parse
