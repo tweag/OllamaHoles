@@ -19,7 +19,6 @@ import GHC.Plugin.OllamaHoles.Data.Profile
 import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Data.ServiceCall.Types
 import GHC.Plugin.OllamaHoles.Data.ServiceCall.Error
-import GHC.Plugin.OllamaHoles.Data.ServiceCall.Template
 import GHC.Plugin.OllamaHoles.Data.ServiceCall.Route
 
 

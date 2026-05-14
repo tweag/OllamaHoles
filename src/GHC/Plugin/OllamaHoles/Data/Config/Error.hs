@@ -21,4 +21,5 @@ data ConfigError
   | ConfigParseErrors FilePath TomlParseError
   | ConfigFileStatusFailed IOException FilePath
   | ConfigFileReadFailed IOException FilePath
+  | NamedTemplateRequiresConfig TemplateName
   deriving (Eq, Show)

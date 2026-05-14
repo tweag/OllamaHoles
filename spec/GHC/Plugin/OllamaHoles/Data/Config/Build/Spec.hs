@@ -622,29 +622,6 @@ tests_buildConfig_unit_basic_success =
         }
     )
 
-  , ( "simple config uses template name when template path is absent"
-    , \_path -> mempty
-        { config_path = Just ConfigDisabled
-        , template_name = Just $ unsafeCreateRawTemplateName "compact"
-        }
-    , Nothing
-    , defaultConfigOfMode $ ConfigSimple SimpleConfig
-        { simpleTrigger = defaultTriggerPolicy
-        , simpleService = Service
-          { svcName = ServiceName "__simple__"
-          , svcConfig = SvcOllama (OllamaConfig Nothing)
-          }
-        , simpleProfile = ServiceProf
-          { profService = ServiceName "__simple__"
-          , profModel = ModelName "qwen3:latest"
-          , profTemplate = Just (NamedTemplate $ unsafeCreateRawTemplateName "compact")
-          , profModelOptions = Nothing
-          , profNumExpr = Just 5
-          , profIncludeDocs = Just False
-          }
-        }
-    )
-
   , ( "fancy config override uses template path over template name"
     , \path -> mempty
         { config_path = ConfigExplicit <$> path
@@ -1353,6 +1330,14 @@ tests_buildConfig_unit_basic_failure =
         \\n\
         \templates = []"
       )
+    )
+
+  , ( "simple config rejects template name when template path is absent"
+    , \_path -> mempty
+        { config_path = Just ConfigDisabled
+        , template_name = Just (unsafeCreateRawTemplateName "compact")
+        }
+    , Nothing
     )
   ]
 

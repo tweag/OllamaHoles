@@ -3,7 +3,7 @@ module GHC.Plugin.OllamaHoles.Data.Config.Build
   ) where
 
 import Control.Exception (try)
-import Control.Monad (foldM)
+import Control.Monad (foldM, when)
 import Control.Monad.Except (ExceptT(..), MonadError(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.List.NonEmpty (NonEmpty(..))
@@ -101,10 +101,12 @@ data ConfigRequirement
 
 buildSimpleConfig
   :: (MonadIO m) => Flags -> ExceptT ConfigError m SimpleConfig
-buildSimpleConfig = pure . simpleConfigFromFlags
+buildSimpleConfig flags = case simpleTemplateSourceFromFlags flags of
+  Left err -> throwError err
+  Right source -> pure $ simpleConfigFromFlags flags source
 
-simpleConfigFromFlags :: Flags -> SimpleConfig
-simpleConfigFromFlags flags = SimpleConfig
+simpleConfigFromFlags :: Flags -> Maybe TemplateSource -> SimpleConfig
+simpleConfigFromFlags flags source = SimpleConfig
   { simpleTrigger = fromMaybe defaultTriggerPolicy (trigger_policy flags)
   , simpleService = Service
     { svcName = serviceName
@@ -119,11 +121,7 @@ simpleConfigFromFlags flags = SimpleConfig
   , simpleProfile = ServiceProf
     { profService = serviceName
     , profModel = fromMaybe defaultModelName (ModelName <$> model_name flags)
-    , profTemplate = case template_path flags of
-        Just path -> Just (TemplateFile path)
-        _ -> case template_name flags of
-          Just name -> Just (NamedTemplate name)
-          _ -> Nothing
+    , profTemplate = source
     , profModelOptions = model_options flags
     , profNumExpr = Just (fromMaybe defaultNumExpr (num_expr flags))
     , profIncludeDocs = Just (fromMaybe defaultIncludeDocs (include_docs flags))
@@ -259,7 +257,7 @@ addFlagExtras
   :: (Monad m) => Flags -> FancyConfig -> ExceptT ConfigError m FancyConfig
 addFlagExtras flags cfg
   | flagsWantOverlay flags = do
-      let overlay = simpleConfigFromFlags flags
+      let overlay = simpleConfigFromFlags flags (configTemplateSourceFromFlags flags)
           overlaySvc = simpleService overlay
           overlaySvcName = svcName overlaySvc
       if overlaySvcName `M.member` cfgServices cfg
@@ -269,8 +267,8 @@ addFlagExtras flags cfg
           , cfgExtras = Just (ConfigOverlay overlay)
           }
   | otherwise = pure cfg
-    { cfgExtras = Just (ConfigOverride (overrideConfigFromFlags flags))
-    }
+      { cfgExtras = Just (ConfigOverride (overrideConfigFromFlags flags))
+      }
 
 flagsWantOverlay :: Flags -> Bool
 flagsWantOverlay flags = or
@@ -285,15 +283,22 @@ overrideConfigFromFlags flags = OverrideConfig
   , overrideNumExpr = num_expr flags
   , overrideIncludeDocs = include_docs flags
   , overrideModelOptions = model_options flags
-  , overrideTemplate = templateSourceFromFlags flags
+  , overrideTemplate = configTemplateSourceFromFlags flags
   }
 
-templateSourceFromFlags :: Flags -> Maybe TemplateSource
-templateSourceFromFlags flags = case template_path flags of
-  Just path -> Just (TemplateFile path)
-  Nothing -> fmap NamedTemplate $ template_name flags
+simpleTemplateSourceFromFlags :: Flags -> Either ConfigError (Maybe TemplateSource)
+simpleTemplateSourceFromFlags flags = case template_path flags of
+  Just path -> pure $ Just $ TemplateFile path
+  Nothing -> case template_name flags of
+    Just name -> Left $ NamedTemplateRequiresConfig name
+    Nothing -> pure Nothing
 
-
+configTemplateSourceFromFlags
+  :: Flags -> Maybe TemplateSource
+configTemplateSourceFromFlags flags =
+  case template_path flags of
+    Just path -> Just $ TemplateFile path
+    Nothing -> NamedTemplate <$> template_name flags
 
 -- Defaults
 -----------
