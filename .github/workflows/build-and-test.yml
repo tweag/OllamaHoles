@@ -64,6 +64,7 @@ jobs:
       run: cabal test ollama-holes-spec --test-options='--hide-successes'
 
     - name: Build Documentation
+      if: matrix.os == 'ubuntu-latest' && matrix.ghc == '9.12'
       run: cabal haddock
 
     # We save it here so that the haddock builds are saved as well
