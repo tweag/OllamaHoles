@@ -17,7 +17,6 @@ on:
 
 
 jobs:
-
   build:
     runs-on: ${{ matrix.os }}
 
@@ -67,16 +66,6 @@ jobs:
       if: matrix.os == 'ubuntu-latest' && matrix.ghc == '9.12'
       run: cabal haddock
 
-    # We save it here so that the haddock builds are saved as well
-    - name: Save cabal cache
-      uses: actions/cache/save@v4
-      with:
-        path: |
-          ~/.cabal/packages
-          ${{ steps.setup-haskell.outputs.cabal-store }}
-          ~/.cabal/bin
-          dist-newstyle
-        key: ${{ steps.cabal-cache.outputs.cache-primary-key }}
   test:
     runs-on: ubuntu-latest
 
@@ -118,20 +107,6 @@ jobs:
 
     - name: Build Haskell project
       run: cabal build lib:ollama-holes-lib lib:ollama-holes-plugin
-
-    - name: Build Documentation
-      run: cabal haddock
-
-    # We save it here so that the haddock builds are saved as well
-    - name: Save cabal cache
-      uses: actions/cache/save@v4
-      with:
-        path: |
-          ~/.cabal/packages
-          ${{ steps.setup-haskell.outputs.cabal-store }}
-          ~/.cabal/bin
-          dist-newstyle
-        key: ${{ steps.cabal-cache.outputs.cache-primary-key }}
 
     - name: Install Ollama
       run: curl -fsSL https://ollama.com/install.sh | sh
