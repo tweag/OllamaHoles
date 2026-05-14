@@ -53,6 +53,7 @@ data ServiceCallTestEnv = ServiceCallTestEnv
   { testOllamaModels :: Maybe [ModelName]
   , testOpenAIModels :: Maybe [ModelName]
   , testResponses :: M.Map ServiceName PromptResponse
+  , testExpectedTemplateSearchDir :: Maybe FilePath
   }
 
 
@@ -72,8 +73,15 @@ serviceCallOps env = ServiceCallOps
   { opsListModels =
       listModelsFromEnv env
 
-  , opsGetServiceCallTemplate = \_path _call ->
-      pure unusedTemplate
+  , opsGetServiceCallTemplate = \templateSearchDir _call ->
+    case testExpectedTemplateSearchDir env of
+      Nothing -> pure unusedTemplate
+      Just expected
+        | templateSearchDir == expected -> pure unusedTemplate
+        | otherwise -> throwError $
+            ServiceCallTemplateError $ TemplateLoadError $
+              "expected template search dir " <> expected
+                <> ", got " <> templateSearchDir
 
   , opsSubmitServiceCall = \_request call -> do
       let serviceName =

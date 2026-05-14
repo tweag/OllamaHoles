@@ -179,11 +179,9 @@ tryFitPluginLLM
 tryFitPluginLLM st typedHole fits = do
   withTypedHole typedHole $ \hole -> do
     let holeName = holeTriggerName hole
-    let templateSearchPath = maybe "." id $ template_search_dir $ commandOptions st
     ctx <- buildPromptContext st typedHole fits
     ServiceCallResponses responses warnings <- withExceptT ServiceCallPluginError $
-      submitRoutedServiceCalls (serviceCallOps st) templateSearchPath
-      (configuration st) holeName ctx
+      submitRoutedServiceCalls (serviceCallOps st) (configuration st) holeName ctx
     -- log service warnings
     traverse_ (warnMsg st . renderModelSelectionWarning) warnings
     lift $ extractHoleFitsFromPromptResponses st responses typedHole hole

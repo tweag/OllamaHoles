@@ -43,7 +43,8 @@ buildConfig flags = do
     SimpleConfigIntent -> fmap ConfigSimple $ buildSimpleConfig flags
     FancyConfigIntent path raw -> fmap ConfigFancy $ buildFancyConfig path flags raw
   let configDebug = maybe False id $ debug flags
-  pure $ Config {configMode, configDebug}
+  let configTemplateSearchDir = maybe "." id $ template_search_dir flags
+  pure $ Config {configMode, configDebug, configTemplateSearchDir}
 
 
 

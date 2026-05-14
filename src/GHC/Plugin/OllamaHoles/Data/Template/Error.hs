@@ -12,6 +12,7 @@ data TemplateError
     | UnknownPlaceholders [Placeholder]
     | MalformedTemplate Line Col TemplateParseError
     | InvalidTemplateName Text
+    | TemplateLoadError FilePath
     deriving (Eq, Show)
 
 data TemplateParseError

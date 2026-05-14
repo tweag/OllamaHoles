@@ -67,10 +67,11 @@ renderPromptForServiceCall req caller = do
 
 submitRoutedServiceCalls
   :: (Monad m)
-  => ServiceCallOps m -> FilePath -> Config
+  => ServiceCallOps m -> Config
   -> Text {- HoleName -} -> PromptContext
   -> ExceptT ServiceCallError m ServiceCallResponses
-submitRoutedServiceCalls ops templateSearchDir config holeName ctx = do
+submitRoutedServiceCalls ops config holeName ctx = do
+  let templateSearchDir = configTemplateSearchDir config
   CheckedServiceCalls calls warnings <- prepareServiceCalls
     (opsListModels ops) config holeName
   responses <- for calls $ \call -> do

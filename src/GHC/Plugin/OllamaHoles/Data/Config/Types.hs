@@ -13,8 +13,9 @@ import GHC.Plugin.OllamaHoles.Data.Profile
 
 
 data Config = Config
-  { configMode  :: ConfigMode
-  , configDebug :: Bool
+  { configMode              :: ConfigMode
+  , configDebug             :: Bool
+  , configTemplateSearchDir :: FilePath
   } deriving (Eq, Show, Generic)
 
 data ConfigMode
@@ -53,6 +54,7 @@ data OverrideConfig = OverrideConfig
 defaultConfigOfMode
   :: ConfigMode -> Config
 defaultConfigOfMode mode = Config
-  { configMode  = mode
-  , configDebug = False
+  { configMode              = mode
+  , configDebug             = False
+  , configTemplateSearchDir = "."
   }

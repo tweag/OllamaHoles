@@ -1010,6 +1010,7 @@ tests_buildConfig_unit_basic_success =
     , Nothing
     , Config
         { configDebug = False
+        , configTemplateSearchDir = "."
         , configMode = ConfigSimple SimpleConfig
           { simpleTrigger = defaultTriggerPolicy
           , simpleService = Service
@@ -1036,6 +1037,60 @@ tests_buildConfig_unit_basic_success =
     , Nothing
     , Config
         { configDebug = True
+        , configTemplateSearchDir = "."
+        , configMode = ConfigSimple SimpleConfig
+          { simpleTrigger = defaultTriggerPolicy
+          , simpleService = Service
+            { svcName = ServiceName "__simple__"
+            , svcConfig = SvcOllama (OllamaConfig Nothing)
+            }
+          , simpleProfile = ServiceProf
+            { profService = ServiceName "__simple__"
+            , profModel = ModelName "qwen3:latest"
+            , profTemplate = Nothing
+            , profModelOptions = Nothing
+            , profNumExpr = Just 5
+            , profIncludeDocs = Just False
+            }
+          }
+        }
+    )
+
+  , ( "missing template search dir flag defaults to current directory"
+    , \_path -> mempty
+        { config_path = Just ConfigDisabled
+        }
+    , Nothing
+    , Config
+        { configDebug = False
+        , configTemplateSearchDir = "."
+        , configMode = ConfigSimple SimpleConfig
+          { simpleTrigger = defaultTriggerPolicy
+          , simpleService = Service
+            { svcName = ServiceName "__simple__"
+            , svcConfig = SvcOllama (OllamaConfig Nothing)
+            }
+          , simpleProfile = ServiceProf
+            { profService = ServiceName "__simple__"
+            , profModel = ModelName "qwen3:latest"
+            , profTemplate = Nothing
+            , profModelOptions = Nothing
+            , profNumExpr = Just 5
+            , profIncludeDocs = Just False
+            }
+          }
+        }
+    )
+
+  , ( "template search dir flag becomes configTemplateSearchDir"
+    , \_path -> mempty
+        { config_path = Just ConfigDisabled
+        , template_search_dir = Just "templates"
+        }
+    , Nothing
+    , Config
+        { configDebug = False
+        , configTemplateSearchDir = "templates"
         , configMode = ConfigSimple SimpleConfig
           { simpleTrigger = defaultTriggerPolicy
           , simpleService = Service

@@ -38,7 +38,7 @@ run_submitRoutedServiceCalls
   -> Either ServiceCallError ([PromptResponse], [ModelSelectionWarning])
 run_submitRoutedServiceCalls config holeName env =
   case runTestM $ runExceptT $ submitRoutedServiceCalls
-    (serviceCallOps env) "." config (T.pack holeName) unusedPromptContext
+    (serviceCallOps env) config (T.pack holeName) unusedPromptContext
   of
     Left err -> Left err
     Right responses -> Right
@@ -105,6 +105,7 @@ tests_submitRoutedServiceCalls_prop = testGroup "submitRoutedServiceCalls (prop)
                   , PromptResponse ("response-" <> T.pack (show i)) )
                 | i <- indices
                 ]
+              , testExpectedTemplateSearchDir = Nothing
               }
 
           expectedResponses =
@@ -132,6 +133,7 @@ tests_submitRoutedServiceCalls_unit_success =
         , testResponses = M.fromList
           [ (ServiceName "svc-a", PromptResponse "response-a")
           ]
+        , testExpectedTemplateSearchDir = Nothing
         }
     , ( [PromptResponse "response-a"]
       , []
@@ -183,6 +185,7 @@ tests_submitRoutedServiceCalls_unit_success =
           [ (ServiceName "svc-a", PromptResponse "response-a")
           , (ServiceName "svc-b", PromptResponse "response-b")
           ]
+        , testExpectedTemplateSearchDir = Nothing
         }
     , ( [ PromptResponse "response-b"
         , PromptResponse "response-a"
@@ -232,6 +235,7 @@ tests_submitRoutedServiceCalls_unit_success =
         , testResponses = M.fromList
           [ (ServiceName "svc-a", PromptResponse "response-a")
           ]
+        , testExpectedTemplateSearchDir = Nothing
         }
     , ( [PromptResponse "response-a"]
       , [ SkippedServiceMissingModel
@@ -239,6 +243,30 @@ tests_submitRoutedServiceCalls_unit_success =
           (ModelName "model-b")
           [ModelName "model-a"]
         ]
+      )
+    )
+
+  , ( "uses config template search dir when loading service-call template"
+    , Config
+        { configDebug = False
+        , configTemplateSearchDir = "custom-templates"
+        , configMode = ConfigSimple SimpleConfig
+          { simpleTrigger = TriggerAll
+          , simpleService = svcA
+          , simpleProfile = profA
+          }
+        }
+    , "_anything"
+    , ServiceCallTestEnv
+        { testOllamaModels = Just [ModelName "model-a"]
+        , testOpenAIModels = Nothing
+        , testResponses = M.fromList
+          [ (ServiceName "svc-a", PromptResponse "response-a")
+          ]
+        , testExpectedTemplateSearchDir = Just "custom-templates"
+        }
+    , ( [PromptResponse "response-a"]
+      , []
       )
     )
   ]
@@ -257,6 +285,7 @@ tests_submitRoutedServiceCalls_unit_failure =
         { testOllamaModels = Just [ModelName "model-a"]
         , testOpenAIModels = Nothing
         , testResponses = M.empty
+        , testExpectedTemplateSearchDir = Nothing
         }
     )
 
@@ -271,6 +300,7 @@ tests_submitRoutedServiceCalls_unit_failure =
         { testOllamaModels = Just [ModelName "not-model-a"]
         , testOpenAIModels = Nothing
         , testResponses = M.empty
+        , testExpectedTemplateSearchDir = Nothing
         }
     )
 
@@ -285,6 +315,7 @@ tests_submitRoutedServiceCalls_unit_failure =
         { testOllamaModels = Just [ModelName "model-a"]
         , testOpenAIModels = Nothing
         , testResponses = M.empty
+        , testExpectedTemplateSearchDir = Nothing
         }
     )
   ]
