@@ -11,11 +11,15 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Data.Aeson (Value)
 import Data.Char (isSpace)
+import Data.Foldable (traverse_)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Data.Traversable (for)
+import Data.Map (Map)
+import Data.Map qualified as M
 import Data.List qualified as L
+import GHC.IORef
 import GHC.Plugins hiding ((<>))
 import GHC.Tc.Types
 import GHC.Tc.Types.Constraint (Hole (..))
@@ -96,6 +100,7 @@ data PluginState = PluginState
   , parsedTemplate :: Template
   , commandOptions :: Flags
   , configuration  :: Config
+  , serviceCallOps :: ServiceCallOps TcM
   }
 
 setCandidates :: [HoleFitCandidate] -> PluginState -> PluginState
@@ -125,6 +130,8 @@ tryPluginInitLLM opts = do
   logger <- liftIO $ Log.initLogger (log_mode flags) (log_dir flags)
   template <- liftEitherIO TemplateParseError $ loadTemplate spec
   config <- modifyError SomeConfigError $ buildConfig flags
+  backendCache <- liftIO $ newBackendCache config
+  let ops = mkServiceCallOps backendCache
   pure $ PluginState
     { candidates     = []
     , writeLogEvent  = logger
@@ -132,6 +139,7 @@ tryPluginInitLLM opts = do
     , parsedTemplate = template
     , commandOptions = flags
     , configuration  = config
+    , serviceCallOps = ops
     }
 
 
@@ -168,39 +176,14 @@ tryFitPluginLLM
 tryFitPluginLLM st typedHole fits = do
   debugMsg st $ "running with flags\n" <> T.pack (show $ commandOptions st)
   withTypedHole typedHole $ \hole -> do
-    -- Find the services which match on this hole
     let holeName = holeTriggerName hole
-    services' <- case routeServiceCalls (configuration st) holeName of
-      Left err -> throwError $ RouteConfigPluginError err
-      Right Nothing -> pure []
-      Right (Just matches) -> pure matches
-    debugMsg st $ "Hole " <> holeName <> " matched " <> T.pack (show $ length services') <> " service(s)"
-
-    -- Filter for and warn about invalid model names
-    -- TODO: move this check to ServiceCall.Submit; need to distinguish between failure modes.
-    --   * backend cannot list models
-    --   * model not found for some service
-    --   * no routed services remain after filtering
-    services <- flip filterM services' $ \svc -> do
-      available_models <- liftIO $ listModels $ configureBackend $ svcConfig $ callService svc
-      case available_models of
-        Nothing -> pure False
-        Just models -> if unModelName (profModel (callProfile svc)) `elem` models
-          then pure True
-          else do
-            -- TODO: warn here
-            pure False
-
-    when (null services) $ throwError NoModelsAvailable
-
+    let templateSearchPath = maybe "." id $ template_search_dir $ commandOptions st
     ctx <- buildPromptContext st typedHole fits
-    let path = maybe "." id $ template_search_dir $ commandOptions st
-
-    -- Query each service with the prompt context
-    responses <- withExceptT ServiceCallPluginError $ for services $ \svc -> do
-      template <- getServiceCallTemplate path svc
-      submitServiceCall (PromptRequest ctx template) svc
-
+    ServiceCallResponses responses warnings <- withExceptT ServiceCallPluginError $
+      submitRoutedServiceCalls (serviceCallOps st) templateSearchPath
+      (configuration st) holeName ctx
+    -- log service warnings
+    traverse_ (warnMsg st . renderModelSelectionWarning) warnings
     lift $ extractHoleFitsFromPromptResponses st responses typedHole hole
 
 
@@ -225,12 +208,6 @@ buildPromptContext st hole fits = do
   case getPromptContext hole fits gblEnv (candidates st) dflags of
     Just ctx -> pure ctx
     Nothing -> throwError (TypedHoleNotFound hole)
-
-
-
-effectiveModelOptions :: PluginState -> ServiceProf -> Maybe Value
-effectiveModelOptions st serviceProf =
-  profModelOptions serviceProf
 
 
 
@@ -447,6 +424,10 @@ debugMsg :: (MonadIO m) => PluginState -> Text -> m ()
 debugMsg st txt = liftIO $ when (maybe True id $ debug $ commandOptions st) $
   T.putStrLn $ pluginName <> ": " <> txt
 
+warnMsg :: (MonadIO m) => PluginState -> Text -> m ()
+warnMsg st txt = liftIO $ when (maybe True id $ debug $ commandOptions st) $
+  T.putStrLn $ pluginName <> ": " <> txt
+
 liftEitherIO :: (MonadIO m) => (e1 -> e2) -> IO (Either e1 a) -> ExceptT e2 m a
 liftEitherIO f act = liftIO act >>= either (throwError . f) pure
 
@@ -486,3 +467,55 @@ defaultOpenAIKeyName = "OPENAI_API_KEY"
 
 defaultTemplateSearchDir :: Text
 defaultTemplateSearchDir = "."
+
+
+
+type BackendCache =
+  IORef (M.Map ServiceName Backend)
+
+newBackendCache
+  :: Config -> IO BackendCache
+newBackendCache config = newIORef $ M.fromList
+  [ (svcName service, configureBackend (svcConfig service))
+  | service <- configServices config
+  ]
+
+configServices :: Config -> [Service]
+configServices = \case
+  ConfigSimple simple -> [simpleService simple]
+  ConfigFancy fancy ->
+    M.elems (cfgServices fancy) <> extraServices fancy
+
+extraServices :: FancyConfig -> [Service]
+extraServices fancy = case cfgExtras fancy of
+  Just (ConfigOverlay simple) -> [simpleService simple]
+  Just (ConfigOverride _) -> []
+  Nothing -> []
+
+backendForService
+  :: BackendCache -> Service -> IO Backend
+backendForService ref service = do
+  cache <- readIORef ref
+  case M.lookup (svcName service) cache of
+    Just backend -> pure backend
+    Nothing -> do
+      let backend = configureBackend (svcConfig service)
+      atomicModifyIORef' ref $ \cache0 ->
+        (M.insert (svcName service) backend cache0, ())
+      pure backend
+
+mkServiceCallOps
+  :: BackendCache -> ServiceCallOps TcM
+mkServiceCallOps backendCache = ServiceCallOps
+  { opsListModels = \service -> liftIO $ do
+      backend <- backendForService backendCache service
+      fmap (map ModelName) <$> listModels backend
+
+  , opsGetServiceCallTemplate = getServiceCallTemplate
+
+  , opsSubmitServiceCall = \request call -> do
+      backend <- liftIO $
+        backendForService backendCache (callService call)
+
+      submitServiceCallWithBackend backend request call
+  }

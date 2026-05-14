@@ -7,7 +7,7 @@ import qualified GHC.Plugin.OllamaHoles.Candidate.Rewrite.Spec as RewriteSpec
 import qualified GHC.Plugin.OllamaHoles.Candidate.Compat.Spec as CompatSpec
 import qualified GHC.Plugin.OllamaHoles.Options.Spec as OptionsSpec
 import qualified GHC.Plugin.OllamaHoles.Logger.Spec as LoggerSpec
-import qualified GHC.Plugin.OllamaHoles.Data.ServiceCall.Route.Spec as ServiceCallRouteSpec
+import qualified GHC.Plugin.OllamaHoles.Data.ServiceCall.Spec as ServiceCallSpec
 import qualified GHC.Plugin.OllamaHoles.Data.Config.Build.Spec as BuildSpec
 import qualified GHC.Plugin.OllamaHoles.Data.Spec as DataSpec
 
@@ -20,7 +20,7 @@ main = defaultMain $
         , CompatSpec.tests
         , OptionsSpec.tests
         , LoggerSpec.tests
-        , ServiceCallRouteSpec.tests
+        , ServiceCallSpec.tests
         , BuildSpec.tests
         , DataSpec.tests
         ]

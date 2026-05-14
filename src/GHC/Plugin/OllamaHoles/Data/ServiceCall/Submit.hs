@@ -1,34 +1,39 @@
 module GHC.Plugin.OllamaHoles.Data.ServiceCall.Submit
-  ( submitServiceCall
+  ( submitRoutedServiceCalls
+  , submitServiceCallWithBackend
   ) where
 
-import Data.Text (Text)
-import Data.Text qualified as T
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Except
+import Data.Traversable (for)
+import Data.Text (Text)
+import Data.Text qualified as T
 import GHC.Tc.Types (TcM)
 
 import GHC.Plugin.OllamaHoles.Prompt
 import GHC.Plugin.OllamaHoles.Backend
+import GHC.Plugin.OllamaHoles.Data.Config
 import GHC.Plugin.OllamaHoles.Data.Template
 import GHC.Plugin.OllamaHoles.Data.Profile
 import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Data.ServiceCall.Types
 import GHC.Plugin.OllamaHoles.Data.ServiceCall.Error
+import GHC.Plugin.OllamaHoles.Data.ServiceCall.Template
+import GHC.Plugin.OllamaHoles.Data.ServiceCall.Route
 
 
 
-submitServiceCall
-  :: PromptRequest -> ServiceCall
+submitServiceCallWithBackend
+  :: Backend -> PromptRequest -> ServiceCall
   -> ExceptT ServiceCallError TcM PromptResponse
-submitServiceCall req caller = do
+submitServiceCallWithBackend backend req caller = do
   prompt <- renderPromptForServiceCall req caller
   let
-    backend = configureBackend $ svcConfig $ callService caller
     serviceProf = callProfile caller
     model = unModelName $ profModel serviceProf
     options = profModelOptions serviceProf
   result <- liftIO $ generateFits backend prompt model options
+
   case result of
     Left err -> throwError $ ServiceCallError err
     Right response -> pure $ PromptResponse response
@@ -55,3 +60,18 @@ renderPromptForServiceCall req caller = do
   case result of
     Left err -> throwError $ ServiceCallTemplateError err
     Right ok -> pure ok
+
+
+
+submitRoutedServiceCalls
+  :: (Monad m)
+  => ServiceCallOps m -> FilePath -> Config
+  -> Text {- HoleName -} -> PromptContext
+  -> ExceptT ServiceCallError m ServiceCallResponses
+submitRoutedServiceCalls ops templateSearchDir config holeName ctx = do
+  CheckedServiceCalls calls warnings <- prepareServiceCalls
+    (opsListModels ops) config holeName
+  responses <- for calls $ \call -> do
+    template <- opsGetServiceCallTemplate ops templateSearchDir call
+    opsSubmitServiceCall ops (PromptRequest ctx template) call
+  pure $ ServiceCallResponses responses warnings

@@ -8,6 +8,7 @@ import GHC.Plugin.OllamaHoles.Data.Template.Spec qualified as TemplateSpec
 import GHC.Plugin.OllamaHoles.Data.Service.Spec qualified as ServiceSpec
 import GHC.Plugin.OllamaHoles.Data.Profile.Spec qualified as ProfileSpec
 import GHC.Plugin.OllamaHoles.Data.Prefs.Spec qualified as PrefsSpec
+import GHC.Plugin.OllamaHoles.Data.ServiceCall.Spec qualified as ServiceCallSpec
 
 
 
@@ -19,4 +20,5 @@ tests = testGroup "GHC.Plugin.OllamaHoles.Data"
   , ServiceSpec.tests
   , ProfileSpec.tests
   , PrefsSpec.tests
+  , ServiceCallSpec.tests
   ]
