@@ -38,7 +38,7 @@ run_submitRoutedServiceCalls
   -> Either ServiceCallError ([PromptResponse], [ModelSelectionWarning])
 run_submitRoutedServiceCalls config holeName env =
   case runTestM $ runExceptT $ submitRoutedServiceCalls
-    (serviceCallOps env) "." config (T.pack holeName) unusedPromptContext
+    (serviceCallOps env) config (T.pack holeName) unusedPromptContext
   of
     Left err -> Left err
     Right responses -> Right
@@ -84,7 +84,7 @@ tests_submitRoutedServiceCalls_prop = testGroup "submitRoutedServiceCalls (prop)
             }
             }
 
-          config =
+          config = defaultConfigOfMode $
             ConfigFancy FancyConfig
               { cfgServices = M.fromList
                 [ (svcName svc, svc) | svc <- services ]
@@ -105,6 +105,7 @@ tests_submitRoutedServiceCalls_prop = testGroup "submitRoutedServiceCalls (prop)
                   , PromptResponse ("response-" <> T.pack (show i)) )
                 | i <- indices
                 ]
+              , testExpectedTemplateSearchDir = Nothing
               }
 
           expectedResponses =
@@ -120,7 +121,7 @@ tests_submitRoutedServiceCalls_unit_success
   :: [(String, Config, String, ServiceCallTestEnv, ([PromptResponse], [ModelSelectionWarning]))]
 tests_submitRoutedServiceCalls_unit_success =
   [ ( "submits one routed simple service"
-    , ConfigSimple SimpleConfig
+    , defaultConfigOfMode $ ConfigSimple SimpleConfig
         { simpleTrigger = TriggerAll
         , simpleService = svcA
         , simpleProfile = profA
@@ -132,6 +133,7 @@ tests_submitRoutedServiceCalls_unit_success =
         , testResponses = M.fromList
           [ (ServiceName "svc-a", PromptResponse "response-a")
           ]
+        , testExpectedTemplateSearchDir = Nothing
         }
     , ( [PromptResponse "response-a"]
       , []
@@ -139,7 +141,7 @@ tests_submitRoutedServiceCalls_unit_success =
     )
 
   , ( "submits fanout services in routed order"
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
           [ (ServiceName "svc-a", svcA)
           , (ServiceName "svc-b", svcB)
@@ -183,6 +185,7 @@ tests_submitRoutedServiceCalls_unit_success =
           [ (ServiceName "svc-a", PromptResponse "response-a")
           , (ServiceName "svc-b", PromptResponse "response-b")
           ]
+        , testExpectedTemplateSearchDir = Nothing
         }
     , ( [ PromptResponse "response-b"
         , PromptResponse "response-a"
@@ -192,7 +195,7 @@ tests_submitRoutedServiceCalls_unit_success =
     )
 
   , ( "returns model-selection warnings from skipped routed services"
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
           [ (ServiceName "svc-a", svcA)
           , (ServiceName "svc-b", svcB)
@@ -232,6 +235,7 @@ tests_submitRoutedServiceCalls_unit_success =
         , testResponses = M.fromList
           [ (ServiceName "svc-a", PromptResponse "response-a")
           ]
+        , testExpectedTemplateSearchDir = Nothing
         }
     , ( [PromptResponse "response-a"]
       , [ SkippedServiceMissingModel
@@ -241,13 +245,37 @@ tests_submitRoutedServiceCalls_unit_success =
         ]
       )
     )
+
+  , ( "uses config template search dir when loading service-call template"
+    , Config
+        { configDebug = False
+        , configTemplateSearchDir = "custom-templates"
+        , configMode = ConfigSimple SimpleConfig
+          { simpleTrigger = TriggerAll
+          , simpleService = svcA
+          , simpleProfile = profA
+          }
+        }
+    , "_anything"
+    , ServiceCallTestEnv
+        { testOllamaModels = Just [ModelName "model-a"]
+        , testOpenAIModels = Nothing
+        , testResponses = M.fromList
+          [ (ServiceName "svc-a", PromptResponse "response-a")
+          ]
+        , testExpectedTemplateSearchDir = Just "custom-templates"
+        }
+    , ( [PromptResponse "response-a"]
+      , []
+      )
+    )
   ]
 
 tests_submitRoutedServiceCalls_unit_failure
   :: [(String, Config, String, ServiceCallTestEnv)]
 tests_submitRoutedServiceCalls_unit_failure =
   [ ( "fails when no service routes"
-    , ConfigSimple SimpleConfig
+    , defaultConfigOfMode $ ConfigSimple SimpleConfig
         { simpleTrigger = TriggerPrefix "llm"
         , simpleService = svcA
         , simpleProfile = profA
@@ -257,11 +285,12 @@ tests_submitRoutedServiceCalls_unit_failure =
         { testOllamaModels = Just [ModelName "model-a"]
         , testOpenAIModels = Nothing
         , testResponses = M.empty
+        , testExpectedTemplateSearchDir = Nothing
         }
     )
 
   , ( "fails when all routed services are filtered before submission"
-    , ConfigSimple SimpleConfig
+    , defaultConfigOfMode $ ConfigSimple SimpleConfig
         { simpleTrigger = TriggerAll
         , simpleService = svcA
         , simpleProfile = profA
@@ -271,11 +300,12 @@ tests_submitRoutedServiceCalls_unit_failure =
         { testOllamaModels = Just [ModelName "not-model-a"]
         , testOpenAIModels = Nothing
         , testResponses = M.empty
+        , testExpectedTemplateSearchDir = Nothing
         }
     )
 
   , ( "fails when submitter has no fake response for accepted service"
-    , ConfigSimple SimpleConfig
+    , defaultConfigOfMode $ ConfigSimple SimpleConfig
         { simpleTrigger = TriggerAll
         , simpleService = svcA
         , simpleProfile = profA
@@ -285,6 +315,7 @@ tests_submitRoutedServiceCalls_unit_failure =
         { testOllamaModels = Just [ModelName "model-a"]
         , testOpenAIModels = Nothing
         , testResponses = M.empty
+        , testExpectedTemplateSearchDir = Nothing
         }
     )
   ]

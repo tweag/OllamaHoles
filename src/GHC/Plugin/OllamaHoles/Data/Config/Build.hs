@@ -1,7 +1,5 @@
 module GHC.Plugin.OllamaHoles.Data.Config.Build
   ( buildConfig
-  , buildServiceMap
-  , buildProfileMap
   ) where
 
 import Control.Exception (try)
@@ -39,9 +37,12 @@ buildConfig
   :: (MonadIO m) => Flags -> ExceptT ConfigError m Config
 buildConfig flags = do
   intent <- inferConfigKindIntent flags
-  case intent of
+  configMode <- case intent of
     SimpleConfigIntent -> fmap ConfigSimple $ buildSimpleConfig flags
     FancyConfigIntent path raw -> fmap ConfigFancy $ buildFancyConfig path flags raw
+  let configDebug = maybe False id $ debug flags
+  let configTemplateSearchDir = maybe "." id $ template_search_dir flags
+  pure $ Config {configMode, configDebug, configTemplateSearchDir}
 
 
 

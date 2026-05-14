@@ -116,7 +116,7 @@ test_buildConfig_prop = testGroup "buildConfig (prop)"
           })
         Nothing
 
-      pure $ case result of
+      pure $ case fmap configMode result of
         Right ConfigSimple{} -> QC.property True
         other -> QC.counterexample
           ("expected ConfigSimple, got: " <> show other)
@@ -130,7 +130,7 @@ test_buildConfig_prop = testGroup "buildConfig (prop)"
           })
         (Just ("config.toml", basicFancyToml))
 
-      pure $ case result of
+      pure $ case fmap configMode result of
         Right ConfigSimple{} -> QC.property True
         other -> QC.counterexample
           ("expected ConfigSimple, got: " <> show other)
@@ -164,7 +164,7 @@ test_buildConfig_prop = testGroup "buildConfig (prop)"
                 })
               (Just ("config.toml", toml))
 
-            pure $ case result of
+            pure $ case fmap configMode result of
               Left err -> QC.counterexample
                 ("unexpected error: " <> show err <> "\n\nTOML:\n" <> T.unpack toml)
                 False
@@ -223,7 +223,7 @@ tests_buildConfig_unit_basic_success =
         { config_path = Just ConfigDisabled
         }
     , Nothing
-    , ConfigSimple $ SimpleConfig
+    , defaultConfigOfMode $ ConfigSimple $ SimpleConfig
         { simpleTrigger = defaultTriggerPolicy
         , simpleService = Service
           { svcName = ServiceName "__simple__"
@@ -254,7 +254,7 @@ tests_buildConfig_unit_basic_success =
         , template_path = Just "prompt.txt"
         }
     , Nothing
-    , ConfigSimple SimpleConfig
+    , defaultConfigOfMode $ ConfigSimple SimpleConfig
         { simpleTrigger = TriggerAll
         , simpleService = Service
           { svcName = ServiceName "__simple__"
@@ -287,7 +287,7 @@ tests_buildConfig_unit_basic_success =
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
         \]"
       )
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
           [ ( ServiceName "ollama"
             , Service
@@ -336,7 +336,7 @@ tests_buildConfig_unit_basic_success =
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
         \]"
       )
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
           [ ( ServiceName "ollama"
             , Service
@@ -392,7 +392,7 @@ tests_buildConfig_unit_basic_success =
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
         \]"
       )
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
           [ ( ServiceName "ollama"
             , Service
@@ -452,7 +452,7 @@ tests_buildConfig_unit_basic_success =
         { config_path = Just ConfigDisabled
         }
     , Just ("config.toml", basicFancyToml)
-    , ConfigSimple SimpleConfig
+    , defaultConfigOfMode $ ConfigSimple SimpleConfig
         { simpleTrigger = defaultTriggerPolicy
         , simpleService = Service
           { svcName = ServiceName "__simple__"
@@ -474,7 +474,7 @@ tests_buildConfig_unit_basic_success =
         { config_path = Nothing
         }
     , Nothing
-    , ConfigSimple SimpleConfig
+    , defaultConfigOfMode $ ConfigSimple SimpleConfig
         { simpleTrigger = defaultTriggerPolicy
         , simpleService = Service
           { svcName = ServiceName "__simple__"
@@ -508,7 +508,7 @@ tests_buildConfig_unit_basic_success =
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
         \]"
       )
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
           [ ( ServiceName "ollama"
             , Service
@@ -544,7 +544,7 @@ tests_buildConfig_unit_basic_success =
         , template_name = Just $ unsafeCreateRawTemplateName "compact"
         }
     , Nothing
-    , ConfigSimple SimpleConfig
+    , defaultConfigOfMode $ ConfigSimple SimpleConfig
         { simpleTrigger = defaultTriggerPolicy
         , simpleService = Service
           { svcName = ServiceName "__simple__"
@@ -567,7 +567,7 @@ tests_buildConfig_unit_basic_success =
         , template_name = Just $ unsafeCreateRawTemplateName "compact"
         }
     , Nothing
-    , ConfigSimple SimpleConfig
+    , defaultConfigOfMode $ ConfigSimple SimpleConfig
         { simpleTrigger = defaultTriggerPolicy
         , simpleService = Service
           { svcName = ServiceName "__simple__"
@@ -600,7 +600,7 @@ tests_buildConfig_unit_basic_success =
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
         \]"
       )
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
           [ ( ServiceName "ollama"
             , Service
@@ -652,7 +652,7 @@ tests_buildConfig_unit_basic_success =
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
         \]"
       )
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
           [ ( ServiceName "ollama"
             , Service
@@ -708,7 +708,7 @@ tests_buildConfig_unit_basic_success =
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
         \]"
       )
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
           [ ( ServiceName "ollama"
             , Service
@@ -781,7 +781,7 @@ tests_buildConfig_unit_basic_success =
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
         \]"
       )
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
           [ ( ServiceName "ollama"
             , Service
@@ -852,7 +852,7 @@ tests_buildConfig_unit_basic_success =
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
         \]"
       )
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
           [ ( ServiceName "ollama"
             , Service
@@ -923,7 +923,7 @@ tests_buildConfig_unit_basic_success =
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
         \]"
       )
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
           [ ( ServiceName "ollama"
             , Service
@@ -987,7 +987,7 @@ tests_buildConfig_unit_basic_success =
       , "services = []\n\
         \profiles = []"
       )
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList []
         , cfgProfiles = M.fromList []
         , cfgExtras = Just
@@ -999,6 +999,113 @@ tests_buildConfig_unit_basic_success =
                 , overrideTemplate = Nothing
                 }
             )
+        }
+    )
+
+  , ( "debug flag false becomes configDebug false"
+    , \_path -> mempty
+        { debug = Just False
+        , config_path = Just ConfigDisabled
+        }
+    , Nothing
+    , Config
+        { configDebug = False
+        , configTemplateSearchDir = "."
+        , configMode = ConfigSimple SimpleConfig
+          { simpleTrigger = defaultTriggerPolicy
+          , simpleService = Service
+            { svcName = ServiceName "__simple__"
+            , svcConfig = SvcOllama (OllamaConfig Nothing)
+            }
+          , simpleProfile = ServiceProf
+            { profService = ServiceName "__simple__"
+            , profModel = ModelName "qwen3:latest"
+            , profTemplate = Nothing
+            , profModelOptions = Nothing
+            , profNumExpr = Just 5
+            , profIncludeDocs = Just False
+            }
+          }
+        }
+    )
+
+  , ( "debug flag true becomes configDebug true"
+    , \_path -> mempty
+        { debug = Just True
+        , config_path = Just ConfigDisabled
+        }
+    , Nothing
+    , Config
+        { configDebug = True
+        , configTemplateSearchDir = "."
+        , configMode = ConfigSimple SimpleConfig
+          { simpleTrigger = defaultTriggerPolicy
+          , simpleService = Service
+            { svcName = ServiceName "__simple__"
+            , svcConfig = SvcOllama (OllamaConfig Nothing)
+            }
+          , simpleProfile = ServiceProf
+            { profService = ServiceName "__simple__"
+            , profModel = ModelName "qwen3:latest"
+            , profTemplate = Nothing
+            , profModelOptions = Nothing
+            , profNumExpr = Just 5
+            , profIncludeDocs = Just False
+            }
+          }
+        }
+    )
+
+  , ( "missing template search dir flag defaults to current directory"
+    , \_path -> mempty
+        { config_path = Just ConfigDisabled
+        }
+    , Nothing
+    , Config
+        { configDebug = False
+        , configTemplateSearchDir = "."
+        , configMode = ConfigSimple SimpleConfig
+          { simpleTrigger = defaultTriggerPolicy
+          , simpleService = Service
+            { svcName = ServiceName "__simple__"
+            , svcConfig = SvcOllama (OllamaConfig Nothing)
+            }
+          , simpleProfile = ServiceProf
+            { profService = ServiceName "__simple__"
+            , profModel = ModelName "qwen3:latest"
+            , profTemplate = Nothing
+            , profModelOptions = Nothing
+            , profNumExpr = Just 5
+            , profIncludeDocs = Just False
+            }
+          }
+        }
+    )
+
+  , ( "template search dir flag becomes configTemplateSearchDir"
+    , \_path -> mempty
+        { config_path = Just ConfigDisabled
+        , template_search_dir = Just "templates"
+        }
+    , Nothing
+    , Config
+        { configDebug = False
+        , configTemplateSearchDir = "templates"
+        , configMode = ConfigSimple SimpleConfig
+          { simpleTrigger = defaultTriggerPolicy
+          , simpleService = Service
+            { svcName = ServiceName "__simple__"
+            , svcConfig = SvcOllama (OllamaConfig Nothing)
+            }
+          , simpleProfile = ServiceProf
+            { profService = ServiceName "__simple__"
+            , profModel = ModelName "qwen3:latest"
+            , profTemplate = Nothing
+            , profModelOptions = Nothing
+            , profNumExpr = Just 5
+            , profIncludeDocs = Just False
+            }
+          }
         }
     )
   ]
@@ -1112,7 +1219,7 @@ tests_buildConfig_unit_validate_success =
       ( "config.toml"
       , nestedFanoutToml
       )
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
           [ ( ServiceName "ollama"
             , Service
@@ -1184,7 +1291,7 @@ tests_buildConfig_unit_validate_success =
         \\n\
         \profiles = []"
       )
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
           [ ( ServiceName "ollama"
             , Service
@@ -1220,7 +1327,7 @@ tests_buildConfig_unit_validate_success =
         \  { name = 'p', type = 'service', service = 'ollama', model = 'qwen3:latest' }\n\
         \]"
       )
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
           [ ( ServiceName "ollama"
             , Service
@@ -1266,7 +1373,7 @@ tests_buildConfig_unit_validate_success =
         \  { name = 'outer', type = 'fanout', profiles = ['inner', 'leaf1'] }\n\
         \]"
       )
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
           [ ( ServiceName "local"
             , Service
@@ -1345,7 +1452,7 @@ tests_buildConfig_unit_validate_success =
         \  { name = 'rich', type = 'service', trigger = 'all', service = 'remote', model = 'gpt-test', template = 'prompt', num_expr = 17, include_docs = true }\n\
         \]"
       )
-    , ConfigFancy FancyConfig
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
           [ ( ServiceName "remote"
             , Service

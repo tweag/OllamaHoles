@@ -72,13 +72,13 @@ tests_prepareServiceCalls_prop = testGroup "prepareServiceCalls (prop)"
       QC.forAll genTriggerPolicy $ \trigger ->
       QC.forAll genHoleName $ \hn ->
         let
-          config = ConfigSimple SimpleConfig
+          config = defaultConfigOfMode $ ConfigSimple SimpleConfig
             { simpleTrigger = trigger
             , simpleService = svcA
             , simpleProfile = profA
             }
 
-          env =  ServiceCallTestEnv
+          env = ServiceCallTestEnv
             { testOllamaModels = Just [ModelName "model-a"]
             , testOpenAIModels = Nothing
             , testResponses = M.empty
@@ -115,7 +115,7 @@ tests_prepareServiceCalls_prop = testGroup "prepareServiceCalls (prop)"
               }
             }
 
-          config = ConfigFancy FancyConfig
+          config = defaultConfigOfMode $ ConfigFancy FancyConfig
             { cfgServices = M.fromList
               [ (svcName svc, svc) | svc <- services ]
             , cfgProfiles = M.fromList
@@ -151,7 +151,7 @@ tests_prepareServiceCalls_unit_success
   :: [(String, (Config, Text), ServiceCallTestEnv, CheckedServiceCalls)]
 tests_prepareServiceCalls_unit_success =
   [ ( "simple config returns one service call when trigger matches"
-    , ( ConfigSimple SimpleConfig
+    , ( defaultConfigOfMode $ ConfigSimple SimpleConfig
           { simpleTrigger = TriggerPrefix "llm"
           , simpleService = svcA
           , simpleProfile = profA
@@ -175,7 +175,7 @@ tests_prepareServiceCalls_unit_success =
     )
 
   , ( "TriggerAll in simple config always routes"
-    , ( ConfigSimple SimpleConfig
+    , ( defaultConfigOfMode $ ConfigSimple SimpleConfig
           { simpleTrigger = TriggerAll
           , simpleService = svcA
           , simpleProfile = profA
@@ -199,7 +199,7 @@ tests_prepareServiceCalls_unit_success =
     )
 
   , ( "fancy overlay takes priority over matching config profile"
-    , ( ConfigFancy FancyConfig
+    , ( defaultConfigOfMode $ ConfigFancy FancyConfig
           { cfgServices = M.fromList
             [ (ServiceName "svc-a", svcA)
             ]
@@ -238,7 +238,7 @@ tests_prepareServiceCalls_unit_success =
     )
 
   , ( "fanout expands child profiles in fanout order"
-    , ( ConfigFancy FancyConfig
+    , ( defaultConfigOfMode $ ConfigFancy FancyConfig
           { cfgServices = M.fromList
             [ (ServiceName "svc-a", svcA)
             , (ServiceName "svc-b", svcB)
@@ -297,7 +297,7 @@ tests_prepareServiceCalls_unit_success =
     )
 
   , ( "one missing model is warned while other routed services remain"
-    , ( ConfigFancy FancyConfig
+    , ( defaultConfigOfMode $ ConfigFancy FancyConfig
           { cfgServices = M.fromList
             [ (ServiceName "svc-a", svcA)
             , (ServiceName "svc-b", svcB)
@@ -354,7 +354,7 @@ tests_prepareServiceCalls_unit_success =
   )
 
   , ( "normal route uses configured service when overlay has same service name"
-    , ( ConfigFancy FancyConfig
+    , ( defaultConfigOfMode $ ConfigFancy FancyConfig
           { cfgServices = M.fromList
             [ ( ServiceName "shared"
               , Service
@@ -431,7 +431,7 @@ tests_prepareServiceCalls_unit_failure
   :: [(String, (Config, Text), ServiceCallTestEnv)]
 tests_prepareServiceCalls_unit_failure =
   [ ( "simple config returns error when trigger does not match"
-    , ( ConfigSimple SimpleConfig
+    , ( defaultConfigOfMode $ ConfigSimple SimpleConfig
           { simpleTrigger = TriggerPrefix "llm"
           , simpleService = svcA
           , simpleProfile = profA
@@ -446,7 +446,7 @@ tests_prepareServiceCalls_unit_failure =
     )
 
   , ( "TriggerNone in simple config never routes"
-    , ( ConfigSimple SimpleConfig
+    , ( defaultConfigOfMode $ ConfigSimple SimpleConfig
           { simpleTrigger = TriggerNone
           , simpleService = svcA
           , simpleProfile = profA
@@ -461,7 +461,7 @@ tests_prepareServiceCalls_unit_failure =
     )
 
   , ( "fancy config reports ambiguous matching profiles"
-    , ( ConfigFancy FancyConfig
+    , ( defaultConfigOfMode $ ConfigFancy FancyConfig
           { cfgServices = M.fromList
             [ (ServiceName "svc-a", svcA)
             , (ServiceName "svc-b", svcB)
@@ -494,7 +494,7 @@ tests_prepareServiceCalls_unit_failure =
     )
 
   , ( "fancy config reports unknown service"
-    , ( ConfigFancy FancyConfig
+    , ( defaultConfigOfMode $ ConfigFancy FancyConfig
           { cfgServices = M.fromList []
           , cfgProfiles = M.fromList
             [ ( ProfileName "p"
@@ -519,7 +519,7 @@ tests_prepareServiceCalls_unit_failure =
     )
 
   , ( "fanout reports unknown child profile"
-    , ( ConfigFancy FancyConfig
+    , ( defaultConfigOfMode $ ConfigFancy FancyConfig
           { cfgServices = M.fromList []
           , cfgProfiles = M.fromList
             [ ( ProfileName "fan"
@@ -545,7 +545,7 @@ tests_prepareServiceCalls_unit_failure =
     )
 
   , ( "all routed services are rejected when backend cannot list models"
-    , ( ConfigSimple SimpleConfig
+    , ( defaultConfigOfMode $ ConfigSimple SimpleConfig
           { simpleTrigger = TriggerAll
           , simpleService = svcA
           , simpleProfile = profA
@@ -560,7 +560,7 @@ tests_prepareServiceCalls_unit_failure =
     )
 
   , ( "all routed services are rejected when model is missing"
-    , ( ConfigSimple SimpleConfig
+    , ( defaultConfigOfMode $ ConfigSimple SimpleConfig
           { simpleTrigger = TriggerAll
           , simpleService = svcA
           , simpleProfile = profA

@@ -96,13 +96,15 @@ data PluginState = PluginState
   , writeLogEvent  :: Log.Logger
   , templateSpec   :: TemplateSpec
   , parsedTemplate :: Template
-  , commandOptions :: Flags
   , configuration  :: Config
   , serviceCallOps :: ServiceCallOps TcM
   }
 
 setCandidates :: [HoleFitCandidate] -> PluginState -> PluginState
 setCandidates cs st = st { candidates = cs }
+
+isDebugMode :: PluginState -> Bool
+isDebugMode = configDebug . configuration
 
 
 
@@ -130,15 +132,16 @@ tryPluginInitLLM opts = do
   config <- modifyError SomeConfigError $ buildConfig flags
   backendCache <- liftIO newBackendCache
   let ops = mkServiceCallOps backendCache
-  pure $ PluginState
-    { candidates     = []
-    , writeLogEvent  = logger
-    , templateSpec   = spec
-    , parsedTemplate = template
-    , commandOptions = flags
-    , configuration  = config
-    , serviceCallOps = ops
-    }
+  let st = PluginState
+        { candidates     = []
+        , writeLogEvent  = logger
+        , templateSpec   = spec
+        , parsedTemplate = template
+        , configuration  = config
+        , serviceCallOps = ops
+        }
+  debugMsg st $ "running with flags: " <> T.pack (show flags)
+  pure st
 
 
 
@@ -172,14 +175,11 @@ tryFitPluginLLM
   :: PluginState -> TypedHole -> [HoleFit]
   -> ExceptT PluginError TcM [HoleFit]
 tryFitPluginLLM st typedHole fits = do
-  debugMsg st $ "running with flags\n" <> T.pack (show $ commandOptions st)
   withTypedHole typedHole $ \hole -> do
     let holeName = holeTriggerName hole
-    let templateSearchPath = maybe "." id $ template_search_dir $ commandOptions st
     ctx <- buildPromptContext st typedHole fits
     ServiceCallResponses responses warnings <- withExceptT ServiceCallPluginError $
-      submitRoutedServiceCalls (serviceCallOps st) templateSearchPath
-      (configuration st) holeName ctx
+      submitRoutedServiceCalls (serviceCallOps st) (configuration st) holeName ctx
     -- log service warnings
     traverse_ (warnMsg st . renderModelSelectionWarning) warnings
     lift $ extractHoleFitsFromPromptResponses st responses typedHole hole
@@ -223,7 +223,7 @@ extractHoleFitsFromResponse
   -> TypedHole -> Hole -> TcM [HoleFit]
 extractHoleFitsFromResponse st prompt rsp hole h = do
   let logger = writeLogEvent st
-  let debugMode = maybe True id $ debug (commandOptions st)
+  let debugMode = isDebugMode st
   dflags <- getDynFlags
 
   -- Get the raw list of candidates
@@ -419,11 +419,11 @@ getDocs cs = do
 --------
 
 debugMsg :: (MonadIO m) => PluginState -> Text -> m ()
-debugMsg st txt = liftIO $ when (maybe True id $ debug $ commandOptions st) $
+debugMsg st txt = liftIO $ when (isDebugMode st) $
   T.putStrLn $ pluginName <> ": " <> txt
 
 warnMsg :: (MonadIO m) => PluginState -> Text -> m ()
-warnMsg st txt = liftIO $ when (maybe True id $ debug $ commandOptions st) $
+warnMsg st txt = liftIO $ when (isDebugMode st) $
   T.putStrLn $ pluginName <> ": " <> txt
 
 liftEitherIO :: (MonadIO m) => (e1 -> e2) -> IO (Either e1 a) -> ExceptT e2 m a
