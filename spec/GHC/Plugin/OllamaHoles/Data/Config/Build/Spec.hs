@@ -285,7 +285,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -334,7 +336,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -390,7 +394,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -506,7 +512,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -598,7 +606,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -650,7 +660,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -706,7 +718,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -779,7 +793,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -850,7 +866,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -921,7 +939,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -985,7 +1005,8 @@ tests_buildConfig_unit_basic_success =
     , Just
       ( "config.toml"
       , "services = []\n\
-        \profiles = []"
+        \profiles = []\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList []
@@ -1151,7 +1172,9 @@ tests_buildConfig_unit_basic_failure =
       ( "config.toml"
       , "profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'missing', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     )
 
@@ -1167,7 +1190,9 @@ tests_buildConfig_unit_basic_failure =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'bad', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     )
 
@@ -1183,7 +1208,9 @@ tests_buildConfig_unit_basic_failure =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     )
 
@@ -1203,7 +1230,9 @@ tests_buildConfig_unit_basic_failure =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest', template = '../bad' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     )
   ]
@@ -1289,7 +1318,9 @@ tests_buildConfig_unit_validate_success =
         \  { name = 'openai', protocol = 'openai', base_url = 'https://example.invalid/v1', key_name = 'TEST_API_KEY' }\n\
         \]\n\
         \\n\
-        \profiles = []"
+        \profiles = []\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -1325,7 +1356,9 @@ tests_buildConfig_unit_validate_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -1371,7 +1404,9 @@ tests_buildConfig_unit_validate_success =
         \  { name = 'leaf2', type = 'service', service = 'local', model = 'qwen3:latest' },\n\
         \  { name = 'inner', type = 'fanout', profiles = ['leaf1', 'leaf2'] },\n\
         \  { name = 'outer', type = 'fanout', profiles = ['inner', 'leaf1'] }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -1450,7 +1485,9 @@ tests_buildConfig_unit_validate_success =
         \\n\
         \profiles = [\n\
         \  { name = 'rich', type = 'service', trigger = 'all', service = 'remote', model = 'gpt-test', template = 'prompt', num_expr = 17, include_docs = true }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -1578,7 +1615,9 @@ tests_buildConfig_unit_validate_failure =
         \  { name = 'ollama', protocol = 'ollama' }\n\
         \]\n\
         \\n\
-        \profiles = []"
+        \profiles = []\n\
+        \\n\
+        \templates = []"
       )
     , \err ->
         err @?= DuplicateServiceName (ServiceName "ollama")
@@ -1593,7 +1632,9 @@ tests_buildConfig_unit_validate_failure =
       , "services = []\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , \err ->
         err @?= UnknownServiceReference
@@ -1614,7 +1655,9 @@ tests_buildConfig_unit_validate_failure =
         \profiles = [\n\
         \  { name = 'leaf', type = 'service', service = 'local', model = 'qwen3:latest' },\n\
         \  { name = 'self', type = 'fanout', profiles = ['self'] }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , \err ->
         err @?= CyclicProfileReference
@@ -1637,7 +1680,9 @@ tests_buildConfig_unit_validate_failure =
         \  { name = 'leaf', type = 'service', service = 'local', model = 'qwen3:latest' },\n\
         \  { name = 'a', type = 'fanout', profiles = ['b'] },\n\
         \  { name = 'b', type = 'fanout', profiles = ['a'] }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , \err ->
         err @?= CyclicProfileReference
@@ -1661,7 +1706,9 @@ tests_buildConfig_unit_validate_failure =
         \  { name = 'good', type = 'service', service = 'local', model = 'qwen3:latest' },\n\
         \  { name = 'bad', type = 'service', service = 'missing', model = 'qwen3:latest' },\n\
         \  { name = 'pair', type = 'fanout', profiles = ['good', 'bad'] }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , \err ->
         err @?= UnknownServiceReference
@@ -1687,6 +1734,8 @@ basicFancyToml =
     , "profiles = ["
     , "  { name = \"p\", type = \"service\", trigger = \"prefix:llm\", service = \"ollama\", model = \"qwen3:latest\" }"
     , "]"
+    , ""
+    , "templates = []"
     ]
 
 
@@ -1699,6 +1748,8 @@ duplicateServicesToml =
     , "]"
     , ""
     , "profiles = []"
+    , ""
+    , "templates = []"
     ]
 
 
@@ -1713,6 +1764,8 @@ duplicateProfilesToml =
     , "  { name = \"p\", type = \"service\", service = \"ollama\", model = \"m1\" },"
     , "  { name = \"p\", type = \"service\", service = \"ollama\", model = \"m2\" }"
     , "]"
+    , ""
+    , "templates = []"
     ]
 
 
@@ -1724,6 +1777,8 @@ unknownServiceToml =
     , "profiles = ["
     , "  { name = \"p\", type = \"service\", service = \"missing\", model = \"m\" }"
     , "]"
+    , ""
+    , "templates = []"
     ]
 
 
@@ -1737,6 +1792,8 @@ unknownFanoutProfileToml =
     , "profiles = ["
     , "  { name = \"fan\", type = \"fanout\", trigger = \"prefix:fan\", profiles = [\"missing\"] }"
     , "]"
+    , ""
+    , "templates = []"
     ]
 
 
@@ -1751,6 +1808,8 @@ cyclicFanoutToml =
     , "  { name = \"a\", type = \"fanout\", trigger = \"prefix:a\", profiles = [\"b\"] },"
     , "  { name = \"b\", type = \"fanout\", trigger = \"prefix:b\", profiles = [\"a\"] }"
     , "]"
+    , ""
+    , "templates = []"
     ]
 
 
@@ -1767,6 +1826,8 @@ nestedFanoutToml =
     , "  { name = \"mid\", type = \"fanout\", trigger = \"prefix:mid\", profiles = [\"a\", \"b\"] },"
     , "  { name = \"top\", type = \"fanout\", trigger = \"prefix:top\", profiles = [\"mid\"] }"
     , "]"
+    , ""
+    , "templates = []"
     ]
 
 
@@ -1781,6 +1842,8 @@ ambiguousTriggersToml =
     , "  { name = \"a\", type = \"service\", trigger = \"prefix:llm\", service = \"ollama\", model = \"ma\" },"
     , "  { name = \"b\", type = \"service\", trigger = \"prefix:llm\", service = \"ollama\", model = \"mb\" }"
     , "]"
+    , ""
+    , "templates = []"
     ]
 
 

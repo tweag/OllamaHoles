@@ -92,7 +92,7 @@ genValidServiceOnlyConfigToml = do
         "  { name = '" <> profileName <> "', type = 'service', service = '" <> serviceName <> "', model = 'qwen3:latest' }"
 
     toml =
-      renderConfigToml serviceRows profileRows
+      renderConfigToml serviceRows profileRows []
 
   pure
     ( toml
@@ -122,7 +122,7 @@ genMissingServiceConfigToml = do
       ]
 
     toml =
-      renderConfigToml serviceRows profileRows
+      renderConfigToml serviceRows profileRows []
 
   pure
     ( toml
@@ -147,7 +147,7 @@ genSelfCycleConfigToml = do
       ]
 
     toml =
-      renderConfigToml serviceRows profileRows
+      renderConfigToml serviceRows profileRows []
 
   pure
     ( toml
@@ -155,8 +155,8 @@ genSelfCycleConfigToml = do
     )
 
 renderConfigToml
-  :: [Text] -> [Text] -> Text
-renderConfigToml serviceRows profileRows =
+  :: [Text] -> [Text] -> [Text] -> Text
+renderConfigToml serviceRows profileRows templateRows =
   T.unlines $
     [ "services = ["
     ]
@@ -167,6 +167,12 @@ renderConfigToml serviceRows profileRows =
     , "profiles = ["
     ]
     <> commaTerminate profileRows
+    <>
+    [ "]"
+    , ""
+    , "templates = ["
+    ]
+    <> commaTerminate templateRows
     <>
     [ "]"
     ]
