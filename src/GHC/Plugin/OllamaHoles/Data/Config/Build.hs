@@ -1,7 +1,5 @@
 module GHC.Plugin.OllamaHoles.Data.Config.Build
   ( buildConfig
-  , buildServiceMap
-  , buildProfileMap
   ) where
 
 import Control.Exception (try)
