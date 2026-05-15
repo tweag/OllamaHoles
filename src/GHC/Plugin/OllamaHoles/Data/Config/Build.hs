@@ -254,21 +254,65 @@ resolveFanoutMember profMap svcMap tmplMap stack parent child =
 ---------
 
 addFlagExtras
-  :: (Monad m) => Flags -> FancyConfig -> ExceptT ConfigError m FancyConfig
+  :: Monad m
+  => Flags
+  -> FancyConfig
+  -> ExceptT ConfigError m FancyConfig
 addFlagExtras flags cfg
   | flagsWantOverlay flags = do
       let overlay = simpleConfigFromFlags flags (configTemplateSourceFromFlags flags)
-          overlaySvc = simpleService overlay
+      validateSimpleConfigTemplate (cfgTemplates cfg) overlay
+
+      let overlaySvc = simpleService overlay
           overlaySvcName = svcName overlaySvc
+
       if overlaySvcName `M.member` cfgServices cfg
         then throwError $ DuplicateServiceName overlaySvcName
         else pure cfg
           { cfgServices = M.insert overlaySvcName overlaySvc (cfgServices cfg)
           , cfgExtras = Just (ConfigOverlay overlay)
           }
-  | otherwise = pure cfg
-      { cfgExtras = Just (ConfigOverride (overrideConfigFromFlags flags))
-      }
+
+  | otherwise = do
+      let override = overrideConfigFromFlags flags
+      validateOverrideTemplate (cfgTemplates cfg) override
+      pure cfg
+        { cfgExtras = Just (ConfigOverride override)
+        }
+
+validateSimpleConfigTemplate
+  :: MonadError ConfigError m
+  => Map TemplateName Template
+  -> SimpleConfig
+  -> m ()
+validateSimpleConfigTemplate tmplMap simple =
+  validateMaybeTemplateSource tmplMap $
+    profTemplate (simpleProfile simple)
+
+validateOverrideTemplate
+  :: MonadError ConfigError m
+  => Map TemplateName Template
+  -> OverrideConfig
+  -> m ()
+validateOverrideTemplate tmplMap override =
+  validateMaybeTemplateSource tmplMap $
+    overrideTemplate override
+
+validateMaybeTemplateSource
+  :: MonadError ConfigError m
+  => Map TemplateName Template
+  -> Maybe TemplateSource
+  -> m ()
+validateMaybeTemplateSource tmplMap = \case
+  Just (NamedTemplate name)
+    | name `M.member` tmplMap ->
+        pure ()
+
+    | otherwise ->
+        throwError $ UnknownExtraTemplateReference name
+
+  _ ->
+    pure ()
 
 flagsWantOverlay :: Flags -> Bool
 flagsWantOverlay flags = or

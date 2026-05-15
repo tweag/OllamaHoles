@@ -376,7 +376,6 @@ tests_buildConfig_unit_basic_success =
         , num_expr = Just 3
         , include_docs = Just True
         , model_options = Just (String "override-options")
-        , template_name = Just $ unsafeCreateRawTemplateName "compact"
         }
     , Just
       ( "config.toml"
@@ -422,7 +421,7 @@ tests_buildConfig_unit_basic_success =
               , overrideNumExpr = Just 3
               , overrideIncludeDocs = Just True
               , overrideModelOptions = Just (String "override-options")
-              , overrideTemplate = Just (NamedTemplate $ unsafeCreateRawTemplateName "compact")
+              , overrideTemplate = Nothing
               }
           )
         }
@@ -693,7 +692,7 @@ tests_buildConfig_unit_basic_success =
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
         \]\n\
         \\n\
-        \templates = []"
+        \templates = [{ name = \"compact\", body = \"Use a compact prompt.\" }]"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -720,7 +719,11 @@ tests_buildConfig_unit_basic_success =
                 }
             )
           ]
-        , cfgTemplates = mempty
+        , cfgTemplates = M.fromList
+          [ ( unsafeCreateRawTemplateName "compact"
+            , Template [TemplateChunk "Use a compact prompt."]
+            )
+          ]
         , cfgExtras = Just
             ( ConfigOverride OverrideConfig
                 { overrideModelName = Nothing
@@ -828,7 +831,7 @@ tests_buildConfig_unit_basic_success =
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
         \]\n\
         \\n\
-        \templates = []"
+        \templates = [{ name = \"compact\", body = \"Use a compact prompt.\" }]"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -863,7 +866,11 @@ tests_buildConfig_unit_basic_success =
                 }
             )
           ]
-        , cfgTemplates = mempty
+        , cfgTemplates = M.fromList
+          [ ( unsafeCreateRawTemplateName "compact"
+            , Template [TemplateChunk "Use a compact prompt."]
+            )
+          ]
         , cfgExtras = Just
             ( ConfigOverlay SimpleConfig
                 { simpleTrigger = defaultTriggerPolicy
@@ -1927,6 +1934,54 @@ tests_buildConfig_unit_validate_failure =
     , \err ->
         err @?= DuplicateTemplateName
           (unsafeCreateRawTemplateName "brief")
+    )
+
+  , ( "fancy config override rejects missing named template"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        , template_name = Just $ unsafeCreateRawTemplateName "missing"
+        }
+    , Just
+        ( "config.toml"
+        , T.unlines
+          [ "services = ["
+          , "  { name = \"ollama\", protocol = \"ollama\" }"
+          , "]"
+          , ""
+          , "templates = []"
+          , ""
+          , "profiles = ["
+          , "  { name = \"p\", type = \"service\", service = \"ollama\", model = \"qwen3:latest\" }"
+          , "]"
+          ]
+        )
+    , \err ->
+        err @?= UnknownExtraTemplateReference (unsafeCreateRawTemplateName "missing")
+    )
+
+  , ( "fancy config overlay rejects missing named template"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        , openai_base_url = Just "https://example.invalid/v1"
+        , openai_key_name = Just "TEST_API_KEY"
+        , template_name = Just $ unsafeCreateRawTemplateName "missing"
+        }
+    , Just
+        ( "config.toml"
+        , T.unlines
+          [ "services = ["
+          , "  { name = \"ollama\", protocol = \"ollama\" }"
+          , "]"
+          , ""
+          , "templates = []"
+          , ""
+          , "profiles = ["
+          , "  { name = \"p\", type = \"service\", service = \"ollama\", model = \"qwen3:latest\" }"
+          , "]"
+          ]
+        )
+    , \err ->
+        err @?= UnknownExtraTemplateReference (unsafeCreateRawTemplateName "missing")
     )
   ]
 

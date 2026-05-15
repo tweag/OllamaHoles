@@ -171,6 +171,26 @@ tests_loadTemplate_unit_success =
         , TemplateChunk "."
         ]
     )
+
+  , ( "TemplateFile resolves relative path under search dir"
+    , Just "Return only expressions."
+    , \dir -> TemplateSpec
+        { tsSearchDir = dir
+        , tsTmplMap = mempty
+        , tsSource = TemplateFile "prompt.txt"
+        }
+    , expectTemplate "Return only expressions."
+    )
+
+  , ( "TemplateFile preserves absolute path"
+    , Just "Return only expressions."
+    , \dir -> TemplateSpec
+        { tsSearchDir = dir </> "wrong-dir"
+        , tsTmplMap = mempty
+        , tsSource = TemplateFile (dir </> "prompt.txt")
+        }
+    , expectTemplate "Return only expressions."
+    )
   ]
 
 tests_loadTemplate_unit_failure
@@ -194,6 +214,15 @@ tests_loadTemplate_unit_failure =
   , ( "NamedTemplate does not fall back to search dir file"
     , Just "Return only expressions."
     , \dir -> TemplateSpec dir mempty (NamedTemplate $ unsafeCreateRawTemplateName "prompt")
+    )
+
+  , ( "TemplateFile missing relative path reports resolved path"
+    , Nothing
+    , \dir -> TemplateSpec
+        { tsSearchDir = dir
+        , tsTmplMap = mempty
+        , tsSource = TemplateFile "missing.txt"
+        }
     )
   ]
 

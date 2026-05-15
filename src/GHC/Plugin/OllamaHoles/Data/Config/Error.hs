@@ -22,4 +22,5 @@ data ConfigError
   | ConfigFileStatusFailed IOException FilePath
   | ConfigFileReadFailed IOException FilePath
   | NamedTemplateRequiresConfig TemplateName
+  | UnknownExtraTemplateReference TemplateName
   deriving (Eq, Show)
