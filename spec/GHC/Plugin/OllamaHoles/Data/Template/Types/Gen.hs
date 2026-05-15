@@ -11,6 +11,10 @@ module GHC.Plugin.OllamaHoles.Data.Template.Types.Gen
   , genTemplateChunks
   , genUnusedEnvPairs
   , genUnusedEnvPairsFor
+  , genValidTemplate
+  , genValidTemplateName
+  , genSafeTemplateNameText
+  , genTemplateValueText
   ) where
 
 import Data.Char (isAscii, isAlpha, isAlphaNum)
@@ -20,6 +24,7 @@ import Data.Text qualified as T
 import Test.Tasty.QuickCheck qualified as QC
 
 import GHC.Plugin.OllamaHoles.Data.Template
+import GHC.Plugin.OllamaHoles.Data.Template.Types.Internal
 
 
 
@@ -86,6 +91,12 @@ genSafeFileNameText :: QC.Gen Text
 genSafeFileNameText =
   genTemplateNameText
 
+
+genValidTemplateName :: QC.Gen TemplateName
+genValidTemplateName =
+  unsafeCreateRawTemplateName <$> genTemplateNameText
+
+
 genInvalidTemplateNameText :: QC.Gen Text
 genInvalidTemplateNameText =
   QC.oneof
@@ -144,6 +155,36 @@ genUnusedEnvPairs = do
   names <- genDistinctPlaceholderNames n
   vals <- QC.vectorOf (length names) genValueText
   pure (zip names vals)
+
+genValidTemplate :: QC.Gen Template
+genValidTemplate =
+  QC.sized $ \n -> do
+    k <- QC.chooseInt (0, min 8 n)
+    Template <$> QC.vectorOf k genTemplateExpr
+
+genTemplateExpr :: QC.Gen TemplateExpr
+genTemplateExpr =
+  QC.oneof
+    [ TemplateChunk <$> genTemplateChunkText
+    , TemplateVar <$> genKnownPlaceholder
+    ]
+
+genKnownPlaceholder :: QC.Gen Placeholder
+genKnownPlaceholder =
+  Placeholder <$> QC.elements
+    [ "hole_variable"
+    , "hole_type"
+    , "module"
+    , "imports"
+    , "constraints"
+    , "known_fits"
+    , "guidance"
+    ]
+
+genTemplateMapEntry :: QC.Gen (TemplateName, Template)
+genTemplateMapEntry = (,)
+  <$> genValidTemplateName <*> genValidTemplate
+
 
 genKnownTemplateExprs :: [(Placeholder, Text)] -> QC.Gen [TemplateExpr]
 genKnownTemplateExprs envPairs = do
@@ -270,3 +311,29 @@ genUnusedEnvPairsFor (Template exprs) envPairs = do
   names <- genDistinctPlaceholderNamesAvoiding avoid n
   vals <- QC.vectorOf (length names) genValueText
   pure (zip names vals)
+
+genTemplateValueText :: QC.Gen Text
+genTemplateValueText = do
+  first <- QC.elements ['a' .. 'z']
+  rest <- QC.listOf $
+    QC.elements (['a' .. 'z'] <> ['0' .. '9'] <> "-_")
+  pure . T.pack $ first : rest
+
+genSafeTemplateNameText :: QC.Gen Text
+genSafeTemplateNameText =
+  QC.suchThat genCandidate $ \raw ->
+    case parseTemplateName raw of
+      Right _ -> True
+      Left _ -> False
+ where
+  genCandidate = do
+    first <- QC.elements $
+      ['a'..'z'] <> ['A'..'Z']
+
+    n <- QC.chooseInt (0, 16)
+
+    rest <- QC.vectorOf n $
+      QC.elements $
+        ['a'..'z'] <> ['A'..'Z'] <> ['0'..'9'] <> "_-"
+
+    pure $ T.pack (first : rest)

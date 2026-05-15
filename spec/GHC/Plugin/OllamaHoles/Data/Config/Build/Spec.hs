@@ -28,6 +28,7 @@ import GHC.Plugin.OllamaHoles.Data.Profile
 import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Data.Trigger
 import GHC.Plugin.OllamaHoles.Data.Template
+import GHC.Plugin.OllamaHoles.Data.Template.Types.Gen
 import GHC.Plugin.OllamaHoles.Data.Template.Types.Internal (unsafeCreateRawTemplateName)
 
 import GHC.Plugin.OllamaHoles.Data.Config.Types.Gen
@@ -211,6 +212,54 @@ test_buildConfig_prop = testGroup "buildConfig (prop)"
             other -> QC.counterexample
               ("expected CyclicProfileReference, got: " <> show other <> "\n\nTOML:\n" <> T.unpack toml)
               False
+
+  , QC.testProperty "buildConfig accepts service profiles with declared named templates" $
+    QC.forAll genSafeTemplateNameText $ \templateName ->
+    QC.forAll genTemplateValueText $ \body ->
+      QC.ioProperty $ do
+        let
+          toml = T.unlines
+            [ "services = ["
+            , "  { name = \"ollama\", protocol = \"ollama\" }"
+            , "]"
+            , ""
+            , "templates = ["
+            , "  { name = " <> quoteTomlText templateName <> ", body = " <> quoteTomlText body <> " }"
+            , "]"
+            , ""
+            , "profiles = ["
+            , "  { name = \"default\", type = \"service\", service = \"ollama\", model = \"qwen3:latest\", template = " <> quoteTomlText templateName <> " }"
+            , "]"
+            ]
+
+        result <- run_buildConfig
+          (\path -> mempty
+            { config_path = ConfigExplicit <$> path
+            })
+          (Just ("config.toml", toml))
+
+        pure $ case (parseTemplateName templateName, parseTemplate body, result) of
+          (Right expectedName, Right expectedTemplate, Right config) ->
+            case configMode config of
+              ConfigFancy fancy ->
+                M.lookup expectedName (cfgTemplates fancy)
+                  QC.=== Just expectedTemplate
+
+              other ->
+                QC.counterexample
+                  ("expected ConfigFancy, got: " <> show other)
+                  False
+
+          (Left _, _, Left _) ->
+            QC.property True
+
+          (_, Left _, Left _) ->
+            QC.property True
+
+          (_, _, other) ->
+            QC.counterexample
+              ("unexpected result: " <> show other <> "\n\nTOML:\n" <> T.unpack toml)
+              False
   ]
 
 
@@ -285,7 +334,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -312,6 +363,7 @@ tests_buildConfig_unit_basic_success =
               }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras =
             Just (ConfigOverride emptyOverrideConfig)
         }
@@ -324,7 +376,6 @@ tests_buildConfig_unit_basic_success =
         , num_expr = Just 3
         , include_docs = Just True
         , model_options = Just (String "override-options")
-        , template_name = Just $ unsafeCreateRawTemplateName "compact"
         }
     , Just
       ( "config.toml"
@@ -334,7 +385,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -361,13 +414,14 @@ tests_buildConfig_unit_basic_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just
           ( ConfigOverride OverrideConfig
               { overrideModelName = Just (ModelName "override-model")
               , overrideNumExpr = Just 3
               , overrideIncludeDocs = Just True
               , overrideModelOptions = Just (String "override-options")
-              , overrideTemplate = Just (NamedTemplate $ unsafeCreateRawTemplateName "compact")
+              , overrideTemplate = Nothing
               }
           )
         }
@@ -390,7 +444,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -425,6 +481,7 @@ tests_buildConfig_unit_basic_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just
             ( ConfigOverlay SimpleConfig
                 { simpleTrigger = TriggerPrefix "ask"
@@ -506,7 +563,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -533,6 +592,7 @@ tests_buildConfig_unit_basic_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just (ConfigOverride emptyOverrideConfig)
         }
     )
@@ -561,29 +621,6 @@ tests_buildConfig_unit_basic_success =
         }
     )
 
-  , ( "simple config uses template name when template path is absent"
-    , \_path -> mempty
-        { config_path = Just ConfigDisabled
-        , template_name = Just $ unsafeCreateRawTemplateName "compact"
-        }
-    , Nothing
-    , defaultConfigOfMode $ ConfigSimple SimpleConfig
-        { simpleTrigger = defaultTriggerPolicy
-        , simpleService = Service
-          { svcName = ServiceName "__simple__"
-          , svcConfig = SvcOllama (OllamaConfig Nothing)
-          }
-        , simpleProfile = ServiceProf
-          { profService = ServiceName "__simple__"
-          , profModel = ModelName "qwen3:latest"
-          , profTemplate = Just (NamedTemplate $ unsafeCreateRawTemplateName "compact")
-          , profModelOptions = Nothing
-          , profNumExpr = Just 5
-          , profIncludeDocs = Just False
-          }
-        }
-    )
-
   , ( "fancy config override uses template path over template name"
     , \path -> mempty
         { config_path = ConfigExplicit <$> path
@@ -598,7 +635,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -625,6 +664,7 @@ tests_buildConfig_unit_basic_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just
             ( ConfigOverride OverrideConfig
                 { overrideModelName = Nothing
@@ -650,7 +690,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = [{ name = \"compact\", body = \"Use a compact prompt.\" }]"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -675,6 +717,11 @@ tests_buildConfig_unit_basic_success =
                   , profIncludeDocs = Nothing
                   }
                 }
+            )
+          ]
+        , cfgTemplates = M.fromList
+          [ ( unsafeCreateRawTemplateName "compact"
+            , Template [TemplateChunk "Use a compact prompt."]
             )
           ]
         , cfgExtras = Just
@@ -706,7 +753,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -741,6 +790,7 @@ tests_buildConfig_unit_basic_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just
             ( ConfigOverlay SimpleConfig
                 { simpleTrigger = defaultTriggerPolicy
@@ -779,7 +829,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = [{ name = \"compact\", body = \"Use a compact prompt.\" }]"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -812,6 +864,11 @@ tests_buildConfig_unit_basic_success =
                   , profIncludeDocs = Nothing
                   }
                 }
+            )
+          ]
+        , cfgTemplates = M.fromList
+          [ ( unsafeCreateRawTemplateName "compact"
+            , Template [TemplateChunk "Use a compact prompt."]
             )
           ]
         , cfgExtras = Just
@@ -850,7 +907,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -885,6 +944,7 @@ tests_buildConfig_unit_basic_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just
             ( ConfigOverlay SimpleConfig
                 { simpleTrigger = defaultTriggerPolicy
@@ -921,7 +981,9 @@ tests_buildConfig_unit_basic_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -956,6 +1018,7 @@ tests_buildConfig_unit_basic_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just
             ( ConfigOverlay SimpleConfig
                 { simpleTrigger = defaultTriggerPolicy
@@ -985,11 +1048,13 @@ tests_buildConfig_unit_basic_success =
     , Just
       ( "config.toml"
       , "services = []\n\
-        \profiles = []"
+        \profiles = []\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList []
         , cfgProfiles = M.fromList []
+        , cfgTemplates = mempty
         , cfgExtras = Just
             ( ConfigOverride OverrideConfig
                 { overrideModelName = Nothing
@@ -1108,7 +1173,66 @@ tests_buildConfig_unit_basic_success =
           }
         }
     )
+
+  , ( "fancy config builds named template map"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+        ( "config.toml"
+        , T.unlines
+          [ "services = ["
+          , "  { name = \"ollama\", protocol = \"ollama\" }"
+          , "]"
+          , ""
+          , "templates = ["
+          , "  { name = \"brief\", body = \"Return only expressions.\" }"
+          , "]"
+          , ""
+          , "profiles = ["
+          , "  { name = \"default\", type = \"service\", service = \"ollama\", model = \"qwen3:latest\", template = \"brief\" }"
+          , "]"
+          ]
+        )
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
+        { cfgServices = M.fromList
+          [ ( ServiceName "ollama"
+            , Service
+              { svcName = ServiceName "ollama"
+              , svcConfig = SvcOllama (OllamaConfig Nothing)
+              }
+            )
+          ]
+        , cfgProfiles = M.fromList
+          [ ( ProfileName "default"
+            , Profile
+              { profName = ProfileName "default"
+              , profTrigger = TriggerNone
+              , profKind = ProfService ServiceProf
+                { profService = ServiceName "ollama"
+                , profModel = ModelName "qwen3:latest"
+                , profTemplate = Just $
+                    NamedTemplate $ unsafeCreateRawTemplateName "brief"
+                , profModelOptions = Nothing
+                , profNumExpr = Nothing
+                , profIncludeDocs = Nothing
+                }
+              }
+            )
+          ]
+        , cfgTemplates = M.fromList
+          [ ( unsafeCreateRawTemplateName "brief"
+            , expectTemplate "Return only expressions."
+            )
+          ]
+        , cfgExtras = Just $ ConfigOverride emptyOverrideConfig
+        }
+    )
   ]
+
+
+
+
 
 tests_buildConfig_unit_basic_failure
   :: [(TestName, Maybe FilePath -> Flags, Maybe (String, Text))]
@@ -1151,7 +1275,9 @@ tests_buildConfig_unit_basic_failure =
       ( "config.toml"
       , "profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'missing', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     )
 
@@ -1167,7 +1293,9 @@ tests_buildConfig_unit_basic_failure =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'bad', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     )
 
@@ -1183,7 +1311,9 @@ tests_buildConfig_unit_basic_failure =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     )
 
@@ -1203,8 +1333,18 @@ tests_buildConfig_unit_basic_failure =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', trigger = 'prefix:llm', service = 'ollama', model = 'qwen3:latest', template = '../bad' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
+    )
+
+  , ( "simple config rejects template name when template path is absent"
+    , \_path -> mempty
+        { config_path = Just ConfigDisabled
+        , template_name = Just (unsafeCreateRawTemplateName "compact")
+        }
+    , Nothing
     )
   ]
 
@@ -1274,6 +1414,7 @@ tests_buildConfig_unit_validate_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just (ConfigOverride emptyOverrideConfig)
         }
     )
@@ -1289,7 +1430,9 @@ tests_buildConfig_unit_validate_success =
         \  { name = 'openai', protocol = 'openai', base_url = 'https://example.invalid/v1', key_name = 'TEST_API_KEY' }\n\
         \]\n\
         \\n\
-        \profiles = []"
+        \profiles = []\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -1309,6 +1452,7 @@ tests_buildConfig_unit_validate_success =
             )
           ]
         , cfgProfiles = M.fromList []
+        , cfgTemplates = mempty
         , cfgExtras = Just (ConfigOverride emptyOverrideConfig)
         }
     )
@@ -1325,7 +1469,9 @@ tests_buildConfig_unit_validate_success =
         \\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -1352,6 +1498,7 @@ tests_buildConfig_unit_validate_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just (ConfigOverride emptyOverrideConfig)
         }
     )
@@ -1371,7 +1518,9 @@ tests_buildConfig_unit_validate_success =
         \  { name = 'leaf2', type = 'service', service = 'local', model = 'qwen3:latest' },\n\
         \  { name = 'inner', type = 'fanout', profiles = ['leaf1', 'leaf2'] },\n\
         \  { name = 'outer', type = 'fanout', profiles = ['inner', 'leaf1'] }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -1434,6 +1583,7 @@ tests_buildConfig_unit_validate_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just (ConfigOverride emptyOverrideConfig)
         }
     )
@@ -1449,8 +1599,10 @@ tests_buildConfig_unit_validate_success =
         \]\n\
         \\n\
         \profiles = [\n\
-        \  { name = 'rich', type = 'service', trigger = 'all', service = 'remote', model = 'gpt-test', template = 'prompt', num_expr = 17, include_docs = true }\n\
-        \]"
+        \  { name = 'rich', type = 'service', trigger = 'all', service = 'remote', model = 'gpt-test', template = 'default', num_expr = 17, include_docs = true }\n\
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , defaultConfigOfMode $ ConfigFancy FancyConfig
         { cfgServices = M.fromList
@@ -1471,7 +1623,7 @@ tests_buildConfig_unit_validate_success =
                 , profKind = ProfService ServiceProf
                   { profService = ServiceName "remote"
                   , profModel = ModelName "gpt-test"
-                  , profTemplate = Just (NamedTemplate (unsafeCreateRawTemplateName "prompt"))
+                  , profTemplate = Just DefaultTemplate
                   , profModelOptions = Nothing
                   , profNumExpr = Just 17
                   , profIncludeDocs = Just True
@@ -1479,10 +1631,70 @@ tests_buildConfig_unit_validate_success =
                 }
             )
           ]
+        , cfgTemplates = mempty
         , cfgExtras = Just (ConfigOverride emptyOverrideConfig)
         }
     )
+
+  , ( "profile may reference existing named template"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+        ( "config.toml"
+        , T.unlines
+          [ "services = ["
+          , "  { name = \"ollama\", protocol = \"ollama\" }"
+          , "]"
+          , ""
+          , "templates = ["
+          , "  { name = \"brief\", body = \"Return only expressions.\" }"
+          , "]"
+          , ""
+          , "profiles = ["
+          , "  { name = \"default\", type = \"service\", service = \"ollama\", model = \"qwen3:latest\", template = \"brief\" }"
+          , "]"
+          ]
+        )
+    , defaultConfigOfMode $ ConfigFancy FancyConfig
+        { cfgServices = M.fromList
+          [ ( ServiceName "ollama"
+            , Service
+              { svcName = ServiceName "ollama"
+              , svcConfig = SvcOllama (OllamaConfig Nothing)
+              }
+            )
+          ]
+        , cfgProfiles = M.fromList
+          [ ( ProfileName "default"
+            , Profile
+              { profName = ProfileName "default"
+              , profTrigger = TriggerNone
+              , profKind = ProfService ServiceProf
+                { profService = ServiceName "ollama"
+                , profModel = ModelName "qwen3:latest"
+                , profTemplate = Just $
+                    NamedTemplate $ unsafeCreateRawTemplateName "brief"
+                , profModelOptions = Nothing
+                , profNumExpr = Nothing
+                , profIncludeDocs = Nothing
+                }
+              }
+            )
+          ]
+        , cfgTemplates = M.fromList
+          [ ( unsafeCreateRawTemplateName "brief"
+            , expectTemplate "Return only expressions."
+            )
+          ]
+        , cfgExtras = Just $ ConfigOverride emptyOverrideConfig
+        }
+    )
   ]
+
+
+
+
 
 tests_buildConfig_unit_validate_failure
   :: [(TestName, Maybe FilePath -> Flags, Maybe (String, Text), ConfigError -> Assertion)]
@@ -1578,7 +1790,9 @@ tests_buildConfig_unit_validate_failure =
         \  { name = 'ollama', protocol = 'ollama' }\n\
         \]\n\
         \\n\
-        \profiles = []"
+        \profiles = []\n\
+        \\n\
+        \templates = []"
       )
     , \err ->
         err @?= DuplicateServiceName (ServiceName "ollama")
@@ -1593,7 +1807,9 @@ tests_buildConfig_unit_validate_failure =
       , "services = []\n\
         \profiles = [\n\
         \  { name = 'p', type = 'service', service = 'ollama', model = 'qwen3:latest' }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , \err ->
         err @?= UnknownServiceReference
@@ -1614,7 +1830,9 @@ tests_buildConfig_unit_validate_failure =
         \profiles = [\n\
         \  { name = 'leaf', type = 'service', service = 'local', model = 'qwen3:latest' },\n\
         \  { name = 'self', type = 'fanout', profiles = ['self'] }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , \err ->
         err @?= CyclicProfileReference
@@ -1637,7 +1855,9 @@ tests_buildConfig_unit_validate_failure =
         \  { name = 'leaf', type = 'service', service = 'local', model = 'qwen3:latest' },\n\
         \  { name = 'a', type = 'fanout', profiles = ['b'] },\n\
         \  { name = 'b', type = 'fanout', profiles = ['a'] }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , \err ->
         err @?= CyclicProfileReference
@@ -1661,12 +1881,107 @@ tests_buildConfig_unit_validate_failure =
         \  { name = 'good', type = 'service', service = 'local', model = 'qwen3:latest' },\n\
         \  { name = 'bad', type = 'service', service = 'missing', model = 'qwen3:latest' },\n\
         \  { name = 'pair', type = 'fanout', profiles = ['good', 'bad'] }\n\
-        \]"
+        \]\n\
+        \\n\
+        \templates = []"
       )
     , \err ->
         err @?= UnknownServiceReference
           (ProfileName "bad")
           (ServiceName "missing")
+    )
+
+  , ( "profile may not reference missing named template"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+        ( "config.toml"
+        , T.unlines
+          [ "services = ["
+          , "  { name = \"ollama\", protocol = \"ollama\" }"
+          , "]"
+          , ""
+          , "templates = []"
+          , ""
+          , "profiles = ["
+          , "  { name = \"default\", type = \"service\", service = \"ollama\", model = \"qwen3:latest\", template = \"missing\" }"
+          , "]"
+          ]
+        )
+    , \err ->
+        err @?= UnknownTemplateReference
+          (ProfileName "default")
+          (unsafeCreateRawTemplateName "missing")
+    )
+
+  , ( "duplicate template names are rejected"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        }
+    , Just
+        ( "config.toml"
+        , T.unlines
+          [ "services = []"
+          , "profiles = []"
+          , ""
+          , "templates = ["
+          , "  { name = \"brief\", body = \"A\" },"
+          , "  { name = \"brief\", body = \"B\" }"
+          , "]"
+          ]
+        )
+    , \err ->
+        err @?= DuplicateTemplateName
+          (unsafeCreateRawTemplateName "brief")
+    )
+
+  , ( "fancy config override rejects missing named template"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        , template_name = Just $ unsafeCreateRawTemplateName "missing"
+        }
+    , Just
+        ( "config.toml"
+        , T.unlines
+          [ "services = ["
+          , "  { name = \"ollama\", protocol = \"ollama\" }"
+          , "]"
+          , ""
+          , "templates = []"
+          , ""
+          , "profiles = ["
+          , "  { name = \"p\", type = \"service\", service = \"ollama\", model = \"qwen3:latest\" }"
+          , "]"
+          ]
+        )
+    , \err ->
+        err @?= UnknownExtraTemplateReference (unsafeCreateRawTemplateName "missing")
+    )
+
+  , ( "fancy config overlay rejects missing named template"
+    , \path -> mempty
+        { config_path = ConfigExplicit <$> path
+        , openai_base_url = Just "https://example.invalid/v1"
+        , openai_key_name = Just "TEST_API_KEY"
+        , template_name = Just $ unsafeCreateRawTemplateName "missing"
+        }
+    , Just
+        ( "config.toml"
+        , T.unlines
+          [ "services = ["
+          , "  { name = \"ollama\", protocol = \"ollama\" }"
+          , "]"
+          , ""
+          , "templates = []"
+          , ""
+          , "profiles = ["
+          , "  { name = \"p\", type = \"service\", service = \"ollama\", model = \"qwen3:latest\" }"
+          , "]"
+          ]
+        )
+    , \err ->
+        err @?= UnknownExtraTemplateReference (unsafeCreateRawTemplateName "missing")
     )
   ]
 
@@ -1687,6 +2002,8 @@ basicFancyToml =
     , "profiles = ["
     , "  { name = \"p\", type = \"service\", trigger = \"prefix:llm\", service = \"ollama\", model = \"qwen3:latest\" }"
     , "]"
+    , ""
+    , "templates = []"
     ]
 
 
@@ -1699,6 +2016,8 @@ duplicateServicesToml =
     , "]"
     , ""
     , "profiles = []"
+    , ""
+    , "templates = []"
     ]
 
 
@@ -1713,6 +2032,8 @@ duplicateProfilesToml =
     , "  { name = \"p\", type = \"service\", service = \"ollama\", model = \"m1\" },"
     , "  { name = \"p\", type = \"service\", service = \"ollama\", model = \"m2\" }"
     , "]"
+    , ""
+    , "templates = []"
     ]
 
 
@@ -1724,6 +2045,8 @@ unknownServiceToml =
     , "profiles = ["
     , "  { name = \"p\", type = \"service\", service = \"missing\", model = \"m\" }"
     , "]"
+    , ""
+    , "templates = []"
     ]
 
 
@@ -1737,6 +2060,8 @@ unknownFanoutProfileToml =
     , "profiles = ["
     , "  { name = \"fan\", type = \"fanout\", trigger = \"prefix:fan\", profiles = [\"missing\"] }"
     , "]"
+    , ""
+    , "templates = []"
     ]
 
 
@@ -1751,6 +2076,8 @@ cyclicFanoutToml =
     , "  { name = \"a\", type = \"fanout\", trigger = \"prefix:a\", profiles = [\"b\"] },"
     , "  { name = \"b\", type = \"fanout\", trigger = \"prefix:b\", profiles = [\"a\"] }"
     , "]"
+    , ""
+    , "templates = []"
     ]
 
 
@@ -1767,6 +2094,8 @@ nestedFanoutToml =
     , "  { name = \"mid\", type = \"fanout\", trigger = \"prefix:mid\", profiles = [\"a\", \"b\"] },"
     , "  { name = \"top\", type = \"fanout\", trigger = \"prefix:top\", profiles = [\"mid\"] }"
     , "]"
+    , ""
+    , "templates = []"
     ]
 
 
@@ -1781,6 +2110,8 @@ ambiguousTriggersToml =
     , "  { name = \"a\", type = \"service\", trigger = \"prefix:llm\", service = \"ollama\", model = \"ma\" },"
     , "  { name = \"b\", type = \"service\", trigger = \"prefix:llm\", service = \"ollama\", model = \"mb\" }"
     , "]"
+    , ""
+    , "templates = []"
     ]
 
 
@@ -1825,3 +2156,21 @@ emptyOverrideConfig =
     , overrideModelOptions = Nothing
     , overrideTemplate = Nothing
     }
+
+
+
+expectTemplate :: Text -> Template
+expectTemplate raw = case parseTemplate raw of
+  Right template -> template
+  Left err -> error $ "invalid test template body: " <> show err
+
+quoteTomlText :: Text -> Text
+quoteTomlText txt =
+  "\"" <> T.concatMap escapeChar txt <> "\""
+ where
+  escapeChar = \case
+    '\\' -> "\\\\"
+    '"'  -> "\\\""
+    '\n' -> "\\n"
+    '\t' -> "\\t"
+    c    -> T.singleton c

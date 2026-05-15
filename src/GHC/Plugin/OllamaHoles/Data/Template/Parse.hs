@@ -2,12 +2,16 @@ module GHC.Plugin.OllamaHoles.Data.Template.Parse
   ( parseTemplate
   , parseTemplateName
   , nameSafeChar
+  , tomlTemplate
   ) where
 
 import Data.Char (isAscii, isAlpha, isAlphaNum)
 import Data.Text (Text)
 import Data.Text qualified as T
+import Toml qualified as Toml
+import Toml.Schema qualified as Toml
 
+import Toml.Extra
 import GHC.Plugin.OllamaHoles.Data.Template.Types
 import GHC.Plugin.OllamaHoles.Data.Template.Types.Internal
 import GHC.Plugin.OllamaHoles.Data.Template.Error
@@ -100,3 +104,13 @@ parseTemplateName t
 
 nameSafeChar :: Char -> Bool
 nameSafeChar c = isAlphaNum c || c == '-' || c == '_'
+
+
+
+tomlTemplate :: Toml.Value' l -> Toml.Matcher l (TemplateName, Template)
+tomlTemplate = Toml.parseTableFromValue $ do
+  name <- Toml.reqKeyOf "name" $
+    tomlValidateText parseTemplateName renderTemplateError
+  body <- Toml.reqKeyOf "body" $
+    tomlValidateText parseTemplate renderTemplateError
+  pure (name, body)

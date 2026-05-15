@@ -73,7 +73,7 @@ serviceCallOps env = ServiceCallOps
   { opsListModels =
       listModelsFromEnv env
 
-  , opsGetServiceCallTemplate = \templateSearchDir _call ->
+  , opsGetServiceCallTemplate = \templateSearchDir _tmplMap _call ->
     case testExpectedTemplateSearchDir env of
       Nothing -> pure unusedTemplate
       Just expected

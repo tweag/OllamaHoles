@@ -170,12 +170,12 @@ library
       GHC.Plugin.OllamaHoles.Data.PluginState
       GHC.Plugin.OllamaHoles.Data.PluginState.Types
       GHC.Plugin.OllamaHoles.Error
-      GHC.Plugin.OllamaHoles.Flags
       GHC.Plugin.OllamaHoles.Logger
       GHC.Plugin.OllamaHoles.Prompt
       GHC.Plugin.OllamaHoles.Runtime
       GHC.Plugin.OllamaHoles.Runtime.Ops
       GHC.Plugin.OllamaHoles.Runtime.Init
+      Toml.Extra
 
 
 
@@ -234,12 +234,12 @@ library ollama-holes-lib
     , GHC.Plugin.OllamaHoles.Data.PluginState
     , GHC.Plugin.OllamaHoles.Data.PluginState.Types
     , GHC.Plugin.OllamaHoles.Error
-    , GHC.Plugin.OllamaHoles.Flags
     , GHC.Plugin.OllamaHoles.Logger
     , GHC.Plugin.OllamaHoles.Prompt
     , GHC.Plugin.OllamaHoles.Runtime
     , GHC.Plugin.OllamaHoles.Runtime.Ops
     , GHC.Plugin.OllamaHoles.Runtime.Init
+    , Toml.Extra
 
 
 
@@ -255,7 +255,6 @@ test-suite ollama-holes-spec
     , GHC.Plugin.OllamaHoles.Candidate.Rewrite.Spec
     , GHC.Plugin.OllamaHoles.Candidate.WithRenamedExpr
     , GHC.Plugin.OllamaHoles.Logger.Spec
-    , GHC.Plugin.OllamaHoles.Options.Spec
     , GHC.Plugin.OllamaHoles.Data.Spec
     , GHC.Plugin.OllamaHoles.Data.Config.Types.Gen
     , GHC.Plugin.OllamaHoles.Data.Config.Error.Predicate

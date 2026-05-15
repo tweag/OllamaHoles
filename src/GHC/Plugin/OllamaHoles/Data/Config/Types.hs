@@ -5,7 +5,7 @@ import Data.Map (Map)
 import GHC.Generics (Generic)
 
 import GHC.Plugin.OllamaHoles.Data.Trigger.Types (TriggerPolicy)
-import GHC.Plugin.OllamaHoles.Data.Template (TemplateSource)
+import GHC.Plugin.OllamaHoles.Data.Template (TemplateSource, Template, TemplateName)
 
 import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Data.Profile
@@ -32,6 +32,7 @@ data SimpleConfig = SimpleConfig
 data FancyConfig = FancyConfig
   { cfgServices :: Map ServiceName Service
   , cfgProfiles :: Map ProfileName Profile
+  , cfgTemplates :: Map TemplateName Template
   , cfgExtras   :: Maybe ExtraConfig
   } deriving (Eq, Show, Generic)
 

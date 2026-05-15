@@ -1,6 +1,7 @@
 module GHC.Plugin.OllamaHoles.Data.ServiceCall.Types where
 
 import Control.Monad.Except (ExceptT)
+import Data.Map (Map)
 import Data.Text (Text)
 
 import GHC.Plugin.OllamaHoles.Prompt
@@ -47,6 +48,6 @@ data ServiceCallOps m = ServiceCallOps
       :: PromptRequest -> ServiceCall
       -> ExceptT ServiceCallError m PromptResponse
   , opsGetServiceCallTemplate
-      :: FilePath -> ServiceCall
+      :: FilePath -> Map TemplateName Template -> ServiceCall
       -> ExceptT ServiceCallError m Template
   }

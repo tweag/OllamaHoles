@@ -48,13 +48,14 @@ tests_tomlPreferences_prop = testGroup "tomlPreferences prop"
     QC.forAll genEnvVarText $ \keyName ->
       let
         mkDoc protocol =
-          "[[services]]\n\
+          "templates = []\n\
+          \profiles = []\n\
+          \\n\
+          \[[services]]\n\
           \name = 'svc'\n\
           \protocol = '" <> protocol <> "'\n\
           \base_url = '" <> baseUrl <> "'\n\
-          \key_name = '" <> keyName <> "'\n\
-          \\n\
-          \profiles = []"
+          \key_name = '" <> keyName <> "'"
         p1 = parseTomlWith tomlPreferences (mkDoc "openai")
         p2 = parseTomlWith tomlPreferences (mkDoc "openai-compatible")
       in p1 QC.=== p2
@@ -65,6 +66,7 @@ tests_tomlPreferences_prop = testGroup "tomlPreferences prop"
       let
         doc =
           "services = []\n\
+          \templates = []\n\
           \\n\
           \[[profiles]]\n\
           \name = 'p'\n\
@@ -82,6 +84,7 @@ tests_tomlPreferences_prop = testGroup "tomlPreferences prop"
       let
         doc =
           "services = []\n\
+          \templates = []\n\
           \\n\
           \[[profiles]]\n\
           \name = 'p'\n\
@@ -113,6 +116,7 @@ tests_tomlPreferences_unit_success
 tests_tomlPreferences_unit_success =
   [ ( "decodes ollama service with host"
     , "profiles = []\n\
+      \templates = []\n\
       \\n\
       \[[services]]\n\
       \name = 'local'\n\
@@ -126,11 +130,13 @@ tests_tomlPreferences_unit_success =
           }
         ]
       , prefProfiles = []
+      , prefTemplates = []
       }
     )
 
   , ( "decodes ollama service without host"
     , "profiles = []\n\
+      \templates = []\n\
       \\n\
       \[[services]]\n\
       \name = 'local'\n\
@@ -143,11 +149,13 @@ tests_tomlPreferences_unit_success =
           }
         ]
       , prefProfiles = []
+      , prefTemplates = []
       }
     )
 
   , ( "decodes openai service"
     , "profiles = []\n\
+      \templates = []\n\
       \\n\
       \[[services]]\n\
       \name = 'groq'\n\
@@ -165,11 +173,13 @@ tests_tomlPreferences_unit_success =
           }
         ]
       , prefProfiles = []
+      , prefTemplates = []
       }
     )
 
   , ( "decodes openai-compatible service alias"
     , "profiles = []\n\
+      \templates = []\n\
       \\n\
       \[[services]]\n\
       \name = 'router'\n\
@@ -187,11 +197,13 @@ tests_tomlPreferences_unit_success =
           }
         ]
       , prefProfiles = []
+      , prefTemplates = []
       }
     )
 
   , ( "decodes gemini service"
     , "profiles = []\n\
+      \templates = []\n\
       \\n\
       \[[services]]\n\
       \name = 'gemini'\n\
@@ -205,11 +217,13 @@ tests_tomlPreferences_unit_success =
           }
         ]
       , prefProfiles = []
+      , prefTemplates = []
       }
     )
 
   , ( "decodes service profile minimal"
     , "services = []\n\
+      \templates = []\n\
       \\n\
       \[[profiles]]\n\
       \name = 'local'\n\
@@ -218,6 +232,7 @@ tests_tomlPreferences_unit_success =
       \model = 'qwen3:4b'"
     , Preferences
       { prefServices = []
+      , prefTemplates = []
       , prefProfiles =
         [ Profile
           { profName = ProfileName "local"
@@ -237,6 +252,7 @@ tests_tomlPreferences_unit_success =
 
   , ( "decodes service profile with default template"
     , "services = []\n\
+      \templates = []\n\
       \\n\
       \[[profiles]]\n\
       \name = 'local'\n\
@@ -246,6 +262,7 @@ tests_tomlPreferences_unit_success =
       \template = 'default'"
     , Preferences
       { prefServices = []
+      , prefTemplates = []
       , prefProfiles =
         [ Profile
           { profName = ProfileName "local"
@@ -265,6 +282,7 @@ tests_tomlPreferences_unit_success =
 
   , ( "decodes service profile with named template"
     , "services = []\n\
+      \templates = []\n\
       \\n\
       \[[profiles]]\n\
       \name = 'local'\n\
@@ -274,6 +292,7 @@ tests_tomlPreferences_unit_success =
       \template = 'small'"
     , Preferences
       { prefServices = []
+      , prefTemplates = []
       , prefProfiles =
         [ Profile
           { profName = ProfileName "local"
@@ -293,6 +312,7 @@ tests_tomlPreferences_unit_success =
 
   , ( "decodes service profile with template_file"
     , "services = []\n\
+      \templates = []\n\
       \\n\
       \[[profiles]]\n\
       \name = 'local'\n\
@@ -302,6 +322,7 @@ tests_tomlPreferences_unit_success =
       \template_file = '/tmp/prompt.txt'"
     , Preferences
       { prefServices = []
+      , prefTemplates = []
       , prefProfiles =
         [ Profile
           { profName = ProfileName "local"
@@ -321,6 +342,7 @@ tests_tomlPreferences_unit_success =
 
   , ( "decodes service profile trigger policy"
     , "services = []\n\
+      \templates = []\n\
       \\n\
       \[[profiles]]\n\
       \name = 'trigger'\n\
@@ -330,6 +352,7 @@ tests_tomlPreferences_unit_success =
       \trigger = 'prefix:llm'"
     , Preferences
       { prefServices = []
+      , prefTemplates = []
       , prefProfiles =
         [ Profile
           { profName = ProfileName "trigger"
@@ -349,6 +372,7 @@ tests_tomlPreferences_unit_success =
 
   , ( "decodes fanout profile"
     , "services = []\n\
+      \templates = []\n\
       \\n\
       \[[profiles]]\n\
       \name = 'pair'\n\
@@ -356,6 +380,7 @@ tests_tomlPreferences_unit_success =
       \profiles = ['local', 'remote']"
     , Preferences
       { prefServices = []
+      , prefTemplates = []
       , prefProfiles =
         [ Profile
           { profName = ProfileName "pair"
@@ -371,6 +396,7 @@ tests_tomlPreferences_unit_success =
 
   , ( "fanout alias parses too"
     , "services = []\n\
+      \templates = []\n\
       \\n\
       \[[profiles]]\n\
       \name = 'pair'\n\
@@ -378,6 +404,7 @@ tests_tomlPreferences_unit_success =
       \profiles = ['local']"
     , Preferences
       { prefServices = []
+      , prefTemplates = []
       , prefProfiles =
         [ Profile
           { profName = ProfileName "pair"
@@ -391,6 +418,7 @@ tests_tomlPreferences_unit_success =
 
   , ( "decodes model_options object as aeson value"
     , "services = []\n\
+      \templates = []\n\
       \\n\
       \[[profiles]]\n\
       \name = 'local'\n\
@@ -403,6 +431,7 @@ tests_tomlPreferences_unit_success =
       \num_ctx = 32768"
     , Preferences
       { prefServices = []
+      , prefTemplates = []
       , prefProfiles =
         [ Profile
           { profName = ProfileName "local"
@@ -423,8 +452,10 @@ tests_tomlPreferences_unit_success =
       }
     )
 
-  , ( "decodes full preferences document"
-    , "[[services]]\n\
+  , ( "decodes preferences document with services and profiles"
+    , "templates = []\n\
+      \\n\
+      \[[services]]\n\
       \name = 'local'\n\
       \protocol = 'ollama'\n\
       \host = 'http://127.0.0.1:11434'\n\
@@ -482,6 +513,86 @@ tests_tomlPreferences_unit_success =
           , profTrigger = TriggerNone
           }
         ]
+      , prefTemplates = []
+      }
+    )
+
+  , ( "decodes empty templates list"
+    , "services = []\n\
+      \profiles = []\n\
+      \templates = []"
+    , Preferences
+      { prefServices = []
+      , prefProfiles = []
+      , prefTemplates = []
+      }
+    )
+
+  , ( "decodes single template"
+    , "services = []\n\
+      \profiles = []\n\
+      \\n\
+      \[[templates]]\n\
+      \name = 'brief'\n\
+      \body = 'Return only expressions, one per line.'"
+    , Preferences
+      { prefServices = []
+      , prefProfiles = []
+      , prefTemplates =
+        [ ( expectTemplateName "brief"
+          , expectTemplate "Return only expressions, one per line."
+          )
+        ]
+      }
+    )
+
+  , ( "decodes multiple templates"
+    , "services = []\n\
+      \profiles = []\n\
+      \\n\
+      \[[templates]]\n\
+      \name = 'brief'\n\
+      \body = 'Return only expressions.'\n\
+      \\n\
+      \[[templates]]\n\
+      \name = 'verbose'\n\
+      \body = 'Explain why each expression fits.'"
+    , Preferences
+      { prefServices = []
+      , prefProfiles = []
+      , prefTemplates =
+        [ ( expectTemplateName "brief"
+          , expectTemplate "Return only expressions."
+          )
+        , ( expectTemplateName "verbose"
+          , expectTemplate "Explain why each expression fits."
+          )
+        ]
+      }
+    )
+
+  , ( "decodes multiline template body"
+    , "services = []\n\
+      \profiles = []\n\
+      \\n\
+      \[[templates]]\n\
+      \name = 'typed-hole'\n\
+      \body = '''\n\
+      \You are filling a Haskell typed hole.\n\
+      \\n\
+      \Return candidate expressions only.\n\
+      \'''"
+    , Preferences
+      { prefServices = []
+      , prefProfiles = []
+      , prefTemplates =
+        [ ( expectTemplateName "typed-hole"
+          , expectTemplate
+              "You are filling a Haskell typed hole.\n\
+              \\n\
+              \Return candidate expressions only.\n"
+          )
+        ]
       }
     )
   ]
@@ -492,6 +603,7 @@ tests_tomlPreferences_unit_failure
 tests_tomlPreferences_unit_failure =
   [ ( "rejects invalid service protocol"
     , "profiles = []\n\
+      \templates = []\n\
       \\n\
       \[[services]]\n\
       \name = 'bad'\n\
@@ -500,6 +612,7 @@ tests_tomlPreferences_unit_failure =
 
   , ( "rejects openai service missing base_url"
     , "profiles = []\n\
+      \templates = []\n\
       \\n\
       \[[services]]\n\
       \name = 'groq'\n\
@@ -509,6 +622,7 @@ tests_tomlPreferences_unit_failure =
 
   , ( "rejects service profile with both template and template_file"
     , "services = []\n\
+      \templates = []\n\
       \\n\
       \[[profiles]]\n\
       \name = 'local'\n\
@@ -521,6 +635,7 @@ tests_tomlPreferences_unit_failure =
 
   , ( "rejects invalid trigger policy"
     , "services = []\n\
+      \templates = []\n\
       \\n\
       \[[profiles]]\n\
       \name = 'local'\n\
@@ -532,6 +647,7 @@ tests_tomlPreferences_unit_failure =
 
   , ( "rejects empty fanout profile list"
     , "services = []\n\
+      \templates = []\n\
       \\n\
       \[[profiles]]\n\
       \name = 'pair'\n\
@@ -541,9 +657,85 @@ tests_tomlPreferences_unit_failure =
 
   , ( "rejects invalid profile type"
     , "services = []\n\
+      \templates = []\n\
       \\n\
       \[[profiles]]\n\
       \name = 'bad'\n\
       \type = 'wat'"
     )
+
+  , ( "rejects missing top-level templates key"
+    , "services = []\n\
+      \profiles = []"
+    )
+
+  , ( "rejects template missing name"
+    , "services = []\n\
+      \profiles = []\n\
+      \\n\
+      \[[templates]]\n\
+      \body = 'Return only expressions.'"
+    )
+
+  , ( "rejects template missing body"
+    , "services = []\n\
+      \profiles = []\n\
+      \\n\
+      \[[templates]]\n\
+      \name = 'brief'"
+    )
+
+  , ( "rejects non-string template name"
+    , "services = []\n\
+      \profiles = []\n\
+      \\n\
+      \[[templates]]\n\
+      \name = 123\n\
+      \body = 'Return only expressions.'"
+    )
+
+  , ( "rejects non-string template body"
+    , "services = []\n\
+      \profiles = []\n\
+      \\n\
+      \[[templates]]\n\
+      \name = 'brief'\n\
+      \body = 123"
+    )
+
+  , ( "rejects invalid template name"
+    , "services = []\n\
+      \profiles = []\n\
+      \\n\
+      \[[templates]]\n\
+      \name = '../secrets'\n\
+      \body = 'Return only expressions.'"
+    )
+
+  , ( "rejects malformed template body"
+    , "services = []\n\
+      \profiles = []\n\
+      \\n\
+      \[[templates]]\n\
+      \name = 'bad'\n\
+      \body = 'This has a malformed {{ placeholder.'"
+    )
   ]
+
+
+
+expectTemplateName :: Text -> TemplateName
+expectTemplateName raw =
+  case parseTemplateName raw of
+    Right name ->
+      name
+    Left err ->
+      error $ "invalid test template name: " <> show err
+
+expectTemplate :: Text -> Template
+expectTemplate raw =
+  case parseTemplate raw of
+    Right template ->
+      template
+    Left err ->
+      error $ "invalid test template body: " <> show err

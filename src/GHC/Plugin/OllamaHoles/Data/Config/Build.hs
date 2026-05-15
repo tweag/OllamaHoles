@@ -3,7 +3,7 @@ module GHC.Plugin.OllamaHoles.Data.Config.Build
   ) where
 
 import Control.Exception (try)
-import Control.Monad (foldM)
+import Control.Monad (foldM, when)
 import Control.Monad.Except (ExceptT(..), MonadError(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.List.NonEmpty (NonEmpty(..))
@@ -23,7 +23,7 @@ import GHC.Plugin.OllamaHoles.Data.Service.Types
 import GHC.Plugin.OllamaHoles.Data.Trigger.Types
 import GHC.Plugin.OllamaHoles.Data.Prefs.Parse
 import GHC.Plugin.OllamaHoles.Data.Prefs.Types
-import GHC.Plugin.OllamaHoles.Data.Template (TemplateSource(..))
+import GHC.Plugin.OllamaHoles.Data.Template (TemplateSource(..), Template, TemplateName)
 
 import GHC.Plugin.OllamaHoles.Data.Config.Error
 
@@ -101,10 +101,12 @@ data ConfigRequirement
 
 buildSimpleConfig
   :: (MonadIO m) => Flags -> ExceptT ConfigError m SimpleConfig
-buildSimpleConfig = pure . simpleConfigFromFlags
+buildSimpleConfig flags = case simpleTemplateSourceFromFlags flags of
+  Left err -> throwError err
+  Right source -> pure $ simpleConfigFromFlags flags source
 
-simpleConfigFromFlags :: Flags -> SimpleConfig
-simpleConfigFromFlags flags = SimpleConfig
+simpleConfigFromFlags :: Flags -> Maybe TemplateSource -> SimpleConfig
+simpleConfigFromFlags flags source = SimpleConfig
   { simpleTrigger = fromMaybe defaultTriggerPolicy (trigger_policy flags)
   , simpleService = Service
     { svcName = serviceName
@@ -119,11 +121,7 @@ simpleConfigFromFlags flags = SimpleConfig
   , simpleProfile = ServiceProf
     { profService = serviceName
     , profModel = fromMaybe defaultModelName (ModelName <$> model_name flags)
-    , profTemplate = case template_path flags of
-        Just path -> Just (TemplateFile path)
-        _ -> case template_name flags of
-          Just name -> Just (NamedTemplate name)
-          _ -> Nothing
+    , profTemplate = source
     , profModelOptions = model_options flags
     , profNumExpr = Just (fromMaybe defaultNumExpr (num_expr flags))
     , profIncludeDocs = Just (fromMaybe defaultIncludeDocs (include_docs flags))
@@ -156,16 +154,18 @@ buildFancyConfig path flags rawConfig = do
 resolveConfig :: (MonadIO m) => Flags -> Preferences -> ExceptT ConfigError m FancyConfig
 resolveConfig flags prefs = do
   svcMap  <- ExceptT $ pure $ buildServiceMap (prefServices prefs)
-  profMap <- ExceptT $ pure $ buildProfileMap svcMap (prefProfiles prefs)
+  tmplMap <- ExceptT $ pure $ buildTemplateMap (prefTemplates prefs)
+  profMap <- ExceptT $ pure $ buildProfileMap svcMap tmplMap (prefProfiles prefs)
 
   case validateProfileTriggers (prefProfiles prefs) of
     Left err -> throwError $ AmbiguousProfileTriggers err
     Right () -> pure ()
 
   addFlagExtras flags $ FancyConfig
-    { cfgServices = svcMap
-    , cfgProfiles = profMap
-    , cfgExtras   = Nothing
+    { cfgServices  = svcMap
+    , cfgProfiles  = profMap
+    , cfgTemplates = tmplMap
+    , cfgExtras    = Nothing
     }
 
 buildServiceMap
@@ -176,13 +176,22 @@ buildServiceMap = flip foldM mempty $ \acc pref ->
     then Left (DuplicateServiceName (svcName pref))
     else Right (M.insert (svcName pref) pref acc)
 
+buildTemplateMap
+  :: [(TemplateName, Template)]
+  -> Either ConfigError (Map TemplateName Template)
+buildTemplateMap = flip foldM mempty $ \acc (name, tmpl) ->
+  if name `M.member` acc
+    then Left (DuplicateTemplateName name)
+    else Right (M.insert name tmpl acc)
+
 buildProfileMap
   :: Map ServiceName Service
+  -> Map TemplateName Template
   -> [Profile]
   -> Either ConfigError (Map ProfileName Profile)
-buildProfileMap svcMap prefs = do
+buildProfileMap svcMap tmplMap prefs = do
   prefMap <- buildProfilePreferenceMap prefs
-  traverse (resolveProfile prefMap svcMap []) prefMap
+  traverse (resolveProfile prefMap svcMap tmplMap []) prefMap
 
 buildProfilePreferenceMap
   :: [Profile]
@@ -195,21 +204,26 @@ buildProfilePreferenceMap = flip foldM mempty $ \acc prof ->
 resolveProfile
   :: Map ProfileName Profile
   -> Map ServiceName Service
+  -> Map TemplateName Template
   -> [ProfileName]
   -> Profile
   -> Either ConfigError Profile
-resolveProfile profMap svcMap stack prof =
+resolveProfile profMap svcMap tmplMap stack prof =
   case profKind prof of
     ProfService svcProf -> do
       -- Ensure that the service exists in config.
       case M.lookup (profService svcProf) svcMap of
         Nothing -> Left (UnknownServiceReference (profName prof) (profService svcProf))
-        Just _ -> pure prof
+        Just _ -> case profTemplate svcProf of
+          Just (NamedTemplate name) -> case M.lookup name tmplMap of
+            Just _ -> pure prof
+            _ -> Left (UnknownTemplateReference (profName prof) name)
+          _ -> pure prof
 
     ProfFanout fpp -> do
       -- Ensure dependencies exist and do not have cycles.
       leaves <- traverse
-        (resolveFanoutMember profMap svcMap (profName prof : stack) (profName prof))
+        (resolveFanoutMember profMap svcMap tmplMap (profName prof : stack) (profName prof))
         (profProfiles fpp)
       pure prof
         { profKind = ProfFanout $ FanoutProf $ foldl1 (<>) leaves
@@ -218,17 +232,18 @@ resolveProfile profMap svcMap stack prof =
 resolveFanoutMember
   :: Map ProfileName Profile
   -> Map ServiceName Service
+  -> Map TemplateName Template
   -> [ProfileName] -- stack of profiles
   -> ProfileName   -- parent
   -> ProfileName   -- child
   -> Either ConfigError (NonEmpty ProfileName)
-resolveFanoutMember profMap svcMap stack parent child =
+resolveFanoutMember profMap svcMap tmplMap stack parent child =
   if child `elem` stack
     then Left (CyclicProfileReference (reverse (child : stack)))
     else case M.lookup child profMap of
       Nothing -> Left $ UnknownProfileReference parent child
       Just prof -> do
-        prof' <- resolveProfile profMap svcMap stack prof
+        prof' <- resolveProfile profMap svcMap tmplMap stack prof
         case profKind prof' of
           ProfService _ -> Right (profName prof' :| [])
           ProfFanout (FanoutProf xs) -> Right xs
@@ -239,21 +254,65 @@ resolveFanoutMember profMap svcMap stack parent child =
 ---------
 
 addFlagExtras
-  :: (Monad m) => Flags -> FancyConfig -> ExceptT ConfigError m FancyConfig
+  :: Monad m
+  => Flags
+  -> FancyConfig
+  -> ExceptT ConfigError m FancyConfig
 addFlagExtras flags cfg
   | flagsWantOverlay flags = do
-      let overlay = simpleConfigFromFlags flags
-          overlaySvc = simpleService overlay
+      let overlay = simpleConfigFromFlags flags (configTemplateSourceFromFlags flags)
+      validateSimpleConfigTemplate (cfgTemplates cfg) overlay
+
+      let overlaySvc = simpleService overlay
           overlaySvcName = svcName overlaySvc
+
       if overlaySvcName `M.member` cfgServices cfg
         then throwError $ DuplicateServiceName overlaySvcName
         else pure cfg
           { cfgServices = M.insert overlaySvcName overlaySvc (cfgServices cfg)
           , cfgExtras = Just (ConfigOverlay overlay)
           }
-  | otherwise = pure cfg
-    { cfgExtras = Just (ConfigOverride (overrideConfigFromFlags flags))
-    }
+
+  | otherwise = do
+      let override = overrideConfigFromFlags flags
+      validateOverrideTemplate (cfgTemplates cfg) override
+      pure cfg
+        { cfgExtras = Just (ConfigOverride override)
+        }
+
+validateSimpleConfigTemplate
+  :: MonadError ConfigError m
+  => Map TemplateName Template
+  -> SimpleConfig
+  -> m ()
+validateSimpleConfigTemplate tmplMap simple =
+  validateMaybeTemplateSource tmplMap $
+    profTemplate (simpleProfile simple)
+
+validateOverrideTemplate
+  :: MonadError ConfigError m
+  => Map TemplateName Template
+  -> OverrideConfig
+  -> m ()
+validateOverrideTemplate tmplMap override =
+  validateMaybeTemplateSource tmplMap $
+    overrideTemplate override
+
+validateMaybeTemplateSource
+  :: MonadError ConfigError m
+  => Map TemplateName Template
+  -> Maybe TemplateSource
+  -> m ()
+validateMaybeTemplateSource tmplMap = \case
+  Just (NamedTemplate name)
+    | name `M.member` tmplMap ->
+        pure ()
+
+    | otherwise ->
+        throwError $ UnknownExtraTemplateReference name
+
+  _ ->
+    pure ()
 
 flagsWantOverlay :: Flags -> Bool
 flagsWantOverlay flags = or
@@ -268,15 +327,22 @@ overrideConfigFromFlags flags = OverrideConfig
   , overrideNumExpr = num_expr flags
   , overrideIncludeDocs = include_docs flags
   , overrideModelOptions = model_options flags
-  , overrideTemplate = templateSourceFromFlags flags
+  , overrideTemplate = configTemplateSourceFromFlags flags
   }
 
-templateSourceFromFlags :: Flags -> Maybe TemplateSource
-templateSourceFromFlags flags = case template_path flags of
-  Just path -> Just (TemplateFile path)
-  Nothing -> fmap NamedTemplate $ template_name flags
+simpleTemplateSourceFromFlags :: Flags -> Either ConfigError (Maybe TemplateSource)
+simpleTemplateSourceFromFlags flags = case template_path flags of
+  Just path -> pure $ Just $ TemplateFile path
+  Nothing -> case template_name flags of
+    Just name -> Left $ NamedTemplateRequiresConfig name
+    Nothing -> pure Nothing
 
-
+configTemplateSourceFromFlags
+  :: Flags -> Maybe TemplateSource
+configTemplateSourceFromFlags flags =
+  case template_path flags of
+    Just path -> Just $ TemplateFile path
+    Nothing -> NamedTemplate <$> template_name flags
 
 -- Defaults
 -----------
