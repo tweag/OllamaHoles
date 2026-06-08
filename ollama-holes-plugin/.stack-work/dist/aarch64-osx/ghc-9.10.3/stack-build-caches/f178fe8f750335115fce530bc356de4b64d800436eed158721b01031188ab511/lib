@@ -1,0 +1,8 @@
+? /Users/nathanbloomfield/.stack/programs/aarch64-osx/ghc-9.10.3/lib/ghc-9.10.3/lib/aarch64-osx-ghc-9.10.3/rts-1.0.2/include/ghcversion.h
+: hash: 7590ea01e313d089c303211ba85b0e4454627be40dcb88be287ed32f7e97187f
+? /Users/nathanbloomfield/code/OllamaHoles/ollama-holes-plugin/.stack-work/dist/aarch64-osx/ghc-9.10.3/build/autogen/cabal_macros.h
+: hash: 9492779d3a5c825c074a6b14ba653f222f80f7e16072a9e3f0ab76a75bf58d2a
+/Users/nathanbloomfield/code/OllamaHoles/ollama-holes-plugin/ollama-holes-plugin.cabal:
+  hash: 638684a2074f2b5ec900977a30f6a7518b470620266132949740c6d6281653e9
+/Users/nathanbloomfield/code/OllamaHoles/ollama-holes-plugin/plugin-src/GHC/Plugin/OllamaHoles.hs:
+  hash: 2313da124184f26b5f3eb0db1436ba3d1f999b030512caf4991f94e75aded9cd

@@ -1,0 +1,353 @@
+data Arg a = Lit a | Ref Int
+
+class Symbolic a where
+  data Sym env a
+  litSym :: a -> Sym env a
+
+  evalSym :: EnvValues env -> Sym env a -> Either SymError a
+
+  shrinkSym :: Sym env a -> ShrinkTree (Sym env a)
+
+evalSym env (litSym a) = Right a
+
+evalSym env (symRef r) = Right (lookupRef r env)
+
+weakenSym :: Sym env a -> Sym (Ext env b) a
+evalSym (extend env b) (weakenSym x) = evalSym env x
+
+
+class Observable a where
+  data Obs env a
+  observe :: a -> Obs env a
+
+
+
+Sym a -> m (Obs t e b)
+
+
+data Program env r where
+  Done :: r -> Program env r
+  Bind
+    :: Cmd env a
+    -> Program (Ext env a) r
+    -> Program env r
+
+runProgram :: EnvValues env -> Program env r -> IO (Either e r)
+runProgram env = \case
+  Done r ->
+    pure $ Right r
+  Bind cmd rest -> do
+    result <- runCmd env cmd
+    case result of
+      Left e ->
+        pure $ Left e
+      Right a ->
+        runProgram (extend env a) rest
+
+
+
+data SymMaybe env a
+  = SymNothing
+  | SymJust (Sym env a) -- allow a symbolic a, we can see the structure
+  | SymMaybeVar (Ref env (Maybe a))
+
+evalSymMaybe env = \case
+  SymNothing ->
+    Right Nothing
+  SymJust x ->
+    Just <$> evalSym env x
+  SymMaybeVar r ->
+    Right $ lookupRef r env
+
+
+Sym env is like a monad indexed by env
+
+pure/lit :: a -> Sym env a
+var      :: Ref env a -> Sym env a
+eval     :: EnvValues env -> Sym env a -> a
+weaken   :: env <= env' -> Sym env a -> Sym env' a
+subst :: Subst env env' -> Sym env a -> Sym env' a
+
+
+
+
+class Symbolic a where
+  data SymStruct env a
+  genSymStruct :: ...
+  evalSymStruct :: EnvValues env -> SymStruct env a -> Either SymError a
+
+data Sym env a
+  = Lit a
+  | Var (Ref env a)
+  | Struct (SymStruct env a)
+
+evalSym env = \case
+  Lit a ->
+    Right a
+  Var r ->
+    Right $ lookupRef r env
+  Struct s ->
+    evalStruct env s
+  
+shrinkSym x preserves type and scope
+
+
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
+
+module GHC.Plugin.OllamaHoles.Config.Types
+  ( ProfileName(..)
+  , ServiceName(..)
+  , ModelName(..)
+  , BackendProtocol(..)
+  , Preferences(..)
+  , ServicePreference(..)
+  , ServicePreferenceConfig(..)
+  , ProfilePreference(..)
+  , ProfilePreferenceKind(..)
+  , ServiceProfilePreference(..)
+  , FanoutProfilePreference(..)
+  , TemplateRef(..)
+  , Config(..)
+  , Service(..)
+  , ServiceConfig(..)
+  , Profile(..)
+  , ProfileKind(..)
+  , ServiceProfile(..)
+  , ConfigError(..)
+  , resolveConfig
+  ) where
+
+import Data.Aeson (Value)
+import Data.List.NonEmpty (NonEmpty)
+import Data.Map.Strict (Map)
+import Data.Text (Text)
+import GHC.Generics (Generic)
+
+import GHC.Plugin.OllamaHoles.Trigger (TriggerPolicy)
+
+
+
+data BackendProtocol
+  = BackendOllama
+  | BackendOpenAICompatible
+  | BackendGemini
+  deriving (Eq, Ord, Show, Generic)
+
+
+
+
+
+
+
+
+-- Validation / resolution errors
+---------------------------------
+
+
+
+
+
+
+
+
+module GHC.Plugin.OllamaHoles.Config.Toml
+  ( PreferencesTomlError(..)
+  , parsePreferencesToml
+  ) where
+
+{-# LANGUAGE OverloadedStrings #-}
+
+module GHC.Plugin.OllamaHoles.Config.Toml
+  ( PreferencesTomlError(..)
+  , parsePreferencesToml
+  ) where
+
+import Data.Aeson (Value)
+import Data.List.NonEmpty (NonEmpty(..))
+import Data.List.NonEmpty qualified as NE
+import Data.Text (Text)
+import Data.Text qualified as T
+
+import GHC.Plugin.OllamaHoles.Config.Types
+import GHC.Plugin.OllamaHoles.Trigger
+  ( TriggerPolicy
+  , parseTriggerPolicy
+  )
+
+data PreferencesTomlError
+  = TomlSyntaxError Text
+  | MissingField Text
+  | InvalidField Text Text
+  | InvalidTriggerField Text
+  | InvalidProtocol Text
+  | InvalidProfileType Text
+  | EmptyProfilesList ProfileName
+  deriving (Eq, Show)
+
+parsePreferencesToml :: Text -> Either PreferencesTomlError Preferences
+parsePreferencesToml input = do
+  doc <- parseTomlDocument input
+  svcs <- parseServices doc
+  profs <- parseProfiles doc
+  pure Preferences
+    { prefServices = svcs
+    , prefProfiles = profs
+    }
+
+
+
+parseServices :: TomlDoc -> Either PreferencesTomlError [ServicePreference]
+parseServices doc = do
+  tables <- getArrayOfTables "services" doc
+  traverse parseServiceTable tables
+
+parseServiceTable :: TomlTable -> Either PreferencesTomlError ServicePreference
+parseServiceTable tbl = do
+  name     <- ServiceName <$> getTextField "name" tbl
+  protocol <- getTextField "protocol" tbl
+
+  spConfig <- case protocol of
+    "ollama" ->
+      pure SPOllama
+        { spOllamaHost = getOptionalTextField "host" tbl
+        }
+
+    "openai-compatible" ->
+      SPOpenAICompatible
+        <$> getTextField "base_url" tbl
+        <*> getTextField "key_name" tbl
+
+    "gemini" ->
+      SPGemini
+        <$> getTextField "key_name" tbl
+
+    bad ->
+      Left (InvalidProtocol bad)
+
+  pure ServicePreference
+    { spName   = name
+    , spConfig = spConfig
+    }
+
+
+parseProfiles :: TomlDoc -> Either PreferencesTomlError [ProfilePreference]
+parseProfiles doc = do
+  tables <- getArrayOfTables "profiles" doc
+  traverse parseProfileTable tables
+
+parseProfileTable :: TomlTable -> Either PreferencesTomlError ProfilePreference
+parseProfileTable tbl = do
+  name <- ProfileName <$> getTextField "name" tbl
+  typ  <- getTextField "type" tbl
+
+  ppKind <- case typ of
+    "service" -> do
+      service      <- ServiceName <$> getTextField "service" tbl
+      model        <- ModelName <$> getTextField "model" tbl
+      template     <- parseTemplateRef
+                        ( getOptionalTextField "template" tbl
+                        , getOptionalTextField "template_file" tbl
+                        )
+      modelOptions <- getOptionalValueField "model_options" tbl
+      numExpr      <- getOptionalIntField "num_expr" tbl
+      includeDocs  <- getOptionalBoolField "include_docs" tbl
+      trigger      <- traverse parseTriggerOrDie (getOptionalTextField "trigger" tbl)
+      pure $ PPService ServiceProfilePreference
+        { sppService      = service
+        , sppModel        = model
+        , sppTemplate     = template
+        , sppModelOptions = modelOptions
+        , sppNumExpr      = numExpr
+        , sppIncludeDocs  = includeDocs
+        , sppTrigger      = trigger
+        }
+
+    "profiles" -> do
+      names <- traverse ProfileName <$> getTextListField "profiles" tbl
+      ne <- case NE.nonEmpty names of
+        Nothing -> Left (EmptyProfilesList name)
+        Just xs -> Right xs
+      pure $ PPFanout FanoutProfilePreference
+        { fppProfiles = ne
+        }
+
+    bad ->
+      Left (InvalidProfileType bad)
+
+  pure ProfilePreference
+    { ppName = name
+    , ppKind = ppKind
+    }
+  where
+    parseTriggerOrDie txt =
+      case parseTriggerPolicy txt of
+        Left _  -> Left (InvalidTriggerField txt)
+        Right p -> Right p
+
+
+
+parseTemplateRef
+  :: (Maybe Text, Maybe Text)
+  -> Either PreferencesTomlError (Maybe TemplateRef)
+parseTemplateRef (Nothing, Nothing) =
+  Right Nothing
+
+parseTemplateRef (Just nm, Nothing) =
+  Right (Just (TemplateNamed nm))
+
+parseTemplateRef (Nothing, Just fp) =
+  Right (Just (TemplateFile (T.unpack fp)))
+
+parseTemplateRef (Just _, Just _) =
+  Left (InvalidField "template" "cannot specify both template and template_file")
+
+
+
+
+
+
+
+
+
+
+
+
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
+
+module GHC.Plugin.OllamaHoles.Config.Preferences.Toml
+  ( PreferencesTomlError(..)
+  , parsePreferencesToml
+  ) where
+
+import Data.Aeson (Value)
+import Data.Aeson qualified as Aeson
+
+import Data.List.NonEmpty qualified as NE
+import Data.Map.Strict qualified as Map
+import Data.Text (Text)
+import Data.Text qualified as T
+
+
+import Toml (Result(..), decode)
+
+import Toml.Schema.ParseTable (ParseTable)
+import Toml.Semantics.Types qualified as Toml
+
+import GHC.Plugin.OllamaHoles.Config.Preferences
+import GHC.Plugin.OllamaHoles.Config.Types
+import GHC.Plugin.OllamaHoles.Trigger
+  ( TriggerPolicy
+  , parseTriggerPolicy
+  )
+
+
+
+-- Errors
+---------
+
+newtype PreferencesTomlError
+  = PreferencesTomlErrors [Text]
+  deriving (Eq, Show)
