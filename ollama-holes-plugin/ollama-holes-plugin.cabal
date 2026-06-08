@@ -119,8 +119,13 @@ library
     hs-source-dirs:   plugin-src
     exposed-modules:
       GHC.Plugin.OllamaHoles
-    default-extensions:
-      ImportQualifiedPost
+    build-depends:
+        base >= 4 && < 5
+      , ollama-holes-plugin:ollama-holes-lib
+      , ghc >= 9.6 && < 9.14
+      , text >= 2.0 && < 2.2
+      , transformers >= 0.5.6 && < 0.7
+      , mtl >= 2.2 && < 2.4
 
 
 
@@ -241,23 +246,3 @@ test-suite ollama-holes-spec
     , tasty-hunit
     , tasty-quickcheck
     , temporary
-
-
-
-executable ollama-holes-demo
-  hs-source-dirs:      Test
-  main-is:             Main.hs
-  default-language:    GHC2021
-  build-depends:
-      base >= 4 && < 5
-    , ollama-holes-plugin
-    , ollama-holes-plugin:ollama-holes-lib
-
-executable ollama-holes-config-demo
-  main-is:          ConfigDemo.hs
-  hs-source-dirs:   demo-config
-  default-language: GHC2021
-  build-depends:
-      base
-    , ollama-holes-plugin
-    , ollama-holes-plugin:ollama-holes-lib
