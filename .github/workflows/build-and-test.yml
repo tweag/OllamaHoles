@@ -138,6 +138,60 @@ jobs:
           2>&1 | tee demo-build.log || true
         grep "Valid hole fits" demo-build.log
 
+  ollama-haskell-compat:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ghc: '9.12'
+            ollama-haskell: '0.1.3.0'
+          - ghc: '9.12'
+            ollama-haskell: '0.2.0.0'
+
+    name: ollama-haskell ${{ matrix.ollama-haskell }} with GHC ${{ matrix.ghc }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Cabal/GHC
+      id: setup-haskell
+      uses: haskell-actions/setup@v2
+      with:
+        ghc-version: ${{ matrix.ghc }}
+        cabal-version: 'latest'
+
+    - name: Cache Cabal
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cabal/packages
+          ${{ steps.setup-haskell.outputs.cabal-store }}
+          ~/.cabal/bin
+          dist-newstyle
+        key: compat-${{ runner.os }}-ghc-${{ matrix.ghc }}-ollama-haskell-${{ matrix.ollama-haskell }}-${{ hashFiles('**/*.cabal', 'cabal.project') }}
+        restore-keys: |
+          compat-${{ runner.os }}-ghc-${{ matrix.ghc }}-ollama-haskell-${{ matrix.ollama-haskell }}-
+          build-${{ runner.os }}-ghc-${{ matrix.ghc }}-cabal-
+
+    - name: Update cabal index
+      run: cabal update
+
+    - name: Pin ollama-haskell
+      run: |
+        cat > cabal.project.local <<EOF
+        constraints: ollama-haskell == ${{ matrix.ollama-haskell }}
+        EOF
+
+    - name: Build Haskell project
+      run: cabal build lib:ollama-holes-lib lib:ollama-holes-plugin
+
+    - name: Run spec tests
+      run: cabal test ollama-holes-spec --test-options='--hide-successes'
+
+
 # Notes
 # =====
 

@@ -12,17 +12,18 @@ module GHC.Plugin.OllamaHoles.Logger
 
 
 import           Control.Monad (unless)
-import qualified Crypto.Hash as H
 import           Data.Aeson ((.=))
 import qualified Data.Aeson as Aeson
 import           Data.Aeson.Encoding (pairs, encodingToLazyByteString)
+import           Data.Bits (xor)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
+import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import           Data.Time.Clock (getCurrentTime)
 import           Data.Time.Format (defaultTimeLocale, formatTime)
-import           Data.Word (Word32)
+import           Data.Word (Word8, Word32, Word64)
 import           GHC.Generics (Generic)
 import           Numeric (showHex)
 import           System.Directory
@@ -72,8 +73,8 @@ renderLogEvent
     :: Timestamp -> LogConfig -> LogEvent
     -> (LBS.ByteString, PromptHash, ResponseHash)
 renderLogEvent now config event =
-    let promptHash = contentHash $ lePrompt event
-        responseHash = contentHash $ leResponse event
+    let promptHash = contentHashText $ lePrompt event
+        responseHash = contentHashText $ leResponse event
 
         enc :: Aeson.Encoding
         enc =
@@ -159,10 +160,6 @@ getFormattedTimestamp :: IO Timestamp
 getFormattedTimestamp = do
   now <- getCurrentTime
   pure . T.pack $ formatTime defaultTimeLocale "%Y-%m-%d_%H:%M:%S" now
-
-contentHash :: T.Text -> T.Text
-contentHash =
-  T.pack . show . (H.hash . TE.encodeUtf8 :: T.Text -> H.Digest H.SHA256)
 
 
 
@@ -251,3 +248,21 @@ eventsFileForSession :: LogPaths -> FilePath
 eventsFileForSession paths =
     let dir = lpRootDir paths
     in dropTrailingPathSeparator dir </> "hole-fit-logs.jsonl"
+
+
+
+-- Utils
+
+contentHashText :: Text -> Text
+contentHashText = T.pack . hex64 . fnv1a64 . TE.encodeUtf8
+
+fnv1a64 :: BS.ByteString -> Word64
+fnv1a64 = BS.foldl' step 0xcbf29ce484222325
+  where
+    step :: Word64 -> Word8 -> Word64
+    step h b = (h `xor` fromIntegral b) * 0x100000001b3
+
+hex64 :: Word64 -> String
+hex64 w =
+  let s = showHex w ""
+  in replicate (16 - length s) '0' <> s
