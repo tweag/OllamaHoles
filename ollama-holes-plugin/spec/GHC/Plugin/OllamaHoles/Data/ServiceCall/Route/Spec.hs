@@ -47,6 +47,22 @@ run_prepareServiceCalls config holeName env =
         config
         holeName
 
+emptyFancyConfig :: FancyConfig
+emptyFancyConfig = FancyConfig
+  { cfgServices = mempty
+  , cfgProfiles = mempty
+  , cfgExtras = Nothing
+  , cfgTemplates = mempty
+  }
+
+emptyServiceCallTestEnv :: ServiceCallTestEnv
+emptyServiceCallTestEnv = ServiceCallTestEnv
+  { testOllamaModels = Nothing
+  , testOpenAIModels = Nothing
+  , testResponses = M.empty
+  , testExpectedTemplateSearchDir = Nothing
+  }
+
 tests_prepareServiceCalls_unit :: TestTree
 tests_prepareServiceCalls_unit = testGroup "prepareServiceCalls (unit)"
   [ testGroup "success" $
@@ -78,7 +94,7 @@ tests_prepareServiceCalls_prop = testGroup "prepareServiceCalls (prop)"
             , simpleProfile = profA
             }
 
-          env = ServiceCallTestEnv
+          env = emptyServiceCallTestEnv
             { testOllamaModels = Just [ModelName "model-a"]
             , testOpenAIModels = Nothing
             , testResponses = M.empty
@@ -115,7 +131,7 @@ tests_prepareServiceCalls_prop = testGroup "prepareServiceCalls (prop)"
               }
             }
 
-          config = defaultConfigOfMode $ ConfigFancy FancyConfig
+          config = defaultConfigOfMode $ ConfigFancy emptyFancyConfig
             { cfgServices = M.fromList
               [ (svcName svc, svc) | svc <- services ]
             , cfgProfiles = M.fromList
@@ -123,7 +139,7 @@ tests_prepareServiceCalls_prop = testGroup "prepareServiceCalls (prop)"
             , cfgExtras = Just (ConfigOverride emptyOverrides)
             }
 
-          env = ServiceCallTestEnv
+          env = emptyServiceCallTestEnv
             { testOllamaModels = Just
                 [ indexedModelName i | i <- indices ]
             , testOpenAIModels = Nothing
@@ -158,7 +174,7 @@ tests_prepareServiceCalls_unit_success =
           }
       , "_llm"
       )
-    , ServiceCallTestEnv
+    , emptyServiceCallTestEnv
       { testOllamaModels = Just [ModelName "model-a"]
       , testOpenAIModels = Nothing
       , testResponses = M.empty
@@ -182,7 +198,7 @@ tests_prepareServiceCalls_unit_success =
           }
       , "_anything"
       )
-    , ServiceCallTestEnv
+    , emptyServiceCallTestEnv
       { testOllamaModels = Just [ModelName "model-a"]
       , testOpenAIModels = Nothing
       , testResponses = M.empty
@@ -199,7 +215,7 @@ tests_prepareServiceCalls_unit_success =
     )
 
   , ( "fancy overlay takes priority over matching config profile"
-    , ( defaultConfigOfMode $ ConfigFancy FancyConfig
+    , ( defaultConfigOfMode $ ConfigFancy emptyFancyConfig
           { cfgServices = M.fromList
             [ (ServiceName "svc-a", svcA)
             ]
@@ -221,7 +237,7 @@ tests_prepareServiceCalls_unit_success =
           }
       , "_anything"
       )
-    , ServiceCallTestEnv
+    , emptyServiceCallTestEnv
       { testOllamaModels = Just [ModelName "model-overlay"]
       , testOpenAIModels = Nothing
       , testResponses = M.empty
@@ -238,7 +254,7 @@ tests_prepareServiceCalls_unit_success =
     )
 
   , ( "fanout expands child profiles in fanout order"
-    , ( defaultConfigOfMode $ ConfigFancy FancyConfig
+    , ( defaultConfigOfMode $ ConfigFancy emptyFancyConfig
           { cfgServices = M.fromList
             [ (ServiceName "svc-a", svcA)
             , (ServiceName "svc-b", svcB)
@@ -273,7 +289,7 @@ tests_prepareServiceCalls_unit_success =
           }
       , "_fan"
       )
-    , ServiceCallTestEnv
+    , emptyServiceCallTestEnv
       { testOllamaModels = Just
         [ ModelName "model-a"
         , ModelName "model-b"
@@ -297,7 +313,7 @@ tests_prepareServiceCalls_unit_success =
     )
 
   , ( "one missing model is warned while other routed services remain"
-    , ( defaultConfigOfMode $ ConfigFancy FancyConfig
+    , ( defaultConfigOfMode $ ConfigFancy emptyFancyConfig
           { cfgServices = M.fromList
             [ (ServiceName "svc-a", svcA)
             , (ServiceName "svc-b", svcB)
@@ -332,7 +348,7 @@ tests_prepareServiceCalls_unit_success =
           }
       , "_anything"
       )
-    , ServiceCallTestEnv
+    , emptyServiceCallTestEnv
       { testOllamaModels = Just [ModelName "model-a"]
       , testOpenAIModels = Just [ModelName "not-model-b"]
       , testResponses = M.empty
@@ -354,7 +370,7 @@ tests_prepareServiceCalls_unit_success =
   )
 
   , ( "normal route uses configured service when overlay has same service name"
-    , ( defaultConfigOfMode $ ConfigFancy FancyConfig
+    , ( defaultConfigOfMode $ ConfigFancy emptyFancyConfig
           { cfgServices = M.fromList
             [ ( ServiceName "shared"
               , Service
@@ -400,7 +416,7 @@ tests_prepareServiceCalls_unit_success =
           }
       , "_llm"
       )
-    , ServiceCallTestEnv
+    , emptyServiceCallTestEnv
         { testOllamaModels = Just [ModelName "normal-model"]
         , testOpenAIModels = Just [ModelName "overlay-model"]
         , testResponses = M.empty
@@ -438,7 +454,7 @@ tests_prepareServiceCalls_unit_failure =
           }
       , "_other"
       )
-    , ServiceCallTestEnv
+    , emptyServiceCallTestEnv
       { testOllamaModels = Just [ModelName "model-a"]
       , testOpenAIModels = Nothing
       , testResponses = M.empty
@@ -453,7 +469,7 @@ tests_prepareServiceCalls_unit_failure =
           }
       , "_llm"
       )
-    , ServiceCallTestEnv
+    , emptyServiceCallTestEnv
       { testOllamaModels = Just [ModelName "model-a"]
       , testOpenAIModels = Nothing
       , testResponses = M.empty
@@ -461,7 +477,7 @@ tests_prepareServiceCalls_unit_failure =
     )
 
   , ( "fancy config reports ambiguous matching profiles"
-    , ( defaultConfigOfMode $ ConfigFancy FancyConfig
+    , ( defaultConfigOfMode $ ConfigFancy emptyFancyConfig
           { cfgServices = M.fromList
             [ (ServiceName "svc-a", svcA)
             , (ServiceName "svc-b", svcB)
@@ -486,7 +502,7 @@ tests_prepareServiceCalls_unit_failure =
           }
       , "_anything"
       )
-    , ServiceCallTestEnv
+    , emptyServiceCallTestEnv
         { testOllamaModels = Nothing
         , testOpenAIModels = Nothing
         , testResponses = M.empty
@@ -494,7 +510,7 @@ tests_prepareServiceCalls_unit_failure =
     )
 
   , ( "fancy config reports unknown service"
-    , ( defaultConfigOfMode $ ConfigFancy FancyConfig
+    , ( defaultConfigOfMode $ ConfigFancy emptyFancyConfig
           { cfgServices = M.fromList []
           , cfgProfiles = M.fromList
             [ ( ProfileName "p"
@@ -511,7 +527,7 @@ tests_prepareServiceCalls_unit_failure =
           }
       , "_anything"
       )
-    , ServiceCallTestEnv
+    , emptyServiceCallTestEnv
         { testOllamaModels = Nothing
         , testOpenAIModels = Nothing
         , testResponses = M.empty
@@ -519,7 +535,7 @@ tests_prepareServiceCalls_unit_failure =
     )
 
   , ( "fanout reports unknown child profile"
-    , ( defaultConfigOfMode $ ConfigFancy FancyConfig
+    , ( defaultConfigOfMode $ ConfigFancy emptyFancyConfig
           { cfgServices = M.fromList []
           , cfgProfiles = M.fromList
             [ ( ProfileName "fan"
@@ -537,7 +553,7 @@ tests_prepareServiceCalls_unit_failure =
           }
       , "_anything"
       )
-    , ServiceCallTestEnv
+    , emptyServiceCallTestEnv
         { testOllamaModels = Nothing
         , testOpenAIModels = Nothing
         , testResponses = M.empty
@@ -552,7 +568,7 @@ tests_prepareServiceCalls_unit_failure =
           }
       , "_anything"
       )
-    , ServiceCallTestEnv
+    , emptyServiceCallTestEnv
         { testOllamaModels = Nothing
         , testOpenAIModels = Nothing
         , testResponses = M.empty
@@ -567,7 +583,7 @@ tests_prepareServiceCalls_unit_failure =
           }
       , "_anything"
       )
-    , ServiceCallTestEnv
+    , emptyServiceCallTestEnv
       { testOllamaModels = Just [ModelName "other-model"]
       , testOpenAIModels = Nothing
       , testResponses = M.empty

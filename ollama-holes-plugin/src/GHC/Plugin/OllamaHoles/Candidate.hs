@@ -12,10 +12,9 @@ import GHC.Parser.Lexer qualified as GHC
 import GHC.Parser.PostProcess qualified as GHC (runPV, unECP)
 import GHC.Plugins hiding ((<>), NameEnv)
 import GHC.Rename.Expr qualified as GHC (rnLExpr)
-import GHC.Tc.Gen.App qualified as GHC (tcInferSigma)
 import GHC.Tc.Errors.Hole qualified as GHC (tcCheckHoleFit, withoutUnification)
 import qualified GHC.Tc.Solver as GHC
-    (simplifyTop, simplifyInfer, captureTopConstraints, InferMode(..))
+    (simplifyTop, captureTopConstraints, InferMode(..))
 import qualified GHC.Tc.Solver.Monad as GHC (zonkTcType, runTcSEarlyAbort)
 import GHC.Tc.Types (TcM)
 import GHC.Tc.Types.Constraint (Hole(..))
@@ -154,14 +153,14 @@ checkCandidateFit CheckCtx{cxHole} RenamedCandidate{rcSource, rcRenamed, rcLog}
                 GHC.withoutUnification (GHC.tyCoFVsOfType (hole_ty h)) $ do
                     ((tcLvl, exprTy), wanteds) <-
                         GHC.captureTopConstraints $
-                            GHC.pushTcLevelM $
-                            GHC.tcInferSigma False rcRenamed
+                          GHC.pushTcLevelM $
+                            tcInferCandidateExpr rcRenamed
 
                     fresh <- GHC.newName (mkVarOcc "hf-fit")
 
                     ((qtvs, dicts, _, _), residual) <-
                         GHC.captureConstraints $
-                            GHC.simplifyInfer tcLvl GHC.NoRestrictions [] [(fresh, exprTy)] wanteds
+                            simplifyCandidateInfer tcLvl GHC.NoRestrictions [] [(fresh, exprTy)] wanteds
 
                     let rTy = mkInfForAllTys qtvs $ GHC.mkPhiTy (map idType dicts) exprTy
                     _ <- GHC.simplifyTop residual

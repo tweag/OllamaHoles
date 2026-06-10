@@ -26,7 +26,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        ghc: ['9.6', '9.8', '9.10', '9.12']
+        ghc: ['9.6', '9.8', '9.10', '9.12', '9.14']
     name: GHC ${{ matrix.ghc }} on ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4

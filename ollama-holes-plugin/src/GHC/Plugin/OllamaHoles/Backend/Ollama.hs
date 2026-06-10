@@ -68,6 +68,7 @@ generateOllamaFits conf prompt modelName options = do
         }
 #if MIN_VERSION_ollama_haskell(0,2,0)
   let
+    conf' = parseOllamaConfig conf
     parseModelOptions :: Value -> Ollama.ModelOptions
     parseModelOptions v = Ollama.ModelOptions
       { numKeep = extractAtKey "num_keep" v
@@ -94,7 +95,7 @@ generateOllamaFits conf prompt modelName options = do
       }
 
     ops' = ops { options = fmap parseModelOptions options }
-  result <- fmap Ollama.genResponse <$> Ollama.generate ops' Nothing
+  result <- fmap Ollama.genResponse <$> Ollama.generate ops' (Just conf')
   pure $ case result of
     Right ok -> Right ok
     Left err -> Left $ show err

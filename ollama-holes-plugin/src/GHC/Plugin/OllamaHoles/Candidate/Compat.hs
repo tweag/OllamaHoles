@@ -6,6 +6,8 @@ module GHC.Plugin.OllamaHoles.Candidate.Compat
     , ExprView(..)
     , showExprView
     , getRenamedGroup
+    , tcInferCandidateExpr
+    , simplifyCandidateInfer
     ) where
 
 
@@ -15,6 +17,27 @@ import Data.Text qualified as T
 import GHC (GhcRn, LHsExpr, HsExpr(..), Pat(..), GRHSs(..), GRHS(..), Match(..))
 import GHC qualified as GHC
 import GHC.Plugins hiding ((<>))
+
+#if MIN_VERSION_ghc(9,14,0)
+import GHC.Types.Name.Reader (WithUserRdr(..))
+import Data.List.NonEmpty (NonEmpty(..))
+import GHC.Tc.Types.Evidence qualified as GHC
+import GHC.Types.Var qualified as GHC
+import GHC.Tc.Types.Constraint qualified as GHC
+import GHC.Tc.Utils.TcMType qualified as GHC
+import GHC.Tc.Types qualified as GHC
+import GHC.Tc.Solver qualified as GHC
+#endif
+
+#if MIN_VERSION_ghc(9,14,0)
+import GHC.Tc.Gen.Expr qualified as GHC (tcInferSigma)
+#else
+import GHC.Tc.Gen.App qualified as GHC (tcInferSigma)
+import GHC.Tc.Solver qualified as GHC (simplifyInfer, InferMode(..))
+#endif
+
+import GHC.Tc.Utils.TcType qualified as GHC (TcSigmaType, TcLevel, TcTyVar, TcTauType)
+import GHC.Tc.Types (TcM)
 
 
 
@@ -54,10 +77,12 @@ showExprView = \case
 viewExpr :: DynFlags -> LHsExpr GhcRn -> ExprView
 viewExpr dflags (L _ e0) = case e0 of
     HsVar _ (L _ nm) ->
-        VVar nm
+        VVar (getVarName nm)
 
+#if !MIN_VERSION_ghc(9,14,0)
     HsUnboundVar _ uv ->
         VUnbound (T.pack (showSDoc dflags (ppr uv)))
+#endif
 
     HsOverLit _ ol ->
         VLit (T.pack (showSDoc dflags (ppr ol)))
@@ -123,11 +148,12 @@ viewTopSimpleLam dflags e = case viewExpr dflags e of
 viewSimpleMatchGroup
     :: GHC.MatchGroup GhcRn (LHsExpr GhcRn)
     -> Maybe ([Name], LHsExpr GhcRn)
-viewSimpleMatchGroup GHC.MG{GHC.mg_alts = L _ [L _ match@Match{m_grhss}]} = do
-  ns <- traverse viewVarPatName (viewMatchPats match)
-  case m_grhss of
-    GRHSs { grhssGRHSs = [L _ (GRHS _ [] body)] } -> Just (ns, body)
-    _                                             -> Nothing
+viewSimpleMatchGroup GHC.MG{GHC.mg_alts
+  = L _ [L _ match@Match{m_grhss}]} = do
+    ns <- traverse viewVarPatName (viewMatchPats match)
+    case singleGRHS m_grhss of
+      Just (L _ (GRHS _ [] body)) -> Just (ns, body)
+      _                           -> Nothing
 viewSimpleMatchGroup _ = Nothing
 
 viewMatchPats :: Match GhcRn (LHsExpr GhcRn) -> [GHC.LPat GhcRn]
@@ -148,11 +174,69 @@ viewVarPatName (L _ pat) = case pat of
 #endif
     _                 -> Nothing
 
+#if MIN_VERSION_ghc(9,14,0)
+getVarName :: WithUserRdr Name -> Name
+getVarName = \case
+  WithUserRdr _ nm -> nm
+#else
+getVarName :: Name -> Name
+getVarName = id
+#endif
 
+singleGRHS
+  :: GRHSs GhcRn (LHsExpr GhcRn)
+  -> Maybe (GHC.LGRHS GhcRn (LHsExpr GhcRn))
+singleGRHS grhss =
+#if MIN_VERSION_ghc(9,14,0)
+  case grhssGRHSs grhss of
+    x :| [] -> Just x
+    _       -> Nothing
+#else
+  case grhssGRHSs grhss of
+    [x] -> Just x
+    _   -> Nothing
+#endif
 
 getRenamedGroup :: GHC.RenamedSource -> GHC.HsGroup GhcRn
 #if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
 getRenamedGroup (group, _, _, _, _) = group
 #else
 getRenamedGroup (group, _, _, _) = group
+#endif
+
+#if MIN_VERSION_ghc(9,14,0)
+tcInferCandidateExpr :: LHsExpr GhcRn -> TcM GHC.TcSigmaType
+tcInferCandidateExpr expr = do
+  (_typedExpr, ty) <- GHC.tcInferSigma expr
+  pure ty
+#else
+tcInferCandidateExpr :: LHsExpr GhcRn -> TcM GHC.TcSigmaType
+tcInferCandidateExpr =
+  GHC.tcInferSigma False
+#endif
+
+#if MIN_VERSION_ghc(9,14,0)
+simplifyCandidateInfer
+  :: GHC.TcLevel
+  -> GHC.InferMode
+  -> [GHC.TcIdSigInst]
+  -> [(GHC.Name, GHC.TcTauType)]
+  -> GHC.WantedConstraints
+  -> TcM ([GHC.TcTyVar], [GHC.EvVar], GHC.TcEvBinds, Bool)
+simplifyCandidateInfer tcLvl inferMode sigs name_tys wanteds =
+  GHC.simplifyInfer
+    NotTopLevel
+    tcLvl
+    inferMode
+    sigs
+    name_tys
+    wanteds
+#else
+simplifyCandidateInfer tcLvl inferMode sigs name_tys wanteds =
+  GHC.simplifyInfer
+    tcLvl
+    inferMode
+    sigs
+    name_tys
+    wanteds
 #endif
