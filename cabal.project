@@ -1,2 +1,7 @@
-packages: *.cabal
+packages:
+  ollama-holes-plugin/*.cabal
+
+optional-packages:
+  ollama-holes-demo/*.cabal
+
 tests: True

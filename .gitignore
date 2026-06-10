@@ -1,1 +1,5 @@
 dist-newstyle
+.DS_Store
+**/.DS_Store
+.stack-work
+**/.stack-work

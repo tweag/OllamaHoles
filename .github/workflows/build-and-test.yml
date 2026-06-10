@@ -74,7 +74,7 @@ jobs:
 
     - name: Build Documentation
       if: matrix.os == 'ubuntu-latest' && matrix.ghc == '9.12'
-      run: cabal haddock
+      run: cabal haddock ollama-holes-plugin -w ghc-${{ matrix.ghc }}
 
   test:
     runs-on: ubuntu-latest

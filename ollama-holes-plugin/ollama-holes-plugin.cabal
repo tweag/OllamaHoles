@@ -67,15 +67,15 @@ description: This package provides a GHC plugin that uses LLMs to generate valid
              though results may vary.
 
 license:            MIT
-license-file:       LICENSE
+license-file:       ../LICENSE
 author:             Matthias Pall Gissurarson <mpg@mpg.is>
 maintainer:         Matthias Pall Gissurarson <mpg@mpg.is>
 copyright:          2025 (c) Matthias Pall Gissurarson  
 category:           Development, Compiler Plugin
 tested-with:        GHC == 9.10.*, GHC == 9.12.*
 build-type:         Simple
-extra-doc-files:    CHANGELOG.md
-                    README.md
+extra-doc-files:    ../CHANGELOG.md
+                    ../README.md
 homepage:           https://github.com/Tritlo/OllamaHoles
 
 source-repository head
@@ -92,7 +92,7 @@ common warnings
 common shared-base
   default-language: GHC2021
   build-depends:
-      base >= 4.18 && < 4.22
+      base >= 4 && < 5
     , aeson ^>= 2.2
     , bytestring >= 0.11.5 && < 0.13
     , containers >= 0.6 && < 0.8
@@ -115,67 +115,17 @@ common backend-deps
     , req ^>= 3.13
 
 library
-    import:           warnings, shared-base, backend-deps
-    hs-source-dirs:   src
+    import:           warnings
+    hs-source-dirs:   plugin-src
     exposed-modules:
       GHC.Plugin.OllamaHoles
-    other-modules:
-      GHC.Plugin.OllamaHoles.Backend
-      GHC.Plugin.OllamaHoles.Backend.Common
-      GHC.Plugin.OllamaHoles.Backend.Gemini
-      GHC.Plugin.OllamaHoles.Backend.Ollama
-      GHC.Plugin.OllamaHoles.Backend.OpenAI
-      GHC.Plugin.OllamaHoles.Candidate
-      GHC.Plugin.OllamaHoles.Candidate.Compat
-      GHC.Plugin.OllamaHoles.Candidate.Rewrite
-      GHC.Plugin.OllamaHoles.Constants
-      GHC.Plugin.OllamaHoles.Console
-      GHC.Plugin.OllamaHoles.Data.Flags
-      GHC.Plugin.OllamaHoles.Data.Flags.Error
-      GHC.Plugin.OllamaHoles.Data.Flags.Parse
-      GHC.Plugin.OllamaHoles.Data.Flags.Types
-      GHC.Plugin.OllamaHoles.Data.Prefs
-      GHC.Plugin.OllamaHoles.Data.Prefs.Types
-      GHC.Plugin.OllamaHoles.Data.Prefs.Parse
-      GHC.Plugin.OllamaHoles.Data.Service
-      GHC.Plugin.OllamaHoles.Data.Service.Types
-      GHC.Plugin.OllamaHoles.Data.Service.Parse
-      GHC.Plugin.OllamaHoles.Data.Profile
-      GHC.Plugin.OllamaHoles.Data.Profile.Types
-      GHC.Plugin.OllamaHoles.Data.Profile.Error
-      GHC.Plugin.OllamaHoles.Data.Profile.Parse
-      GHC.Plugin.OllamaHoles.Data.Profile.Validate
-      GHC.Plugin.OllamaHoles.Data.ServiceCall
-      GHC.Plugin.OllamaHoles.Data.ServiceCall.Types
-      GHC.Plugin.OllamaHoles.Data.ServiceCall.Error
-      GHC.Plugin.OllamaHoles.Data.ServiceCall.Route
-      GHC.Plugin.OllamaHoles.Data.ServiceCall.Template
-      GHC.Plugin.OllamaHoles.Data.ServiceCall.Submit
-      GHC.Plugin.OllamaHoles.Data.Config
-      GHC.Plugin.OllamaHoles.Data.Config.Types
-      GHC.Plugin.OllamaHoles.Data.Config.Error
-      GHC.Plugin.OllamaHoles.Data.Config.Build
-      GHC.Plugin.OllamaHoles.Data.Template
-      GHC.Plugin.OllamaHoles.Data.Template.Types
-      GHC.Plugin.OllamaHoles.Data.Template.Types.Internal
-      GHC.Plugin.OllamaHoles.Data.Template.Error
-      GHC.Plugin.OllamaHoles.Data.Template.Parse
-      GHC.Plugin.OllamaHoles.Data.Template.Load
-      GHC.Plugin.OllamaHoles.Data.Template.Expand
-      GHC.Plugin.OllamaHoles.Data.Trigger
-      GHC.Plugin.OllamaHoles.Data.Trigger.Types
-      GHC.Plugin.OllamaHoles.Data.Trigger.Error
-      GHC.Plugin.OllamaHoles.Data.Trigger.Parse
-      GHC.Plugin.OllamaHoles.Data.Trigger.Match
-      GHC.Plugin.OllamaHoles.Data.PluginState
-      GHC.Plugin.OllamaHoles.Data.PluginState.Types
-      GHC.Plugin.OllamaHoles.Error
-      GHC.Plugin.OllamaHoles.Logger
-      GHC.Plugin.OllamaHoles.Prompt
-      GHC.Plugin.OllamaHoles.Runtime
-      GHC.Plugin.OllamaHoles.Runtime.Ops
-      GHC.Plugin.OllamaHoles.Runtime.Init
-      Toml.Extra
+    build-depends:
+        base >= 4 && < 5
+      , ollama-holes-plugin:ollama-holes-lib
+      , ghc >= 9.6 && < 9.14
+      , text >= 2.0 && < 2.2
+      , transformers >= 0.5.6 && < 0.7
+      , mtl >= 2.2 && < 2.4
 
 
 
@@ -296,23 +246,3 @@ test-suite ollama-holes-spec
     , tasty-hunit
     , tasty-quickcheck
     , temporary
-
-
-
-executable ollama-holes-demo
-  hs-source-dirs:      Test
-  main-is:             Main.hs
-  default-language:    GHC2021
-  build-depends:
-      base >= 4 && < 5
-    , ollama-holes-plugin
-    , ollama-holes-plugin:ollama-holes-lib
-
-executable ollama-holes-config-demo
-  main-is:          ConfigDemo.hs
-  hs-source-dirs:   demo-config
-  default-language: GHC2021
-  build-depends:
-      base
-    , ollama-holes-plugin
-    , ollama-holes-plugin:ollama-holes-lib

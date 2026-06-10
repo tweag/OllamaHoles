@@ -1,0 +1,47 @@
+cabal-version:      3.4
+name:               ollama-holes-demo
+
+-- The package version.
+-- See the Haskell package versioning policy (PVP) for standards
+-- guiding when and how versions should be incremented.
+-- https://pvp.haskell.org
+-- PVP summary:     +-+------- breaking API changes
+--                  | | +----- non-breaking API additions
+--                  | | | +--- code changes with no API change
+version:            0.1.6.0
+synopsis: A typed-hole plugin that uses LLMs to generate valid hole-fits
+description: This package includes demos of ollama-holes-plugin.
+
+license:            MIT
+license-file:       ../LICENSE
+author:             Matthias Pall Gissurarson <mpg@mpg.is>
+maintainer:         Matthias Pall Gissurarson <mpg@mpg.is>
+copyright:          2025 (c) Matthias Pall Gissurarson  
+category:           Development, Compiler Plugin
+tested-with:        GHC == 9.10.*, GHC == 9.12.*
+build-type:         Simple
+extra-doc-files:    ../CHANGELOG.md
+                    ../README.md
+homepage:           https://github.com/Tritlo/OllamaHoles
+
+source-repository head
+  type:     git
+  location: git://github.com/Tritlo/OllamaHoles.git
+
+
+
+executable ollama-holes-demo
+  hs-source-dirs:      Test
+  main-is:             Main.hs
+  default-language:    GHC2021
+  build-depends:
+      base >= 4 && < 5
+    , ollama-holes-plugin
+
+executable ollama-holes-config-demo
+  main-is:          ConfigDemo.hs
+  hs-source-dirs:   demo-config
+  default-language: GHC2021
+  build-depends:
+      base >= 4 && < 5
+    , ollama-holes-plugin

@@ -50,7 +50,7 @@ module Main where
 import qualified Data.List as L
 
 main :: IO ()
-main = do let k = (_b :: [Int] -> [String])
+main = do let k = (_llm :: [Int] -> [String])
           print (k [1,2,3])
 
 ```
@@ -60,12 +60,12 @@ We get the following output:
 
 ```text
 Main.hs:8:20: error: [GHC-88464]
-    • Found hole: _b :: [Int] -> [String]
-      Or perhaps ‘_b’ is mis-spelled, or not in scope
-    • In the expression: _b :: [Int] -> [String]
-      In an equation for ‘k’: k = (_b :: [Int] -> [String])
+    • Found hole: _llm :: [Int] -> [String]
+      Or perhaps ‘_llm’ is mis-spelled, or not in scope
+    • In the expression: _llm :: [Int] -> [String]
+      In an equation for ‘k’: k = (_llm :: [Int] -> [String])
       In the expression:
-        do let k = (_b :: [Int] -> [String])
+        do let k = (_llm :: [Int] -> [String])
            print (k [1, 2, ....])
     • Relevant bindings include
         k :: [Int] -> [String] (bound at Main.hs:8:15)
@@ -77,7 +77,7 @@ Main.hs:8:20: error: [GHC-88464]
         L.map show
         (\xs -> map show xs)
   |
-8 | main = do let k = (_b :: [Int] -> [String])
+8 | main = do let k = (_llm :: [Int] -> [String])
   |                    ^^
 ```
 
