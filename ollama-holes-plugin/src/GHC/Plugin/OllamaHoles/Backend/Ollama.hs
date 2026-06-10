@@ -37,7 +37,7 @@ ollamaBackend _ = Backend
 listOllamaModels :: IO (Maybe [Text])
 listOllamaModels = do
   listAll <- do
-#if MIN_VERSION_text(2,0,0)
+#if MIN_VERSION_ollama_haskell(0,2,0)
     result <- Ollama.list Nothing
     pure $ case result of
       Left _ -> Nothing
@@ -55,7 +55,7 @@ generateOllamaFits prompt modelName options = do
         { prompt = prompt
         , modelName = modelName
         }
-#if MIN_VERSION_text(2,0,0)
+#if MIN_VERSION_ollama_haskell(0,2,0)
   let
     parseModelOptions :: Value -> Ollama.ModelOptions
     parseModelOptions v = Ollama.ModelOptions
@@ -83,7 +83,7 @@ generateOllamaFits prompt modelName options = do
       }
 
     ops' = ops { options = fmap parseModelOptions options }
-  result <- fmap Ollama.genResponse <$> Ollama.generate ops Nothing
+  result <- fmap Ollama.genResponse <$> Ollama.generate ops' Nothing
   pure $ case result of
     Right ok -> Right ok
     Left err -> Left $ show err
