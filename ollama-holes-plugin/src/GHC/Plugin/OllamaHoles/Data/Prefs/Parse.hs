@@ -21,7 +21,7 @@ tomlPreferences :: Toml.Value' l -> Toml.Matcher l Preferences
 tomlPreferences = Toml.parseTableFromValue $ Preferences
   <$> Toml.reqKeyOf "services"  (Toml.listOf $ const tomlService)
   <*> Toml.reqKeyOf "profiles"  (Toml.listOf $ const tomlProfile)
-  <*> Toml.reqKeyOf "templates" (Toml.listOf $ const tomlTemplate)
+  <*> (fmap (maybe mempty id) $ Toml.optKeyOf "templates" (Toml.listOf $ const tomlTemplate))
 
 data TomlParseError
   = TomlReadError String

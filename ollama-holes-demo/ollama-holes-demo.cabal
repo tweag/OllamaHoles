@@ -30,10 +30,10 @@ source-repository head
 
 
 
-executable ollama-holes-demo
-  hs-source-dirs:      Test
-  main-is:             Main.hs
-  default-language:    GHC2021
+executable ollama-holes-basic-demo
+  main-is:          BasicDemo.hs
+  hs-source-dirs:   demo-basic
+  default-language: GHC2021
   build-depends:
       base >= 4 && < 5
     , ollama-holes-plugin
@@ -45,3 +45,13 @@ executable ollama-holes-config-demo
   build-depends:
       base >= 4 && < 5
     , ollama-holes-plugin
+
+executable ollama-holes-cabal-demo
+  main-is:          CabalDemo.hs
+  hs-source-dirs:   demo-cabal
+  default-language: GHC2021
+  build-depends:
+      base >= 4 && < 5
+    , ollama-holes-plugin
+  ghc-options:
+    -fplugin=GHC.Plugin.OllamaHoles
