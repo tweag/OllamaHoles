@@ -32,7 +32,6 @@ import GHC.Parser.Lexer qualified as GHC (ParseResult (..), getPsErrorMessages, 
 import GHC.Parser.PostProcess qualified as GHC (runPV, unECP)
 import GHC.Rename.Expr qualified as GHC (rnLExpr)
 import GHC.Tc.Errors.Hole qualified as GHC (tcCheckHoleFit, withoutUnification)
-import GHC.Tc.Gen.App qualified as GHC  (tcInferSigma)
 import GHC.Types.SrcLoc qualified as GHC (mkRealSrcLoc)
 
 #if __GLASGOW_HASKELL__ >= 912
@@ -46,12 +45,13 @@ import GHC.Types.Unique.Map qualified as GHC
 import GHC.Hs.Doc qualified as GHC
 import GHC.Iface.Load qualified as GHC (loadInterfaceForName)
 import GHC.Tc.Utils.TcType qualified as GHC (tyCoFVsOfType, mkPhiTy)
-import GHC.Tc.Solver qualified as GHC (simplifyTop, simplifyInfer, captureTopConstraints, InferMode(..))
+import GHC.Tc.Solver qualified as GHC (simplifyTop, captureTopConstraints, InferMode(..))
 import GHC.Tc.Solver.Monad qualified as GHC (zonkTcType, runTcSEarlyAbort)
 
 import GHC.Plugin.OllamaHoles.Prompt
 import GHC.Plugin.OllamaHoles.Logger qualified as Log
 import GHC.Plugin.OllamaHoles.Candidate
+import GHC.Plugin.OllamaHoles.Candidate.Compat
 import GHC.Plugin.OllamaHoles.Error
 import GHC.Plugin.OllamaHoles.Data.ServiceCall
 import GHC.Plugin.OllamaHoles.Data.PluginState
@@ -285,11 +285,11 @@ verifyHoleFit _ hole fit | Just h <- th_hole hole = discardErrs $ do
                       -- without zonking and passing the constraints on to the hole.
                       ((tc_lvl, expr_ty), wanteds) <-
                          GHC.captureTopConstraints $
-                          GHC.pushTcLevelM $ GHC.tcInferSigma False rn_e
+                          GHC.pushTcLevelM $ tcInferCandidateExpr rn_e
                       fresh <- GHC.newName (mkVarOcc "hf-fit")
                       ((qtvs, dicts, _, _), residual) <-
                         GHC.captureConstraints $
-                          GHC.simplifyInfer tc_lvl GHC.NoRestrictions
+                          simplifyCandidateInfer tc_lvl GHC.NoRestrictions
                                             []    {- No sig vars -}
                                             [(fresh, expr_ty)]
                                             wanteds
