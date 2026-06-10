@@ -16,21 +16,6 @@ import GHC
     ( Ghc
     , GhcRn
     , HsBindLR(..)
-    , HsBind(..)
-    , LHsBind
-    , LHsExpr
-    , LoadHowMuch(..)
-    , Match(..)
-    , MatchGroup(..)
-    , RenamedSource
-    , TypecheckedModule(..)
-    , GRHS(..)
-    , GRHSs(..)
-    , guessTarget
-    , getModSummary
-    , getSessionDynFlags
-    , load
-    , mkModuleName
     , parseModule
     , runGhc
     , setSessionDynFlags
@@ -42,7 +27,6 @@ import GHC.Plugins hiding ((<>))
 import qualified GHC.Paths as GHC.Paths
 
 import GHC.Plugin.OllamaHoles.Spec.Compat
-import GHC.Cmm.Dataflow.Block (MaybeO(NothingO))
 
 -- | Unit test fixture to parse, rename, and typecheck a tiny
 -- temporary module containing @expr = <rhs>@, then hand the
@@ -50,7 +34,7 @@ import GHC.Cmm.Dataflow.Block (MaybeO(NothingO))
 withRenamedExpr
     :: [String]                                -- ^ LANGUAGE pragmas
     -> String                                  -- ^ RHS source for @expr@
-    -> (DynFlags -> LHsExpr GhcRn -> IO a)
+    -> (DynFlags -> GHC.LHsExpr GhcRn -> IO a)
     -> IO a
 withRenamedExpr exts rhs k =
     withSystemTempDirectory "ollama-holes-renamed-expr" $ \dir -> do
@@ -58,13 +42,13 @@ withRenamedExpr exts rhs k =
         writeFile fp (mkModuleSource exts rhs)
 
         (dflags, expr) <- runGhc (Just GHC.Paths.libdir) $ do
-            dflags0 <- getSessionDynFlags
+            dflags0 <- GHC.getSessionDynFlags
             _ <- setSessionDynFlags dflags0
 
             target <- mkTarget fp
             setTargets [target]
 
-            result <- load LoadAllTargets
+            result <- GHC.load GHC.LoadAllTargets
             case result of
                 GHC.Failed ->
                     liftIO $ fail "GHC failed to load temporary module"
@@ -74,9 +58,9 @@ withRenamedExpr exts rhs k =
             ms <- getTmpModSummary
             p  <- parseModule ms
             t  <- typecheckModule p
-            dflags <- getSessionDynFlags
+            dflags <- GHC.getSessionDynFlags
 
-            case tm_renamed_source t >>= findExprBinding of
+            case GHC.tm_renamed_source t >>= findExprBinding of
                 Nothing ->
                     liftIO $ fail "Could not find renamed binding for expr"
                 Just e ->
@@ -88,7 +72,7 @@ withTwoRenamedExpr
   :: [String]
   -> String
   -> String
-  -> (DynFlags -> LHsExpr GhcRn -> LHsExpr GhcRn -> IO a)
+  -> (DynFlags -> GHC.LHsExpr GhcRn -> GHC.LHsExpr GhcRn -> IO a)
   -> IO a
 withTwoRenamedExpr exts src1 src2 k =
     withRenamedExpr exts src1 $ \dflags e1 ->
@@ -116,12 +100,12 @@ mkModuleSource exts rhs = unlines $
 
 mkTarget :: FilePath -> Ghc GHC.Target
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
-mkTarget fp = guessTarget fp Nothing Nothing
+mkTarget fp = GHC.guessTarget fp Nothing Nothing
 #else
-mkTarget fp = guessTarget fp Nothing
+mkTarget fp = GHC.guessTarget fp Nothing
 #endif
 
-findExprBinding :: RenamedSource -> Maybe (LHsExpr GhcRn)
+findExprBinding :: GHC.RenamedSource -> Maybe (GHC.LHsExpr GhcRn)
 findExprBinding renamed =
     let group = getRenamedGroup renamed
     in listToMaybe
@@ -135,20 +119,20 @@ findExprBinding renamed =
         , Just body <- [matchGroupBody mg]
         ]
 
-getRenamedGroup :: RenamedSource -> GHC.HsGroup GhcRn
+getRenamedGroup :: GHC.RenamedSource -> GHC.HsGroup GhcRn
 #if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
 getRenamedGroup (group, _, _, _, _) = group
 #else
 getRenamedGroup (group, _, _, _) = group
 #endif
 
-isFunBind :: LHsBind GhcRn -> Bool
+isFunBind :: GHC.LHsBind GhcRn -> Bool
 isFunBind (L _ FunBind{}) = True
 isFunBind _               = False
 
-matchGroupBody :: MatchGroup GhcRn (LHsExpr GhcRn) -> Maybe (LHsExpr GhcRn)
-matchGroupBody MG{mg_alts = L _ [L _ Match{m_grhss = grhss}]} =
+matchGroupBody :: GHC.MatchGroup GhcRn (GHC.LHsExpr GhcRn) -> Maybe (GHC.LHsExpr GhcRn)
+matchGroupBody GHC.MG{mg_alts = L _ [L _ GHC.Match{m_grhss = grhss}]} =
   case singleGRHS grhss of
-    Just (L _ (GRHS _ [] body)) -> Just body
+    Just (L _ (GHC.GRHS _ [] body)) -> Just body
     _ -> Nothing
 matchGroupBody _ = Nothing

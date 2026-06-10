@@ -18,7 +18,7 @@ author:             Matthias Pall Gissurarson <mpg@mpg.is>
 maintainer:         Matthias Pall Gissurarson <mpg@mpg.is>
 copyright:          2025 (c) Matthias Pall Gissurarson  
 category:           Development, Compiler Plugin
-tested-with:        GHC == 9.6.*, GHC == 9.8.*, GHC == 9.10.*, GHC == 9.12.*
+tested-with:        GHC == 9.6.*, GHC == 9.8.*, GHC == 9.10.*, GHC == 9.12.*, GHC == 9.12.*
 build-type:         Simple
 extra-doc-files:    ../CHANGELOG.md
                     ../README.md
