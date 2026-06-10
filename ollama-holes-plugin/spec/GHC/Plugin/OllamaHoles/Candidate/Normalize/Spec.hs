@@ -54,6 +54,8 @@ import GHC.Plugin.OllamaHoles.Candidate
     , mkPrepared
     )
 
+import GHC.Plugin.OllamaHoles.Spec.Compat
+
 tests :: TestTree
 tests = testGroup "Candidate normalization/ranking"
     [ unitTests
@@ -186,7 +188,7 @@ withRenamedExpr exts rhs k =
                 GHC.Succeeded ->
                     pure ()
 
-            ms <- getModSummary (mkModuleName "Tmp")
+            ms <- getTmpModSummary
             p  <- parseModule ms
             t  <- typecheckModule p
             dflags <- getSessionDynFlags
@@ -240,7 +242,8 @@ isFunBind (L _ GHC.FunBind{}) = True
 isFunBind _                   = False
 
 matchGroupBody :: MatchGroup GhcRn (LHsExpr GhcRn) -> Maybe (LHsExpr GhcRn)
-matchGroupBody MG{mg_alts = L _ [L _ Match{m_grhss = GRHSs{grhssGRHSs = [L _ (GRHS _ [] body)]}}]} =
-    Just body
-matchGroupBody _ =
-    Nothing
+matchGroupBody MG{mg_alts = L _ [L _ Match{m_grhss = grhss}]} =
+  case singleGRHS grhss of
+    Just (L _ (GRHS _ [] body)) -> Just body
+    _ -> Nothing
+matchGroupBody _ = Nothing

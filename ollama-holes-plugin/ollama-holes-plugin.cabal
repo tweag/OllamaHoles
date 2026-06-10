@@ -235,6 +235,7 @@ test-suite ollama-holes-spec
     , GHC.Plugin.OllamaHoles.Data.ServiceCall.Types.Gen
     , GHC.Plugin.OllamaHoles.Data.ServiceCall.Route.Spec
     , GHC.Plugin.OllamaHoles.Data.ServiceCall.Submit.Spec
+    , GHC.Plugin.OllamaHoles.Spec.Compat
     , Toml.TestHelper
   build-depends:
       base

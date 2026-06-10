@@ -41,6 +41,9 @@ import GHC qualified as GHC
 import GHC.Plugins hiding ((<>))
 import qualified GHC.Paths as GHC.Paths
 
+import GHC.Plugin.OllamaHoles.Spec.Compat
+import GHC.Cmm.Dataflow.Block (MaybeO(NothingO))
+
 -- | Unit test fixture to parse, rename, and typecheck a tiny
 -- temporary module containing @expr = <rhs>@, then hand the
 -- renamed RHS to the callback.
@@ -68,7 +71,7 @@ withRenamedExpr exts rhs k =
                 GHC.Succeeded ->
                     pure ()
 
-            ms <- getModSummary (mkModuleName "Tmp")
+            ms <- getTmpModSummary
             p  <- parseModule ms
             t  <- typecheckModule p
             dflags <- getSessionDynFlags
@@ -144,10 +147,8 @@ isFunBind (L _ FunBind{}) = True
 isFunBind _               = False
 
 matchGroupBody :: MatchGroup GhcRn (LHsExpr GhcRn) -> Maybe (LHsExpr GhcRn)
-matchGroupBody
-  MG { mg_alts = L _ [ L _ Match
-        { m_grhss = GRHSs { grhssGRHSs = [L _ (GRHS _ [] body)]} }
-        ]
-    } = Just body
-matchGroupBody _ =
-  Nothing
+matchGroupBody MG{mg_alts = L _ [L _ Match{m_grhss = grhss}]} =
+  case singleGRHS grhss of
+    Just (L _ (GRHS _ [] body)) -> Just body
+    _ -> Nothing
+matchGroupBody _ = Nothing
