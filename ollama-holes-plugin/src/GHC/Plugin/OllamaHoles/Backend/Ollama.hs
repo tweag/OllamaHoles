@@ -29,16 +29,17 @@ data OllamaConfig = OllamaConfig
 
 -- | The locally hosted ollama backend
 ollamaBackend :: OllamaConfig -> Backend
-ollamaBackend _ = Backend
-  { listModels = listOllamaModels
-  , generateFits = generateOllamaFits
+ollamaBackend conf = Backend
+  { listModels = listOllamaModels conf
+  , generateFits = generateOllamaFits conf
   }
 
-listOllamaModels :: IO (Maybe [Text])
-listOllamaModels = do
+listOllamaModels :: OllamaConfig -> IO (Maybe [Text])
+listOllamaModels conf = do
   listAll <- do
 #if MIN_VERSION_ollama_haskell(0,2,0)
-    result <- Ollama.list Nothing
+    let conf' = parseOllamaConfig conf
+    result <- Ollama.list (Just conf')
     pure $ case result of
       Left _ -> Nothing
       Right ok -> Just ok
@@ -48,9 +49,19 @@ listOllamaModels = do
   let getMs (Ollama.Models models) = fmap Ollama.name models
   pure $ fmap getMs listAll
 
+#if MIN_VERSION_ollama_haskell(0,2,0)
+parseOllamaConfig :: OllamaConfig -> Ollama.OllamaConfig
+parseOllamaConfig conf = setHost Ollama.defaultOllamaConfig
+  where
+    setHost :: Ollama.OllamaConfig -> Ollama.OllamaConfig
+    setHost x = case svcOllamaHost conf of
+      Nothing -> x
+      Just hs -> x { Ollama.hostUrl = hs }
+#endif
+
 generateOllamaFits
-  :: Text -> Text -> Maybe Value -> IO (Either String Text)
-generateOllamaFits prompt modelName options = do
+  :: OllamaConfig -> Text -> Text -> Maybe Value -> IO (Either String Text)
+generateOllamaFits conf prompt modelName options = do
   let ops = Ollama.defaultGenerateOps
         { prompt = prompt
         , modelName = modelName
