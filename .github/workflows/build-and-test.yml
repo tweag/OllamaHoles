@@ -132,7 +132,7 @@ jobs:
     - name: Build Test project
       run: |
         set -o pipefail
-        cabal build ollama-holes-demo:exe:ollama-holes-demo \
+        cabal build ollama-holes-demo:exe:ollama-holes-basic-demo \
           --ghc-option "-fforce-recomp" \
           --ghc-option "-fplugin-opt=GHC.Plugin.OllamaHoles:model=${{ matrix.model }}" \
           2>&1 | tee demo-build.log || true
