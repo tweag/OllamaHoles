@@ -528,6 +528,12 @@ tests_tomlPreferences_unit_success =
       }
     )
 
+  , ( "accepts missing top-level templates key"
+    , "services = []\n\
+      \profiles = []"
+    , Preferences mempty mempty mempty
+    )
+
   , ( "decodes single template"
     , "services = []\n\
       \profiles = []\n\
@@ -662,11 +668,6 @@ tests_tomlPreferences_unit_failure =
       \[[profiles]]\n\
       \name = 'bad'\n\
       \type = 'wat'"
-    )
-
-  , ( "rejects missing top-level templates key"
-    , "services = []\n\
-      \profiles = []"
     )
 
   , ( "rejects template missing name"
