@@ -103,7 +103,7 @@ common shared-base
     , random >= 1.2 && < 1.4
     , text >= 2.0 && < 2.2
     , time >= 1.12 && < 1.16
-    , toml-parser >= 2.0.2
+    , toml-parser >= 2.0.1
     , transformers >= 0.5.6 && < 0.7
     , vector >= 0.13.0 && < 0.14
 

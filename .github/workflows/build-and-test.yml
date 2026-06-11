@@ -158,7 +158,7 @@ jobs:
           - ghc: '9.12'
             package: toml-parser
             version: '2.0.2.*'
-          - ghc: '9.12'
+          - ghc: '9.8'
             package: aeson
             version: '2.1.*'
           - ghc: '9.12'
