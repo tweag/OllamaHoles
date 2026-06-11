@@ -9,6 +9,7 @@ import Data.Aeson qualified as Aeson
 import Data.Monoid (Endo(..))
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as Text
 import Text.Read (readMaybe)
 
 import GHC.Plugin.OllamaHoles.Logger (LogMode(..))
@@ -146,7 +147,7 @@ interpretFlag flag = case flag of
       Nothing -> Left (InvalidInt "n" txt)
 
   SetModelOptions txt -> requireNonEmpty "model-options" txt $
-    case Aeson.eitherDecodeStrictText txt of
+    case Aeson.eitherDecodeStrict' (Text.encodeUtf8 txt) of
       Right opts -> makeOk $ \fs -> fs { model_options = Just opts }
       Left err -> Left (InvalidJson "model-options" txt err)
 
