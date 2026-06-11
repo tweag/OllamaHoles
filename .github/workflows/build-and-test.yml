@@ -132,7 +132,7 @@ jobs:
     - name: Build Test project
       run: |
         set -o pipefail
-        cabal build exe:ollama-holes-demo \
+        cabal build ollama-holes-demo:exe:ollama-holes-demo \
           --ghc-option "-fforce-recomp" \
           --ghc-option "-fplugin-opt=GHC.Plugin.OllamaHoles:model=${{ matrix.model }}" \
           2>&1 | tee demo-build.log || true
@@ -148,10 +148,22 @@ jobs:
         include:
           - ghc: '9.12'
             package: 'ollama-haskell'
-            version: '0.1.3.0'
+            version: '0.1.3.*'
           - ghc: '9.12'
             package: 'ollama-haskell'
-            version: '0.2.0.0'
+            version: '0.2.0.*'
+          - ghc: '9.12'
+            package: toml-parser
+            version: '2.0.1.*'
+          - ghc: '9.12'
+            package: toml-parser
+            version: '2.0.2.*'
+          - ghc: '9.12'
+            package: aeson
+            version: '2.1.*'
+          - ghc: '9.12'
+            package: aeson
+            version: '2.2.*'
 
     name: ${{ matrix.package }} ${{ matrix.version }} with GHC ${{ matrix.ghc }}
 

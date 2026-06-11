@@ -531,7 +531,11 @@ tests_tomlPreferences_unit_success =
   , ( "accepts missing top-level templates key"
     , "services = []\n\
       \profiles = []"
-    , Preferences mempty mempty mempty
+    , Preferences
+      { prefServices = []
+      , prefProfiles = []
+      , prefTemplates = []
+      }
     )
 
   , ( "decodes single template"

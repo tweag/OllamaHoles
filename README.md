@@ -45,7 +45,7 @@ cabal install --lib ollama-holes-plugin
 From the repo's root directory:
 
 ```
-cabal build exe:ollama-holes-basic-demo
+cabal build ollama-holes-demo:exe:ollama-holes-basic-demo
 ```
 
 This is the important part of the demo program. Details about the typed hole `_llm` will be submitted to `ollama`:
