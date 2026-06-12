@@ -66,6 +66,7 @@ parseFlag token = case token of
     "n"               -> Left (MissingValue "n")
     "openai_base_url" -> Left (MissingValue "openai_base_url")
     "openai_key_name" -> Left (MissingValue "openai_key_name")
+    "ollama-host"     -> Left (MissingValue "ollama-host")
     "model-options"   -> Left (MissingValue "model-options")
     "template"        -> Left (MissingValue "template")
     "template-name"   -> Left (MissingValue "template-name")
@@ -82,6 +83,7 @@ parseFlag token = case token of
     "n"               -> Right (SetNumExpr val)
     "openai_base_url" -> Right (SetOpenAIBaseUrl val)
     "openai_key_name" -> Right (SetOpenAIKeyName val)
+    "ollama-host"     -> Right (SetOllamaHost val)
     "model-options"   -> Right (SetModelOptions val)
     "template"        -> Right (SetTemplatePath val)
     "template-name"   -> Right (SetTemplateName val)
@@ -145,6 +147,9 @@ interpretFlag flag = case flag of
     case readMaybe (T.unpack txt) of
       Just n -> makeOk $ \fs -> fs { num_expr = Just n }
       Nothing -> Left (InvalidInt "n" txt)
+
+  SetOllamaHost txt -> requireNonEmpty "ollama-host" txt $
+    makeOk $ \fs -> fs { ollama_host = Just txt }
 
   SetModelOptions txt -> requireNonEmpty "model-options" txt $
     case Aeson.eitherDecodeStrict' (Text.encodeUtf8 txt) of

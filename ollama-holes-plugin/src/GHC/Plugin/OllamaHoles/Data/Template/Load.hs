@@ -2,10 +2,7 @@ module GHC.Plugin.OllamaHoles.Data.Template.Load
   ( loadTemplate
   ) where
 
-import Data.Bifunctor (first)
-import Control.Monad.Except
 import Data.Map qualified as M
-import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import System.Directory (doesFileExist)
 import System.FilePath ((</>), isAbsolute)

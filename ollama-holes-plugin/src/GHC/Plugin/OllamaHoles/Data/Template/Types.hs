@@ -6,7 +6,6 @@ module GHC.Plugin.OllamaHoles.Data.Template.Types
   , TemplateSpec(..)
   , TemplateSource(..)
   , TemplateName(..)
-  , unTemplateName
   , defaultTemplateText
   , Line
   , Col
