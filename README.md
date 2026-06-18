@@ -267,7 +267,7 @@ profiles = ["local", "expensive"]
 
 With this profile, a hole such as `_both` will be sent to both the local and expensive profiles.
 
-3. Templates are prompt texts. They allow you to experiment with the instructions given to the model without recompiling the plugin. A profile can either use the default template, refer to a named template from the config file, or load a template from a file.
+3. **Templates** are prompt texts. They allow you to experiment with the instructions given to the model without recompiling the plugin. A profile can either use the default template, refer to a named template from the config file, or load a template from a file.
 
 A named template is declared in the templates list:
 
