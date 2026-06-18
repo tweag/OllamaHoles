@@ -169,7 +169,7 @@ The same option can be set more than once, with the "last" one (closest to the m
 1. `openai_base_url=$URL`: multiple service providers provide model access compatible with the OpenAI protocol (like groq or OpenRouter). If `backend=openai`, this is used as the base URL for requests.
 1. `openai_key_name=$VAR`: if `backend=openai`, the environment variable named `$VAR` is read and its content used as the API key for http requests. The default is `OPENAI_API_KEY`.
 1. `log=$MODE`: how much detail about LLM requests to log. `off` for none, `basic` for summaries, `full` for prompt and response.
-1. `log-dir:$PATH`: location to store log files.
+1. `log-dir=$PATH`: location to store log files.
 1. `trigger=$STRING`: set a custom trigger prefix; more details below.
 1. `template=$PATH`, `template-dir=$PATH`, `template-name=$STRING`: select a specific prompt template. See below for more information.
 1. `config=$PATH`: location of a [configuration file](#configuration-files).
@@ -182,17 +182,188 @@ Plugin options are best for basic usage and for per-module overrides. The second
 1. If the `config` option is not set, or if it is set to `config=default`, then the config is read from `$HOME/ollama-holes.toml`. If `config` is not set and that file does not exist the plugin proceeds as if the config file were empty; if `config=default` and the file does not exist the plugin reports an error.
 1. If the `config` option is set to `config=none` then the plugin proceeds as if the config file were empty.
 
-The `ollama-holes-config-demo` example demonstrates config file usage; you can see the config file at `OllamaHoles\ollama-holes-demo\demo-config\ollama-holes.toml` and run the demo with this command:
+The `ollama-holes-config-demo` example demonstrates config file usage; you can see the config file at `OllamaHoles/ollama-holes-demo/demo-config/ollama-holes.toml` and run the demo with this command:
 
-```
+```bash
 cabal build exe:ollama-holes-config-demo
 ```
 
 The config file defines lists of three kinds of entities that can influence how typed holes are processed.
 
-1. **Services** represent LLM backends you wish to prompt.
-1. **Profiles** are collections of prompt options which allow for associating different behaviors to different triggers. (For example a less powerful but cheaper local model and an expensive but powerful remote model.)
-1. **Templates** are the texts of prompts to be used, with some basic placeholder variables to be replaced with compile time information. The prompt has a big impact on the quality of the results and templates are meant to allow for easy experimentation. There is a default template if you prefer not to mess with this.
+1. **Services** represent LLM backends you wish to prompt. A service gives a backend a name that can be referenced by one or more profiles. The backend-specific fields depend on the protocol.
+
+For example, this service uses a locally running Ollama server:
+
+```toml
+[[services]]
+name = "local-ollama"
+protocol = "ollama"
+host = "http://localhost:11434"
+```
+
+The host field is optional for Ollama; if it is omitted, the plugin uses the backend default.
+
+This service uses an OpenAI-compatible API. This can be OpenAI itself or another provider implementing the same API:
+
+```toml
+[[services]]
+name = "openai"
+protocol = "openai"
+base_url = "https://api.openai.com"
+key_name = "OPENAI_API_KEY"
+```
+
+The key_name field is the name of the environment variable containing the API key. A Gemini service is similar, but uses the gemini protocol:
+
+```toml
+[[services]]
+name = "gemini"
+protocol = "gemini"
+key_name = "GEMINI_API_KEY"
+```
+
+2. **Profiles** describe how a service should be used for a particular class of typed holes. A profile selects a service, a model, an optional template, and other prompt-generation options. Profiles also define their own trigger policy, which determines which hole names route to that profile.
+
+This profile sends holes beginning with `_llm` to the local Ollama service using the qwen3 model:
+
+```toml
+[[profiles]]
+name = "local"
+type = "service"
+trigger = "prefix:llm"
+service = "local-ollama"
+model = "qwen3:latest"
+num_expr = 5
+include_docs = false
+```
+
+The trigger prefix does not include the leading underscore. For example, trigger = "prefix:llm" matches holes such as _llm, _llm1, and _llmSort. A second profile can use a different service, model, or prompt behavior:
+
+```toml
+[[profiles]]
+name = "expensive"
+type = "service"
+trigger = "prefix:smart"
+service = "openai"
+model = "gpt-4.1"
+template = "careful"
+num_expr = 3
+include_docs = true
+[profiles.model_options]
+temperature = 0.2
+```
+
+This lets different hole names opt into different behavior. For instance, `_llm` might use a cheap local model, while `_smart` might use a stronger remote model.
+
+Profiles can also be combined with a fanout profile. A fanout profile routes the same hole to several other profiles and combines their responses:
+
+```toml
+[[profiles]]
+name = "both"
+type = "fanout"
+trigger = "prefix:both"
+profiles = ["local", "expensive"]
+```
+
+With this profile, a hole such as `_both` will be sent to both the local and expensive profiles.
+
+3. Templates are prompt texts. They allow you to experiment with the instructions given to the model without recompiling the plugin. A profile can either use the default template, refer to a named template from the config file, or load a template from a file.
+
+A named template is declared in the templates list:
+
+```toml
+[[templates]]
+name = "careful"
+body = """
+You are helping GHC fill a typed hole in a Haskell program.
+Use the following compile-time context:
+{{context}}
+Documentation for names in scope:
+{{docs}}
+Return at most {{numexpr}} Haskell expressions.
+Output only raw expressions, one per line.
+"""
+```
+
+A service profile can use this template by name:
+
+```toml
+[[profiles]]
+name = "careful-local"
+type = "service"
+trigger = "prefix:careful"
+service = "local-ollama"
+model = "qwen3:latest"
+template = "careful"
+num_expr = 5
+include_docs = true
+```
+
+You can also keep a prompt in a separate file and reference it from a profile:
+
+```toml
+[[profiles]]
+name = "file-template"
+type = "service"
+trigger = "prefix:file"
+service = "local-ollama"
+model = "qwen3:latest"
+template_file = "prompts/hole-fit.txt"
+```
+
+Relative template paths are resolved relative to the template search directory. The default template is used when a service profile does not specify template or template_file. You can also request it explicitly with:
+
+```toml
+template = "default"
+```
+
+Putting these pieces together, a small config might look like this:
+
+```toml
+[[services]]
+name = "local-ollama"
+protocol = "ollama"
+[[services]]
+name = "openai"
+protocol = "openai"
+base_url = "https://api.openai.com"
+key_name = "OPENAI_API_KEY"
+[[templates]]
+name = "short"
+body = """
+Fill this Haskell typed hole.
+Context:
+{{context}}
+Return at most {{numexpr}} expressions.
+Output only raw Haskell expressions, one per line.
+"""
+[[profiles]]
+name = "local"
+type = "service"
+trigger = "prefix:llm"
+service = "local-ollama"
+model = "qwen3:latest"
+template = "short"
+num_expr = 5
+[[profiles]]
+name = "remote"
+type = "service"
+trigger = "prefix:smart"
+service = "openai"
+model = "gpt-4.1"
+template = "short"
+num_expr = 3
+include_docs = true
+[[profiles]]
+name = "compare"
+type = "fanout"
+trigger = "prefix:both"
+profiles = ["local", "remote"]
+```
+
+With this config, _llm holes use the local profile, _smart holes use the remote profile, and _both holes are sent to both.
+
+
 
 ### Ollama model options
 

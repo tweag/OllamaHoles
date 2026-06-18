@@ -80,7 +80,7 @@ homepage:           https://github.com/Tritlo/OllamaHoles
 
 source-repository head
   type:     git
-  location: git://github.com/Tritlo/OllamaHoles.git
+  location: https://github.com/tweag/OllamaHoles.git
 
 common warnings
   ghc-options: -Wall

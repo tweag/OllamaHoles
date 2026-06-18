@@ -193,7 +193,7 @@ jobs:
     - name: Update cabal index
       run: cabal update
 
-    - name: Pin ollama-haskell
+    - name: Pin dependency ${{ matrix.package }}
       run: |
         cat > cabal.project.local <<EOF
         constraints: ${{ matrix.package }} == ${{ matrix.version }}
