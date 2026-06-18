@@ -53,7 +53,7 @@ From the repo's root directory:
 cabal build exe:ollama-holes-basic-demo
 ```
 
-This is the important part of the demo program. Details about the typed hole `_llm` will be submitted to `ollama`:
+This is the important part of the demo module. Details about the typed hole `_llm` will be submitted to `ollama`:
 
 ```
 main :: IO ()
@@ -100,7 +100,7 @@ In this case the two suggestions are trivial variants. The plugin does some very
 {-# OPTIONS_GHC -fplugin-opt=GHC.Plugin.OllamaHoles:debug #-}
 ```
 
-You probably noticed that adding an LLM call to type checking makes compilation very slow. So that you only have to pay that cost when you really want it, only typed holes named with a special trigger prefix are sent to the LLM. By default that trigger is `_llm`. Try recompiling the basic demo after renaming the hole to `_llmfoo` or `_notllm` to see the difference.
+Adding an LLM call to type checking makes compilation very slow. So that you only have to pay that cost when you really want it, only typed holes named with a special trigger prefix are sent to the LLM. By default that trigger is `_llm`. Try recompiling the basic demo after renaming the hole to `_llmfoo` or `_notllm` to see the difference.
 
 ### Use the plugin in your own projects
 
@@ -126,7 +126,7 @@ extra-deps:
 - /$absolute/$path/$to/OllamaHoles/ollama-holes-plugin
 ```
 
-(or if you prefer loading the plugin from github)
+(or if you prefer fetching the plugin from github)
 
 ```
 extra-deps:
@@ -142,7 +142,7 @@ After making those changes you should be able to use the plugin just by naming y
 
 ## Configuration
 
-Once the plugin is in your project dependencies as needed there are a few knobs you can tweak and two ways to tweak them. The first is using plugin options, which can be defined either in *.cabal or package.yaml like this:
+Once the plugin is in your project dependencies there are a few knobs you can tweak and two ways to tweak them. The first is using plugin options, which can be defined either in *.cabal or package.yaml like this:
 
 ```
 ghc-options:
@@ -167,7 +167,7 @@ The same option can be set more than once, with the "last" one (closest to the m
 1. `model=$STRING`: a model name for backends which have more than one. The default is Ollama's `qwen3`.
 1. `ollama-host=$URL`: the base url to use for ollama requests. This only works if the plugin is compiled with `ollama-haskell >= 0.2`.
 1. `openai_base_url=$URL`: multiple service providers provide model access compatible with the OpenAI protocol (like groq or OpenRouter). If `backend=openai`, this is used as the base URL for requests.
-1. `openai_key_name=$VAR`: if `backend=openai`, the environment variable named `$VAR` is read and its content used as the API key for http requests.
+1. `openai_key_name=$VAR`: if `backend=openai`, the environment variable named `$VAR` is read and its content used as the API key for http requests. The default is `OPENAI_API_KEY`.
 1. `log=$MODE`: how much detail about LLM requests to log. `off` for none, `basic` for summaries, `full` for prompt and response.
 1. `log-dir:$PATH`: location to store log files.
 1. `trigger=$STRING`: set a custom trigger prefix; more details below.
@@ -302,24 +302,24 @@ and
 
 When using the `ollama` backend, the following parameters can be set using the `model-options` flag. Their meanings are documented [in the ollama-haskell package](https://hackage-content.haskell.org/package/ollama-haskell-0.2.1.0/docs/Data-Ollama-Common-Types.html#t:ModelOptions).
 
-- "num_keep"
-- "seed"
-- "num_predict"
-- "top_k"
-- "top_p"
-- "min_p"
-- "typical_p"
-- "repeat_last_n"
-- "temperature"
-- "repeat_penalty"
-- "presence_penalty"
-- "frequency_penalty"
-- "penalize_newline"
-- "stop"
-- "numa"
-- "num_ctx"
-- "num_batch"
-- "num_gpu"
-- "main_gpu"
-- "use_mmap"
-- "num_thread"
+- `num_keep`
+- `seed`
+- `num_predict`
+- `top_k`
+- `top_p`
+- `min_p`
+- `typical_p`
+- `repeat_last_n`
+- `temperature`
+- `repeat_penalty`
+- `presence_penalty`
+- `frequency_penalty`
+- `penalize_newline`
+- `stop`
+- `numa`
+- `num_ctx`
+- `num_batch`
+- `num_gpu`
+- `main_gpu`
+- `use_mmap`
+- `num_thread`
