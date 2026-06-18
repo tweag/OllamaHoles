@@ -194,15 +194,37 @@ The config file defines lists of three kinds of entities that can influence how 
 1. **Profiles** are collections of prompt options which allow for associating different behaviors to different triggers. (For example a less powerful but cheaper local model and an expensive but powerful remote model.)
 1. **Templates** are the texts of prompts to be used, with some basic placeholder variables to be replaced with compile time information. The prompt has a big impact on the quality of the results and templates are meant to allow for easy experimentation. There is a default template if you prefer not to mess with this.
 
+### Ollama model options
+
+When using the `ollama` backend, the following parameters can be set using the `model-options` flag. Their meanings are documented [in the ollama-haskell package](https://hackage-content.haskell.org/package/ollama-haskell-0.2.1.0/docs/Data-Ollama-Common-Types.html#t:ModelOptions).
+
+- `num_keep`
+- `seed`
+- `num_predict`
+- `top_k`
+- `top_p`
+- `min_p`
+- `typical_p`
+- `repeat_last_n`
+- `temperature`
+- `repeat_penalty`
+- `presence_penalty`
+- `frequency_penalty`
+- `penalize_newline`
+- `stop`
+- `numa`
+- `num_ctx`
+- `num_batch`
+- `num_gpu`
+- `main_gpu`
+- `use_mmap`
+- `num_thread`
 
 
 
 ## Guidance 
 
-We can also provide some guidance to the LLM, by having an identifier in scope called `_guide`,
-defined as `_guide = Proxy :: Proxy (Text "<guidance")`.
-
-Note that this requires `GHC.TypeError` and `Data.Proxy`, with `DataKinds` enabled
+We can also provide some guidance to the LLM, by having an identifier in scope called `_guide`, defined as `_guide = Proxy :: Proxy (Text "<guidance")`. Note that this requires having `GHC.TypeError` and `Data.Proxy`, with `DataKinds` enabled.
 
 Given
 
@@ -260,6 +282,7 @@ Main.hs:15:12: error: [GHC-88464]
 ```
 
 ## Including Documentation
+
 You can also pass the `-fplugin-opt=GHC.Plugin.OllamaHoles:include-docs`, flag,
 which will lookup the Haddock documentation (if available) for the functions in scope
 and provide it to the LLM. E.g. if `Data.List` is imported as `L`, the request to the
@@ -276,50 +299,3 @@ Documentation for `L.transpose`:
  The 'transpose' function transposes the rows and columns of its argument.
 ...
 ```
-
-
-
-
-## OpenAI and Gemini backends
-
-The plugin now supports using the OpenAI API and Gemini APIs to generate valid hole fits.
-Simply set the backend flag `-fplugin-opt=GHC.Plugin.OllamaHoles:backend=openai`,
-or `-fplugin-opt=GHC.Plugin.OllamaHoles:backend=gemini`, and make sure that
-you have the `OPENAI_API_KEY` or `GEMINI_API_KEY` set in your environment.
-
-To use with any other OpenAI compatible api (like groq or OpenRouter), simply set
-`-fplugin-opt=GHC.Plugin.OllamaHoles:backend=openai`,
-and
-`-fplugin-opt=GHC.Plugin.OllamaHoles:openai_base_url=https://api.groq.com/openai`,
-`-fplugin-opt=GHC.Plugin.OllamaHoles:openai_key_name=GROQ_API_KEY`,
-
-
-
-
-
-
-### Ollama model options
-
-When using the `ollama` backend, the following parameters can be set using the `model-options` flag. Their meanings are documented [in the ollama-haskell package](https://hackage-content.haskell.org/package/ollama-haskell-0.2.1.0/docs/Data-Ollama-Common-Types.html#t:ModelOptions).
-
-- `num_keep`
-- `seed`
-- `num_predict`
-- `top_k`
-- `top_p`
-- `min_p`
-- `typical_p`
-- `repeat_last_n`
-- `temperature`
-- `repeat_penalty`
-- `presence_penalty`
-- `frequency_penalty`
-- `penalize_newline`
-- `stop`
-- `numa`
-- `num_ctx`
-- `num_batch`
-- `num_gpu`
-- `main_gpu`
-- `use_mmap`
-- `num_thread`
