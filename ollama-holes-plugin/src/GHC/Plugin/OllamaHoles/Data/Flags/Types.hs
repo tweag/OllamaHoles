@@ -29,6 +29,7 @@ data Flags = Flags
     , include_docs        :: Maybe Bool
     , openai_base_url     :: Maybe Text
     , openai_key_name     :: Maybe Text
+    , ollama_host         :: Maybe Text
     , model_options       :: Maybe Value
     , template_path       :: Maybe FilePath
     , template_name       :: Maybe TemplateName
@@ -49,6 +50,7 @@ instance Semigroup Flags where
     , include_docs        = merge include_docs
     , openai_base_url     = merge openai_base_url
     , openai_key_name     = merge openai_key_name
+    , ollama_host         = merge ollama_host
     , model_options       = merge model_options
     , template_path       = merge template_path
     , template_name       = merge template_name
@@ -72,6 +74,7 @@ instance Monoid Flags where
     , include_docs        = Nothing
     , openai_base_url     = Nothing
     , openai_key_name     = Nothing
+    , ollama_host         = Nothing
     , model_options       = Nothing
     , template_path       = Nothing
     , template_name       = Nothing
@@ -113,6 +116,7 @@ data FlagUpdate
     | DisableDocs
     | SetOpenAIBaseUrl Text
     | SetOpenAIKeyName Text
+    | SetOllamaHost Text
     | SetModelOptions Text
     | SetTemplatePath Text
     | SetTemplateName Text

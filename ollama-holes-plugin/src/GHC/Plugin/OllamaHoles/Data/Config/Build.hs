@@ -111,7 +111,7 @@ simpleConfigFromFlags flags source = SimpleConfig
   , simpleService = Service
     { svcName = serviceName
     , svcConfig = case fromMaybe defaultBackendSlug (backend_name flags) of
-        Ollama -> SvcOllama $ OllamaConfig Nothing
+        Ollama -> SvcOllama $ OllamaConfig (ollama_host flags)
         OpenAI -> SvcOpenAI $ OpenAIConfig
           (fromMaybe "https://api.openai.com" (openai_base_url flags))
           (fromMaybe "OPENAI_API_KEY" (openai_key_name flags))
