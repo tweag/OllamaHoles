@@ -5,3 +5,7 @@ optional-packages:
   ollama-holes-demo/*.cabal
 
 tests: True
+
+if impl(ghc < 9.10)
+  constraints:
+    megaparsec < 9.8
