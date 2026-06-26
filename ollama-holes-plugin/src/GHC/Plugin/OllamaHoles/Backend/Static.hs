@@ -22,6 +22,7 @@ data StaticConfig = StaticConfig
 data StaticResponse
   = StaticInline Text
   | StaticFile FilePath
+  | StaticEmpty
   deriving (Eq, Ord, Show)
 
 staticBackend :: StaticConfig -> Backend

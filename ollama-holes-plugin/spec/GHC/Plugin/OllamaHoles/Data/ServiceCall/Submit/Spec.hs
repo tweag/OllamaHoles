@@ -91,6 +91,7 @@ tests_submitRoutedServiceCalls_prop = testGroup "submitRoutedServiceCalls (prop)
               , cfgProfiles = M.fromList
                 [ (profName profile, profile) | profile <- fan : children ]
               , cfgExtras = Just (ConfigOverride emptyOverrides)
+              , cfgTemplates = mempty
               }
 
           env = ServiceCallTestEnv
@@ -173,6 +174,7 @@ tests_submitRoutedServiceCalls_unit_success =
             )
           ]
         , cfgExtras = Just (ConfigOverride emptyOverrides)
+        , cfgTemplates = mempty
         }
     , "_anything"
     , ServiceCallTestEnv
@@ -227,6 +229,7 @@ tests_submitRoutedServiceCalls_unit_success =
             )
           ]
         , cfgExtras = Just (ConfigOverride emptyOverrides)
+        , cfgTemplates = mempty
         }
     , "_anything"
     , ServiceCallTestEnv

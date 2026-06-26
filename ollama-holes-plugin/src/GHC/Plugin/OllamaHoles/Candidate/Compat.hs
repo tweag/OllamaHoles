@@ -18,14 +18,19 @@ import GHC (GhcRn, LHsExpr, HsExpr(..), Pat(..), GRHSs(..), GRHS(..), Match(..))
 import GHC qualified as GHC
 import GHC.Plugins hiding ((<>))
 
+import GHC.Tc.Types (TcM)
+import GHC.Tc.Types.Origin (CtOrigin(..), UserTypeCtxt(..))
+import GHC.Tc.Utils.Monad qualified as GHC
+import GHC.Tc.Utils.Unify qualified as GHC
+
+import GHC.Tc.Gen.Expr qualified as GHC
+import GHC.Tc.Utils.TcType qualified as GHC
+
 #if MIN_VERSION_ghc(9,14,0)
-import GHC.Types.Name.Reader (WithUserRdr(..))
 import Data.List.NonEmpty (NonEmpty(..))
 import GHC.Tc.Types.Evidence qualified as GHC
 import GHC.Types.Var qualified as GHC
 import GHC.Tc.Types.Constraint qualified as GHC
-import GHC.Tc.Utils.TcMType qualified as GHC
-import GHC.Tc.Types qualified as GHC
 import GHC.Tc.Solver qualified as GHC
 #endif
 
@@ -35,9 +40,6 @@ import GHC.Tc.Gen.Expr qualified as GHC (tcInferSigma)
 import GHC.Tc.Gen.App qualified as GHC (tcInferSigma)
 import GHC.Tc.Solver qualified as GHC (simplifyInfer, InferMode(..))
 #endif
-
-import GHC.Tc.Utils.TcType qualified as GHC (TcSigmaType, TcLevel, TcTyVar, TcTauType)
-import GHC.Tc.Types (TcM)
 
 
 

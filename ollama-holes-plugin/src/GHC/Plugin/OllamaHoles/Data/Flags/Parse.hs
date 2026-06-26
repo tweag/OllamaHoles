@@ -75,6 +75,7 @@ parseFlag token = case token of
     "log-dir"         -> Left (MissingValue "log-dir")
     "trigger"         -> Left (MissingValue "trigger")
     "config"          -> Left (MissingValue "config")
+    "static-response-path" -> Left (MissingValue "static-response-path")
     _                 -> Right (NoOp token)
 
   ValueToken key val -> case key of
@@ -92,6 +93,7 @@ parseFlag token = case token of
     "log-dir"         -> Right (SetLogDir val)
     "trigger"         -> Right (SetTriggerPolicy val)
     "config"          -> Right (SetConfigPath val)
+    "static-response-path" -> Right (SetStaticResponsePath val)
     "debug"           -> Left (UnexpectedValue "debug" val)
     "nodebug"         -> Left (UnexpectedValue "nodebug" val)
     "include-docs"    -> Left (UnexpectedValue "include-docs" val)
@@ -179,6 +181,9 @@ interpretFlag flag = case flag of
         "default" -> ConfigDefault
         path      -> ConfigExplicit path
       }
+
+  SetStaticResponsePath txt -> requireNonEmpty "static-response-path" txt $
+    makeOk $ \fs -> fs { static_response_path = Just $ T.unpack txt }
 
   where
     makeOk :: (Applicative f) => (a -> a) -> f (Endo a, [b])

@@ -1,0 +1,18 @@
+f <$> n
+Just (f 3)
+fallback
+choose fallback (Just (UserId 1))
+Nothing
+pure (UserId 2)
+UserId <$> n
+($) f <$> n
+choose Nothing fallback
+const fallback s
+Just s
+f <$> Just s
+choose s fallback
+f
+n
+const s fallback
+($) s <$> n
+choose n fallback
