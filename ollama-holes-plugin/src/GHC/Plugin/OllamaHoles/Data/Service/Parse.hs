@@ -55,6 +55,10 @@ tomlBackendConfigFor = \case
     <$> (GeminiConfig
       <$> reqKey "key_name")
 
+  "static" -> SvcStatic
+    <$> (StaticConfig
+      <$> parseStaticResponse)
+
   bad ->
     fail ("invalid service protocol: " <> T.unpack bad)
 
