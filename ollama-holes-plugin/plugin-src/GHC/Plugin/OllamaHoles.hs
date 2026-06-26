@@ -98,7 +98,7 @@ fitPluginLLM
   -> TypedHole
   -> [HoleFit] -- Known hole fits from GHC
   -> TcM [HoleFit]
-fitPluginLLM ref hole fits = do
+fitPluginLLM ref hole fits = discardErrs $ do
   result <- runExceptT $ do
     st <- lift (readTcRef ref) >>= liftEither
     tryFitPluginLLM st hole fits

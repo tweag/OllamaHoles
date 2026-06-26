@@ -4,6 +4,7 @@ import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
 import GHC (GhcPs, GhcRn, LHsExpr)
+import GHC.Core.TyCo.Compare (tcEqType)
 import GHC.Data.StringBuffer qualified as GHC (stringToStringBuffer)
 import GHC.Driver.Config.Parser qualified as GHC (initParserOpts)
 import GHC.Parser qualified as GHC (parseExpression)
@@ -145,43 +146,75 @@ renameCandidate _ ParsedCandidate{pcSource, pcParsed, pcLog} =
                 , rcLog     = addDecision StageRename "renamed successfully" pcLog
                 }
 
-checkCandidateFit :: CheckCtx -> RenamedCandidate -> TcM (Either CandidateError CheckedCandidate)
+checkCandidateFit
+  :: CheckCtx
+  -> RenamedCandidate
+  -> TcM (Either CandidateError CheckedCandidate)
 checkCandidateFit CheckCtx{cxHole} RenamedCandidate{rcSource, rcRenamed, rcLog}
-    | Just h <- th_hole cxHole =
-        discardErrs $ do
-            ((doesFit, _), zonkedTy) <-
-                GHC.withoutUnification (GHC.tyCoFVsOfType (hole_ty h)) $ do
-                    ((tcLvl, exprTy), wanteds) <-
-                        GHC.captureTopConstraints $
-                          GHC.pushTcLevelM $
-                            tcInferCandidateExpr rcRenamed
+    | Just h <- th_hole cxHole = do
+        (zonkedCandidateTy, zonkedHoleTy) <-
+          inferCandidateType h
 
-                    fresh <- GHC.newName (mkVarOcc "hf-fit")
+        dflags <- getDynFlags
 
-                    ((qtvs, dicts, _, _), residual) <-
-                        GHC.captureConstraints $
-                            simplifyCandidateInfer tcLvl GHC.NoRestrictions [] [(fresh, exprTy)] wanteds
+        let fits =
+              tcEqType zonkedCandidateTy zonkedHoleTy
 
-                    let rTy = mkInfForAllTys qtvs $ GHC.mkPhiTy (map idType dicts) exprTy
-                    _ <- GHC.simplifyTop residual
-                    zonked <- GHC.runTcSEarlyAbort $ GHC.zonkTcType rTy
-                    ok <- GHC.tcCheckHoleFit cxHole (hole_ty h) zonked
-                    pure (ok, zonked)
+        liftIO $ do
+          putStrLn $ "candidate source: " <> T.unpack rcSource
+          putStrLn $ "hole type: " <> showSDoc dflags (ppr zonkedHoleTy)
+          putStrLn $ "candidate type: " <> showSDoc dflags (ppr zonkedCandidateTy)
+          putStrLn $ "tcEqType returned: " <> show fits
 
-            let onError = pure $ Left $ CandidateTypeError
-                  "type inference or hole-fit check failed"
-
-            ifErrsM onError $
-                pure $ if doesFit
-                    then Right $ CheckedCandidate
-                        { ccSource   = rcSource
-                        , ccRenamed  = rcRenamed
-                        , ccExprType = zonkedTy
-                        , ccLog      = addDecision StageCheck "validated against hole type" rcLog
-                        }
-                    else Left (CandidateRejected "candidate did not fit hole type")
+        pure $
+          if fits
+            then
+              Right $
+                CheckedCandidate
+                  { ccSource   = rcSource
+                  , ccRenamed  = rcRenamed
+                  , ccExprType = zonkedCandidateTy
+                  , ccLog      =
+                      addDecision StageCheck "validated against hole type" rcLog
+                  }
+            else
+              Left $
+                CandidateRejected "candidate type did not match hole type"
     | otherwise =
-        pure (Left (CandidateRejected "hole information unavailable"))
+        pure $
+          Left $
+            CandidateRejected "hole information unavailable"
+      where
+        inferCandidateType h = do
+          ((tcLvl, exprTy), wanteds) <-
+            GHC.captureTopConstraints $
+              GHC.pushTcLevelM $
+                tcInferCandidateExpr rcRenamed
+
+          fresh <- GHC.newName (mkVarOcc "hf-fit")
+
+          ((qtvs, dicts, _, _), residual) <-
+            GHC.captureConstraints $
+              simplifyCandidateInfer tcLvl GHC.NoRestrictions
+                []
+                [(fresh, exprTy)]
+                wanteds
+
+          let rTy =
+                mkInfForAllTys qtvs $
+                  GHC.mkPhiTy (map idType dicts) exprTy
+
+          _ <- GHC.simplifyTop residual
+
+          zonkedCandidateTy <-
+            GHC.runTcSEarlyAbort $
+              GHC.zonkTcType rTy
+
+          zonkedHoleTy <-
+            GHC.runTcSEarlyAbort $
+              GHC.zonkTcType (hole_ty h)
+
+          pure (zonkedCandidateTy, zonkedHoleTy)
 
 
 

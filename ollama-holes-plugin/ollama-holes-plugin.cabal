@@ -205,6 +205,7 @@ test-suite ollama-holes-spec
     , GHC.Plugin.OllamaHoles.Candidate.Normalize.Spec
     , GHC.Plugin.OllamaHoles.Candidate.Rewrite.Spec
     , GHC.Plugin.OllamaHoles.Candidate.WithRenamedExpr
+    , GHC.Plugin.OllamaHoles.Integration.Static.Spec
     , GHC.Plugin.OllamaHoles.Logger.Spec
     , GHC.Plugin.OllamaHoles.Data.Spec
     , GHC.Plugin.OllamaHoles.Data.Config.Types.Gen
@@ -243,8 +244,46 @@ test-suite ollama-holes-spec
       base
     , ghc-paths
     , ollama-holes-plugin:ollama-holes-lib
+    , process
     , syb
     , tasty
     , tasty-hunit
     , tasty-quickcheck
     , temporary
+
+test-suite ollama-holes-static-fixture
+  type: exitcode-stdio-1.0
+  main-is: UserIdDemo.hs
+  hs-source-dirs: spec/fixtures/static/monomorphic
+  default-language: Haskell2010
+
+  build-depends:
+      base
+    , ollama-holes-plugin
+
+  ghc-options:
+      -fforce-recomp
+      -fdefer-typed-holes
+      -Wno-typed-holes
+      -Wno-deferred-type-errors
+      -fplugin=GHC.Plugin.OllamaHoles
+      -fplugin-opt=GHC.Plugin.OllamaHoles:config=spec/fixtures/static/monomorphic/ollama-holes.toml
+
+test-suite ollama-holes-subsumption-fixture
+  type: exitcode-stdio-1.0
+  main-is: SubsumptionDemo.hs
+  hs-source-dirs: spec/fixtures/static/subsumption
+  default-language: Haskell2010
+
+  build-depends:
+      base
+    , ollama-holes-plugin
+
+  ghc-options:
+      -fforce-recomp
+      -fdefer-typed-holes
+      -Wno-typed-holes
+      -Wno-deferred-type-errors
+      -fplugin=GHC.Plugin.OllamaHoles
+      -fplugin-opt=GHC.Plugin.OllamaHoles:debug
+      -fplugin-opt=GHC.Plugin.OllamaHoles:config=spec/fixtures/static/subsumption/ollama-holes.toml

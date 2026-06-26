@@ -1,0 +1,6 @@
+UserId <$> readMaybe s
+Just (UserId (read s))
+UserId <$> Just (length s)
+readMaybe s
+UserId (read s)
+Just s
