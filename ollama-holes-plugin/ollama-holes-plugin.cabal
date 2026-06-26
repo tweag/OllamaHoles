@@ -138,6 +138,7 @@ library ollama-holes-lib
     , GHC.Plugin.OllamaHoles.Backend.Ollama
     , GHC.Plugin.OllamaHoles.Backend.OpenAI
     , GHC.Plugin.OllamaHoles.Backend.Gemini
+    , GHC.Plugin.OllamaHoles.Backend.Static
     , GHC.Plugin.OllamaHoles.Candidate
     , GHC.Plugin.OllamaHoles.Candidate.Compat
     , GHC.Plugin.OllamaHoles.Candidate.Rewrite
@@ -198,7 +199,8 @@ test-suite ollama-holes-spec
   main-is:             Main.hs
   hs-source-dirs:      spec
   other-modules:
-      GHC.Plugin.OllamaHoles.Candidate.Spec
+      GHC.Plugin.OllamaHoles.Backend.Static.Spec
+    , GHC.Plugin.OllamaHoles.Candidate.Spec
     , GHC.Plugin.OllamaHoles.Candidate.Compat.Spec
     , GHC.Plugin.OllamaHoles.Candidate.Normalize.Spec
     , GHC.Plugin.OllamaHoles.Candidate.Rewrite.Spec

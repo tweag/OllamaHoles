@@ -5,6 +5,7 @@ module GHC.Plugin.OllamaHoles.Data.Service.Parse.Spec
 import Data.Either (isLeft)
 import Data.Functor ((<&>))
 import Data.Text (Text)
+import Data.Text qualified as T
 import Test.Tasty
 import Test.Tasty.HUnit (testCase, assertBool, (@?=))
 import Test.Tasty.QuickCheck qualified as QC
@@ -15,7 +16,13 @@ import Toml.TestHelper
 
 import GHC.Plugin.OllamaHoles.Data.Service
 import GHC.Plugin.OllamaHoles.Backend
-  (OpenAIConfig(..), GeminiConfig(..), OllamaConfig(..), BackendConfig(..))
+  ( OpenAIConfig(..)
+  , GeminiConfig(..)
+  , OllamaConfig(..)
+  , StaticConfig(..)
+  , StaticResponse(..)
+  , BackendConfig(..)
+  )
 
 import GHC.Plugin.OllamaHoles.Data.Service.Types.Gen
 
@@ -49,6 +56,38 @@ tests_tomlServiceName_prop = testGroup "tomlServiceName (prop)"
       QC.forAll genServiceNameText $ \name ->
         Toml.runMatcherIgnoreWarn (tomlServiceName (Toml.Text name))
           QC.=== Right (ServiceName name)
+
+  , QC.testProperty "generated static services with inline response parse" $
+    QC.forAll genServiceNameText $ \name ->
+    QC.forAll genStaticResponseText $ \response ->
+      propTomlParseSuccess tomlService
+        ( "name = '" <> name <> "'\n\
+          \protocol = 'static'\n\
+          \response = '''" <> response <> "'''"
+        , Service
+          { svcName = ServiceName name
+          , svcConfig = SvcStatic $
+              StaticConfig
+                { svcStaticResponse = StaticInline response
+                }
+          }
+        )
+
+  , QC.testProperty "generated static services with response files parse" $
+    QC.forAll genServiceNameText $ \name ->
+    QC.forAll genStaticResponseFileText $ \path ->
+      propTomlParseSuccess tomlService
+        ( "name = '" <> name <> "'\n\
+          \protocol = 'static'\n\
+          \response-file = '" <> path <> "'"
+        , Service
+          { svcName = ServiceName name
+          , svcConfig = SvcStatic $
+              StaticConfig
+                { svcStaticResponse = StaticFile (T.unpack path)
+                }
+          }
+        )
   ]
 
 tests_tomlService_unit :: TestTree
@@ -191,6 +230,38 @@ tests_tomlService_unit_success =
             (GeminiConfig "GEMINI_API_KEY")
         }
     )
+
+  , ( "parses static service with inline response"
+    , "name = 'static-inline'\n\
+        \protocol = 'static'\n\
+        \response = '''\n\
+        \UserId <$> readMaybe s\n\
+        \Just (UserId (read s))\n\
+        \'''"
+    , Service
+        { svcName = ServiceName "static-inline"
+        , svcConfig = SvcStatic $
+            StaticConfig
+              { svcStaticResponse =
+                  StaticInline
+                    "UserId <$> readMaybe s\nJust (UserId (read s))\n"
+              }
+        }
+    )
+
+  , ( "parses static service with response file"
+    , "name = 'static-file'\n\
+        \protocol = 'static'\n\
+        \response-file = 'test/fixtures/userid.candidates'"
+    , Service
+        { svcName = ServiceName "static-file"
+        , svcConfig = SvcStatic $
+            StaticConfig
+              { svcStaticResponse =
+                  StaticFile "test/fixtures/userid.candidates"
+              }
+        }
+    )
   ]
 
 tests_tomlService_unit_failure
@@ -224,5 +295,17 @@ tests_tomlService_unit_failure =
   , ( "rejects Gemini service missing key_name"
     , "name = 'gemini'\n\
         \protocol = 'gemini'"
+    )
+
+  , ( "rejects static service missing response and response-file"
+    , "name = 'static'\n\
+        \protocol = 'static'"
+    )
+
+  , ( "rejects static service with both response and response-file"
+    , "name = 'static'\n\
+        \protocol = 'static'\n\
+        \response = 'Just (UserId 0)'\n\
+        \response-file = 'test/fixtures/userid.candidates'"
     )
   ]

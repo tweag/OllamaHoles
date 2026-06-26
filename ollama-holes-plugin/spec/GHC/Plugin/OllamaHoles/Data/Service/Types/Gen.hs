@@ -5,6 +5,8 @@ module GHC.Plugin.OllamaHoles.Data.Service.Types.Gen
   , genUrlText
   , genTemplateFilePathText
   , genTemplateValueText
+  , genStaticResponseText
+  , genStaticResponseFileText
   ) where
 
 import Data.Text (Text)
@@ -82,4 +84,25 @@ genTemplateValueText =
         rest <- QC.listOf $ QC.elements (['a' .. 'z'] <> ['0' .. '9'] <> "-_")
         pure . T.pack $ first : rest
       )
+    ]
+
+genStaticResponseText :: QC.Gen Text
+genStaticResponseText =
+  T.unlines <$> QC.listOf1 genCandidateLineText
+
+genCandidateLineText :: QC.Gen Text
+genCandidateLineText =
+  QC.elements
+    [ "Just (UserId 0)"
+    , "Just (UserId (read s))"
+    , "UserId <$> readMaybe s"
+    , "UserId <$> Just (length s)"
+    ]
+
+genStaticResponseFileText :: QC.Gen Text
+genStaticResponseFileText =
+  QC.elements
+    [ "test/fixtures/userid.candidates"
+    , "spec/fixtures/static.candidates"
+    , "fixtures/candidates.txt"
     ]
