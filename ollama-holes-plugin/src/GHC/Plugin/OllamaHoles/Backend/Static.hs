@@ -8,10 +8,10 @@ module GHC.Plugin.OllamaHoles.Backend.Static
 
 import GHC.Generics (Generic)
 
+import Control.Exception (try, displayException, IOException)
+import Data.Bifunctor (first)
 import Data.Text (Text)
-import Data.Text qualified as T
 import Data.Text.IO qualified as T
-import Data.Maybe (fromMaybe)
 
 import GHC.Plugin.OllamaHoles.Backend.Common
 
@@ -37,4 +37,5 @@ staticBackend StaticConfig{..} = Backend{..}
           pure $ Right response
 
         StaticFile path ->
-          Right <$> T.readFile path
+          fmap (first (displayException @IOException)) $
+            try (T.readFile path)

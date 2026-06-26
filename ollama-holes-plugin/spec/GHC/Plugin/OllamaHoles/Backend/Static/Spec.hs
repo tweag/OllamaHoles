@@ -7,7 +7,6 @@ import Data.Text.IO qualified as T
 import System.FilePath ((</>))
 import Test.Tasty
 import Test.Tasty.HUnit
-import Test.Tasty.QuickCheck ()
 import System.IO.Temp (withSystemTempDirectory)
 
 import GHC.Plugin.OllamaHoles.Backend.Common
