@@ -12,7 +12,13 @@ import Toml.Schema
 import Toml.Schema qualified as Toml
 
 import GHC.Plugin.OllamaHoles.Backend
-  (OpenAIConfig(..), GeminiConfig(..), OllamaConfig(..), BackendConfig(..))
+  ( OpenAIConfig(..)
+  , GeminiConfig(..)
+  , OllamaConfig(..)
+  , StaticConfig(..)
+  , StaticResponse(..)
+  , BackendConfig(..)
+  )
 
 import GHC.Plugin.OllamaHoles.Data.Service.Types
 
@@ -51,3 +57,21 @@ tomlBackendConfigFor = \case
 
   bad ->
     fail ("invalid service protocol: " <> T.unpack bad)
+
+parseStaticResponse :: ParseTable l StaticResponse
+parseStaticResponse = do
+  response     <- optKey "response"
+  responseFile <- optKey "response-file"
+
+  case (response, responseFile) of
+    (Just txt, Nothing) ->
+      pure (StaticInline txt)
+
+    (Nothing, Just path) ->
+      pure (StaticFile path)
+
+    (Nothing, Nothing) ->
+      fail "static service requires either `response` or `response-file`"
+
+    (Just _, Just _) ->
+      fail "static service cannot specify both `response` and `response-file`"
