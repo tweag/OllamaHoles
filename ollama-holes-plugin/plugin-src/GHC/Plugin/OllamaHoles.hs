@@ -13,6 +13,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Data.Char (isSpace)
 import Data.Foldable (traverse_)
+import Data.Maybe (mapMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
@@ -23,6 +24,12 @@ import GHC.Tc.Types
 import GHC.Tc.Types.Constraint (Hole (..))
 import GHC.Tc.Utils.Monad (getGblEnv, newTcRef, readTcRef, updTcRef, discardErrs, ifErrsM)
 import GHC.Tc.Utils.Monad qualified as GHC
+
+import GHC.Tc.Errors.Hole qualified as GHC
+import GHC.Types.Var.Env qualified as GHC
+import GHC.Types.Var (Id, varName, varType)
+import GHC.Types.Name (getOccName)
+import GHC.Types.Name.Occurrence (occNameString)
 
 import GHC (GhcPs, LHsExpr, GhcRn)
 import GHC.Data.StringBuffer qualified as GHC (stringToStringBuffer)

@@ -1,0 +1,13 @@
+templates = []
+
+[[services]]
+name = "static"
+protocol = "static"
+response-file = "spec/fixtures/static/class-resolution/class-resolution.candidates"
+
+[[profiles]]
+type = "service"
+name = "static"
+service = "static"
+model = "static"
+trigger = "prefix:llm"

@@ -3,7 +3,7 @@ module GHC.Plugin.OllamaHoles.Data.Config.Build
   ) where
 
 import Control.Exception (try)
-import Control.Monad (foldM, when)
+import Control.Monad (foldM)
 import Control.Monad.Except (ExceptT(..), MonadError(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.List.NonEmpty (NonEmpty(..))
@@ -117,6 +117,9 @@ simpleConfigFromFlags flags source = SimpleConfig
           (fromMaybe "OPENAI_API_KEY" (openai_key_name flags))
         Gemini -> SvcGemini $ GeminiConfig
           (fromMaybe "GEMINI_API_KEY" (openai_key_name flags))
+        Static -> SvcStatic $ StaticConfig
+          (fromMaybe StaticEmpty
+            (fmap StaticFile $ static_response_path flags))
     }
   , simpleProfile = ServiceProf
     { profService = serviceName

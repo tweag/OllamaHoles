@@ -287,3 +287,37 @@ test-suite ollama-holes-subsumption-fixture
       -fplugin=GHC.Plugin.OllamaHoles
       -fplugin-opt=GHC.Plugin.OllamaHoles:debug
       -fplugin-opt=GHC.Plugin.OllamaHoles:config=spec/fixtures/static/subsumption/ollama-holes.toml
+
+test-suite ollama-holes-local-polymorphic-fixture
+  type: exitcode-stdio-1.0
+  main-is: PolymorphicDemo.hs
+  hs-source-dirs: spec/fixtures/static/polymorphic
+  default-language: Haskell2010
+  build-depends:
+      base
+    , ollama-holes-plugin
+  ghc-options:
+      -fforce-recomp
+      -fdefer-typed-holes
+      -Wno-typed-holes
+      -Wno-deferred-type-errors
+      -fplugin=GHC.Plugin.OllamaHoles
+      -fplugin-opt=GHC.Plugin.OllamaHoles:debug
+      -fplugin-opt=GHC.Plugin.OllamaHoles:config=spec/fixtures/static/polymorphic/ollama-holes.toml
+
+test-suite ollama-holes-class-resolution-fixture
+  type: exitcode-stdio-1.0
+  main-is: ClassResolutionDemo.hs
+  hs-source-dirs: spec/fixtures/static/class-resolution
+  default-language: Haskell2010
+  build-depends:
+      base
+    , ollama-holes-plugin
+  ghc-options:
+      -fforce-recomp
+      -fdefer-typed-holes
+      -Wno-typed-holes
+      -Wno-deferred-type-errors
+      -fplugin=GHC.Plugin.OllamaHoles
+      -fplugin-opt=GHC.Plugin.OllamaHoles:debug
+      -fplugin-opt=GHC.Plugin.OllamaHoles:config=spec/fixtures/static/class-resolution/ollama-holes.toml

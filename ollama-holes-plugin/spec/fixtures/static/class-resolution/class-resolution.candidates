@@ -1,0 +1,14 @@
+decode s
+needsDecode s
+localDecode
+fmap UserId (decode s)
+fmap mkUserId (needsDecode s)
+pure (UserId 1)
+fallback
+decode "123"
+read s
+show s
+decode
+needsDecode
+localDecode :: Maybe Int
+mystery s

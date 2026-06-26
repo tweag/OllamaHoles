@@ -1,6 +1,5 @@
 module GHC.Plugin.OllamaHoles.Data.Prefs.Types where
 
-import Data.Text (Text)
 import GHC.Generics (Generic)
 
 import GHC.Plugin.OllamaHoles.Data.Service

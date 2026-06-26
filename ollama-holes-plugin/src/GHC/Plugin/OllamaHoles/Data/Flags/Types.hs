@@ -38,6 +38,7 @@ data Flags = Flags
     , log_dir             :: Maybe FilePath
     , trigger_policy      :: Maybe TriggerPolicy
     , config_path         :: Maybe ConfigPathSpec
+    , static_response_path :: Maybe FilePath
     } deriving (Eq, Show)
 
 -- | Componentwise left zero semigroup with adjoined unit.
@@ -59,6 +60,7 @@ instance Semigroup Flags where
     , log_dir             = merge log_dir
     , trigger_policy      = merge trigger_policy
     , config_path         = merge config_path
+    , static_response_path = merge static_response_path
     }
     where
       merge :: forall a. (Flags -> Maybe a) -> Maybe a
@@ -82,7 +84,8 @@ instance Monoid Flags where
     , log_mode            = Nothing
     , log_dir             = Nothing
     , trigger_policy      = Nothing
-    , config_path         = Nothing 
+    , config_path         = Nothing
+    , static_response_path = Nothing
     }
 
 data ConfigPathSpec
@@ -125,4 +128,5 @@ data FlagUpdate
     | SetLogDir Text
     | SetTriggerPolicy Text
     | SetConfigPath Text
+    | SetStaticResponsePath Text
     deriving (Eq, Show)

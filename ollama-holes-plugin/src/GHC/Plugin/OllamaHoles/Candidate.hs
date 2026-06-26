@@ -1,10 +1,10 @@
 module GHC.Plugin.OllamaHoles.Candidate where
 
+import Control.Monad (when, forM_)
 import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
 import GHC (GhcPs, GhcRn, LHsExpr)
-import GHC.Core.TyCo.Compare (tcEqType)
 import GHC.Data.StringBuffer qualified as GHC (stringToStringBuffer)
 import GHC.Driver.Config.Parser qualified as GHC (initParserOpts)
 import GHC.Parser qualified as GHC (parseExpression)
@@ -13,7 +13,7 @@ import GHC.Parser.Lexer qualified as GHC
 import GHC.Parser.PostProcess qualified as GHC (runPV, unECP)
 import GHC.Plugins hiding ((<>), NameEnv)
 import GHC.Rename.Expr qualified as GHC (rnLExpr)
-import GHC.Tc.Errors.Hole qualified as GHC (tcCheckHoleFit, withoutUnification)
+import GHC.Tc.Errors.Hole qualified as GHC (getLocalBindings)
 import qualified GHC.Tc.Solver as GHC
     (simplifyTop, captureTopConstraints, InferMode(..))
 import qualified GHC.Tc.Solver.Monad as GHC (zonkTcType, runTcSEarlyAbort)
@@ -22,8 +22,13 @@ import GHC.Tc.Types.Constraint (Hole(..))
 import qualified GHC.Tc.Utils.Monad as GHC
 import GHC.Tc.Utils.Monad (discardErrs, ifErrsM)
 import GHC.Tc.Utils.TcType (TcSigmaType)
-import qualified GHC.Tc.Utils.TcType as GHC (tyCoFVsOfType, mkPhiTy)
+import qualified GHC.Tc.Utils.TcType as GHC (mkPhiTy)
 import GHC.Types.SrcLoc qualified as GHC (mkRealSrcLoc)
+import GHC.Data.Bag (bagToList)
+import GHC.Tc.Utils.Env qualified as GHC (tcExtendIdEnv)
+import GHC.Types.Var.Env qualified as GHC (emptyTidyEnv)
+import GHC.Types.Name.Reader qualified as GHC
+  ( extendLocalRdrEnvList )
 
 import GHC.Plugin.OllamaHoles.Candidate.Compat
 import GHC.Plugin.OllamaHoles.Candidate.Rewrite
@@ -150,71 +155,81 @@ checkCandidateFit
   :: CheckCtx
   -> RenamedCandidate
   -> TcM (Either CandidateError CheckedCandidate)
-checkCandidateFit CheckCtx{cxHole} RenamedCandidate{rcSource, rcRenamed, rcLog}
-    | Just h <- th_hole cxHole = do
-        (zonkedCandidateTy, zonkedHoleTy) <-
-          inferCandidateType h
+checkCandidateFit CheckCtx{cxHole, cxDebug} RenamedCandidate{rcSource, rcRenamed, rcLog}
+  | Just h <- th_hole cxHole = do
+      zonkedHoleTy <- GHC.runTcSEarlyAbort $ GHC.zonkTcType (hole_ty h)
+      accepted <- checkCandidateExprAgainstHole rcRenamed zonkedHoleTy
 
+      when cxDebug $ do
         dflags <- getDynFlags
-
-        let fits =
-              tcEqType zonkedCandidateTy zonkedHoleTy
-
         liftIO $ do
           putStrLn $ "candidate source: " <> T.unpack rcSource
           putStrLn $ "hole type: " <> showSDoc dflags (ppr zonkedHoleTy)
-          putStrLn $ "candidate type: " <> showSDoc dflags (ppr zonkedCandidateTy)
-          putStrLn $ "tcEqType returned: " <> show fits
+          putStrLn $ "checked against hole type: " <> show accepted
 
-        pure $
-          if fits
-            then
-              Right $
-                CheckedCandidate
-                  { ccSource   = rcSource
-                  , ccRenamed  = rcRenamed
-                  , ccExprType = zonkedCandidateTy
-                  , ccLog      =
-                      addDecision StageCheck "validated against hole type" rcLog
-                  }
-            else
-              Left $
-                CandidateRejected "candidate type did not match hole type"
-    | otherwise =
-        pure $
-          Left $
-            CandidateRejected "hole information unavailable"
-      where
-        inferCandidateType h = do
-          ((tcLvl, exprTy), wanteds) <-
-            GHC.captureTopConstraints $
-              GHC.pushTcLevelM $
-                tcInferCandidateExpr rcRenamed
+      pure $
+        if accepted
+          then
+            Right $
+              CheckedCandidate
+                { ccSource   = rcSource
+                , ccRenamed  = rcRenamed
+                , ccExprType = zonkedHoleTy
+                , ccLog      =
+                    addDecision StageCheck "checked against hole type" rcLog
+                }
+          else
+            Left $
+              CandidateRejected "candidate expression did not check against hole type"
 
-          fresh <- GHC.newName (mkVarOcc "hf-fit")
+  | otherwise = pure $ Left $
+      CandidateRejected "hole information unavailable"
 
-          ((qtvs, dicts, _, _), residual) <-
-            GHC.captureConstraints $
-              simplifyCandidateInfer tcLvl GHC.NoRestrictions
-                []
-                [(fresh, exprTy)]
-                wanteds
+inferCandidateType
+  :: Hole -> LHsExpr GhcRn -> TcM (Either CandidateError (Type, Type))
+inferCandidateType h rcRenamed = do
+  ((tcLvl, exprTy), wanteds) <-
+    GHC.captureTopConstraints $
+      GHC.pushTcLevelM $
+        tcInferCandidateExpr rcRenamed
 
-          let rTy =
-                mkInfForAllTys qtvs $
-                  GHC.mkPhiTy (map idType dicts) exprTy
+  fresh <-
+    GHC.newName (mkVarOcc "hf-fit")
 
-          _ <- GHC.simplifyTop residual
+  ((qtvs, dicts, _, _), residual) <-
+    GHC.captureConstraints $
+      simplifyCandidateInfer tcLvl GHC.NoRestrictions
+        []
+        [(fresh, exprTy)]
+        wanteds
 
-          zonkedCandidateTy <-
-            GHC.runTcSEarlyAbort $
-              GHC.zonkTcType rTy
+  residualResult <-
+    GHC.discardErrs $ do
+      _ <- GHC.simplifyTop residual
+      GHC.ifErrsM
+        (pure False)
+        (pure True)
 
-          zonkedHoleTy <-
-            GHC.runTcSEarlyAbort $
-              GHC.zonkTcType (hole_ty h)
+  if not residualResult
+    then
+      pure $
+        Left $
+          CandidateRejected "candidate expression left unsolved residual constraints"
+    else do
+      let rTy =
+            mkInfForAllTys qtvs $
+              GHC.mkPhiTy (map idType dicts) exprTy
 
-          pure (zonkedCandidateTy, zonkedHoleTy)
+      zonkedCandidateTy <-
+        GHC.runTcSEarlyAbort $
+          GHC.zonkTcType rTy
+
+      zonkedHoleTy <-
+        GHC.runTcSEarlyAbort $
+          GHC.zonkTcType (hole_ty h)
+
+      pure $
+        Right (zonkedCandidateTy, zonkedHoleTy)
 
 
 
@@ -377,21 +392,21 @@ dedupePreparedCandidates =
 -- | Parse, alpha normalize, type check, and approximate a
 -- haskell expression.
 pipelineCandidate
-  :: ParseCtx -> RenameCtx -> CheckCtx -> PrepCtx -> Text
+  :: TypedHole -> ParseCtx -> RenameCtx -> CheckCtx -> PrepCtx -> Text
   -> TcM (Either CandidateError PreparedCandidate)
-pipelineCandidate parseCtx renameCtx checkCtx prepCtx src = do
+pipelineCandidate hole parseCtx renameCtx checkCtx prepCtx src = do
     parsedE <- parseCandidate parseCtx src
     case parsedE of
-        Left err ->
-            pure (Left err)
+        Left err -> pure (Left err)
         Right parsed -> do
-            renamedE <- renameCandidate renameCtx parsed
-            case renamedE of
-                Left err ->
-                    pure (Left err)
-                Right renamed -> do
-                    checkedE <- checkCandidateFit checkCtx renamed
-                    pure $ fmap (prepareCandidate prepCtx) checkedE
+            localIds <- getLocalBindingsFromHole hole
+            withCandidateLocalIds localIds $ do
+              renamedE <- renameCandidate renameCtx parsed
+              case renamedE of
+                  Left err -> pure (Left err)
+                  Right renamed -> do
+                      checkedE <- checkCandidateFit checkCtx renamed
+                      pure $ fmap (prepareCandidate prepCtx) checkedE
 
 
 
